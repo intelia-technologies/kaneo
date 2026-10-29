@@ -3,7 +3,6 @@ import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import { assertForkCi, forkCi } from "./intelia-fork-ci.mjs";
 
-const STATE_FILE = ".git/intelia-upstream-sync-state.json";
 const UPSTREAM_REPO_URL = "https://github.com/usekaneo/kaneo.git";
 
 export function validateRef(ref, isExplicit = false) {
@@ -35,71 +34,73 @@ export function getBranchName(ref) {
   return `intelia/upstream-${ref}`;
 }
 
-export function renderPrBody({
+export function parsePrepareArgs(args = []) {
+  let noBranchCheck = false;
+  let reportPath = null;
+  let explicitRef = null;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--no-branch-check") {
+      noBranchCheck = true;
+    } else if (arg === "--report") {
+      if (i + 1 < args.length) {
+        reportPath = args[++i];
+      } else {
+        throw new Error("Missing path for --report");
+      }
+    } else if (arg.startsWith("--report=")) {
+      reportPath = arg.slice("--report=".length);
+    } else if (arg.startsWith("-")) {
+      throw new Error(`Unknown option: ${arg}`);
+    } else {
+      if (!explicitRef) {
+        explicitRef = arg;
+      } else {
+        throw new Error(`Unexpected extra argument: ${arg}`);
+      }
+    }
+  }
+
+  if (!explicitRef && process.env.UPSTREAM_REF && process.env.UPSTREAM_REF.trim()) {
+    explicitRef = process.env.UPSTREAM_REF.trim();
+  }
+
+  return { noBranchCheck, reportPath, explicitRef };
+}
+
+export function buildReportData({
+  status,
   ref,
-  repo,
-  headSha,
+  branch,
+  sha = "",
+  changedFiles = [],
+  workflowsChanged = false,
+  drizzleChanged = false,
   autoResolvedFiles = [],
   addedWorkflows = [],
-  drizzleChanged = false,
+  conflictedFiles = [],
 }) {
-  const isTag = /^v\d+\.\d+\.\d+$/.test(ref);
-  const repoOwner = repo ? repo.split("/")[0] : "intelia-technologies";
-  const headSha12 = headSha ? headSha.slice(0, 12) : "unknown";
-  const candidateImage = `ghcr.io/${repoOwner}/kaneo:candidate-${headSha12}`;
-
-  const upstreamLink = isTag
-    ? `https://github.com/usekaneo/kaneo/releases/tag/${ref}`
-    : `https://github.com/usekaneo/kaneo/tree/${ref} (ensayo / rehearsal)`;
-
-  const resolvedSection =
-    autoResolvedFiles.length > 0
-      ? autoResolvedFiles
-          .map((f) => `- \`${f}\` (adaptado a GitHub Actions con \`forkCi\`)`)
-          .join("\n")
-      : "Ninguno (merge limpio).";
-
-  const workflowsSection =
-    addedWorkflows.length > 0
-      ? addedWorkflows
-          .map((w) => `- \`${w}\`: desactivar tras el merge con \`gh workflow disable\``)
-          .join("\n")
-      : "Ninguno.";
-
-  const drizzleSection = drizzleChanged
-    ? "Upstream ha modificado `apps/api/drizzle/`. Recordatorio: el fork nunca añade ficheros en este directorio (las migraciones propias van en el esquema `intelia`). Verificar que no haya colisiones de número o diario."
-    : "Sin cambios en `apps/api/drizzle/`.";
-
-  return `## Puesta al día con upstream ${ref}
-
-- **Upstream:** ${upstreamLink}
-- **Imagen candidata:** \`${candidateImage}\`
-
-### Ficheros autoresueltos
-${resolvedSection}
-
-### Nuevos workflows de upstream
-${workflowsSection}
-
-### Base de datos (Drizzle)
-${drizzleSection}
-
-### Checklist de adopción (ver [README-INTELIA.md](README-INTELIA.md))
-- [ ] CI de la PR en verde (incluidos smoke tests).
-- [ ] Tests live de la factory en verde contra la imagen candidata (\`${candidateImage}\`).
-- [ ] Revisar \`git diff ${ref} main\` para confirmar que los cambios propios siguen intactos.
-- [ ] Desactivar los nuevos workflows de upstream tras el merge con \`gh workflow disable\`.
-- [ ] Drizzle: confirmar que no hay ficheros propios en \`apps/api/drizzle/\`.
-- [ ] Merge de la PR con merge commit (nunca squash ni rebase).
-- [ ] Etiquetar versión \`${ref}-intelia.1\` en \`main\` tras el merge.
-- [ ] Despliegue gestionado desde la factory.
-`;
+  return {
+    status,
+    ref,
+    branch,
+    sha,
+    changedFiles,
+    workflowsChanged,
+    drizzleChanged,
+    autoResolvedFiles,
+    addedWorkflows,
+    conflictedFiles,
+  };
 }
 
 export function renderReport({
   status,
   ref,
   branch,
+  sha = "",
+  changedFiles = [],
   autoResolvedFiles = [],
   addedWorkflows = [],
   drizzleChanged = false,
@@ -107,27 +108,37 @@ export function renderReport({
 }) {
   let md = `## Sincronización con upstream: ${ref}\n\n`;
   md += `- **Estado:** \`${status}\`\n`;
-  md += `- **Rama:** \`${branch}\`\n\n`;
+  md += `- **Rama:** \`${branch}\`\n`;
 
   if (status === "ready") {
-    md += `### Resumen del merge\n`;
+    if (sha) {
+      md += `- **Commit:** \`${sha}\`\n`;
+    }
+    md += `- **Ficheros modificados:** ${changedFiles.length}\n`;
+    if (changedFiles.length > 0) {
+      md += `\n<details>\n<summary>Lista completa de ficheros modificados (${changedFiles.length})</summary>\n\n`;
+      md += changedFiles.map((f) => `- \`${f}\``).join("\n") + "\n";
+      md += `</details>\n\n`;
+    } else {
+      md += "\n";
+    }
     md += `- **Ficheros autoresueltos:** ${
       autoResolvedFiles.length > 0
         ? autoResolvedFiles.map((f) => `\`${f}\``).join(", ")
         : "Ninguno"
     }\n`;
-    md += `- **Nuevos workflows de upstream:** ${
+    md += `- **Nuevos workflows de upstream (a desactivar):** ${
       addedWorkflows.length > 0
         ? addedWorkflows.map((w) => `\`${w}\``).join(", ")
         : "Ninguno"
     }\n`;
-    md += `- **Cambios en Drizzle:** ${drizzleChanged ? "Sí (verificar en PR)" : "No"}\n`;
+    md += `- **Cambios en Drizzle:** ${drizzleChanged ? "Sí" : "No"}\n`;
   } else if (status === "uptodate") {
-    md += `La referencia de upstream \`${ref}\` ya es ancestro de HEAD. No se requiere sincronización.\n`;
+    md += `\nLa referencia de upstream \`${ref}\` ya es ancestro de HEAD. No se requiere sincronización.\n`;
   } else if (status === "open") {
-    md += `Ya existe la rama \`${branch}\` en el fork (con o sin pull request). No se sobreescribe el trabajo humano: abre la PR desde esa rama o bórrala para regenerarla.\n`;
+    md += `\nYa existe la rama \`${branch}\` en el fork (con o sin pull request). No se sobreescribe el trabajo humano: abre la PR desde esa rama o bórrala para regenerarla.\n`;
   } else if (status === "conflicts") {
-    md += `### Conflictos no resolubles automáticamente\n`;
+    md += `\n### Conflictos no resolubles automáticamente\n`;
     md += `Se ha abortado el merge debido a conflictos en:\n`;
     md += conflictedFiles.map((f) => `- \`${f}\``).join("\n") + "\n";
   }
@@ -186,7 +197,17 @@ function writeSummary(report) {
   }
 }
 
-export async function prepare(explicitRefArg) {
+export async function prepare(optsOrRef = {}) {
+  const opts =
+    typeof optsOrRef === "string"
+      ? { explicitRef: optsOrRef }
+      : optsOrRef;
+  const {
+    explicitRef: explicitRefArg = null,
+    noBranchCheck = false,
+    reportPath = null,
+  } = opts;
+
   let ref;
   let isExplicit = false;
 
@@ -239,33 +260,74 @@ export async function prepare(explicitRefArg) {
 
   if (isAncestor) {
     const status = "uptodate";
-    writeOutputs({ status, ref, branch });
-    const report = renderReport({ status, ref, branch });
+    const reportData = buildReportData({ status, ref, branch });
+    if (reportPath) {
+      fs.writeFileSync(
+        reportPath,
+        JSON.stringify(reportData, null, 2) + "\n",
+        "utf8",
+      );
+    }
+    writeOutputs({
+      status,
+      ref,
+      branch,
+      sha: "",
+      workflows_changed: "false",
+    });
+    const report = renderReport(reportData);
     writeSummary(report);
-    return { status, ref, branch };
+    return reportData;
   }
 
   // Never clobber an existing sync branch (open PR or manual conflict resolution in progress).
-  const repo = process.env.GITHUB_REPOSITORY;
-  if (repo) {
-    const prs = JSON.parse(
-      execFileSync(
-        "gh",
-        ["pr", "list", "--repo", repo, "--head", branch, "--state", "open", "--json", "number"],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-      ),
-    );
-    const remoteBranch = execGit([
-      "ls-remote",
-      "--heads",
-      `https://github.com/${repo}.git`,
-      `refs/heads/${branch}`,
-    ]).trim();
-    if (prs.length > 0 || remoteBranch) {
-      const status = "open";
-      writeOutputs({ status, ref, branch });
-      writeSummary(renderReport({ status, ref, branch }));
-      return { status, ref, branch };
+  if (!noBranchCheck) {
+    const repo = process.env.GITHUB_REPOSITORY;
+    if (repo) {
+      const prs = JSON.parse(
+        execFileSync(
+          "gh",
+          [
+            "pr",
+            "list",
+            "--repo",
+            repo,
+            "--head",
+            branch,
+            "--state",
+            "open",
+            "--json",
+            "number",
+          ],
+          { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+        ),
+      );
+      const remoteBranch = execGit([
+        "ls-remote",
+        "--heads",
+        `https://github.com/${repo}.git`,
+        `refs/heads/${branch}`,
+      ]).trim();
+      if (prs.length > 0 || remoteBranch) {
+        const status = "open";
+        const reportData = buildReportData({ status, ref, branch });
+        if (reportPath) {
+          fs.writeFileSync(
+            reportPath,
+            JSON.stringify(reportData, null, 2) + "\n",
+            "utf8",
+          );
+        }
+        writeOutputs({
+          status,
+          ref,
+          branch,
+          sha: "",
+          workflows_changed: "false",
+        });
+        writeSummary(renderReport(reportData));
+        return reportData;
+      }
     }
   }
 
@@ -303,16 +365,30 @@ export async function prepare(explicitRefArg) {
     if (otherConflicts.length > 0) {
       execGit(["merge", "--abort"]);
       const status = "conflicts";
-      writeOutputs({ status, ref, branch });
-      for (const f of unmerged) {
-        console.error(`::error file=${f}::Merge conflict in ${f}`);
-      }
-      const report = renderReport({
+      const reportData = buildReportData({
         status,
         ref,
         branch,
         conflictedFiles: unmerged,
       });
+      if (reportPath) {
+        fs.writeFileSync(
+          reportPath,
+          JSON.stringify(reportData, null, 2) + "\n",
+          "utf8",
+        );
+      }
+      writeOutputs({
+        status,
+        ref,
+        branch,
+        sha: "",
+        workflows_changed: "false",
+      });
+      for (const f of unmerged) {
+        console.error(`::error file=${f}::Merge conflict in ${f}`);
+      }
+      const report = renderReport(reportData);
       writeSummary(report);
       process.exit(1);
     }
@@ -334,19 +410,16 @@ export async function prepare(explicitRefArg) {
   // Commit the merge
   execGit([...identity, "commit", "-m", `chore: merge upstream ${ref}`]);
 
-  // Collect merge details
-  const addedWorkflows = execGit([
-    "diff",
-    "--name-only",
-    "--diff-filter=A",
-    "HEAD^1",
-    "HEAD",
-    "--",
-    ".github/workflows",
-  ])
+  const sha = execGit(["rev-parse", "HEAD"]).trim();
+
+  const changedFiles = execGit(["diff", "--name-only", "HEAD^1", "HEAD"])
     .trim()
     .split("\n")
     .filter(Boolean);
+
+  const workflowsChanged = changedFiles.some((f) =>
+    f.startsWith(".github/workflows/"),
+  );
 
   const drizzleFiles = execGit([
     "diff",
@@ -361,119 +434,53 @@ export async function prepare(explicitRefArg) {
     .filter(Boolean);
 
   const drizzleChanged = drizzleFiles.length > 0;
+
+  const addedWorkflows = execGit([
+    "diff",
+    "--name-only",
+    "--diff-filter=A",
+    "HEAD^1",
+    "HEAD",
+    "--",
+    ".github/workflows",
+  ])
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+
   const status = "ready";
-
-  // Persist state in git checkout for publish step
-  const stateData = {
-    ref,
-    branch,
-    autoResolvedFiles,
-    addedWorkflows,
-    drizzleChanged,
-  };
-  fs.writeFileSync(STATE_FILE, JSON.stringify(stateData, null, 2), "utf8");
-
-  writeOutputs({ status, ref, branch });
-  const report = renderReport({
+  const reportData = buildReportData({
     status,
     ref,
     branch,
+    sha,
+    changedFiles,
+    workflowsChanged,
+    drizzleChanged,
     autoResolvedFiles,
     addedWorkflows,
-    drizzleChanged,
   });
+
+  if (reportPath) {
+    fs.writeFileSync(
+      reportPath,
+      JSON.stringify(reportData, null, 2) + "\n",
+      "utf8",
+    );
+  }
+
+  writeOutputs({
+    status,
+    ref,
+    branch,
+    sha,
+    workflows_changed: workflowsChanged ? "true" : "false",
+  });
+
+  const report = renderReport(reportData);
   writeSummary(report);
 
-  return {
-    status,
-    ref,
-    branch,
-    autoResolvedFiles,
-    addedWorkflows,
-    drizzleChanged,
-  };
-}
-
-export async function publish() {
-  const token = process.env.GH_TOKEN;
-  if (!token) {
-    throw new Error("GH_TOKEN is required for publish");
-  }
-
-  const repo = process.env.GITHUB_REPOSITORY;
-  if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) {
-    throw new Error(
-      `Valid GITHUB_REPOSITORY (owner/repo) is required for publish, got "${repo}"`,
-    );
-  }
-
-  const branch = execGit(["branch", "--show-current"]).trim();
-  if (!branch.startsWith("intelia/upstream-")) {
-    throw new Error(
-      `Expected current branch to start with 'intelia/upstream-', got '${branch}'`,
-    );
-  }
-  const ref = branch.replace(/^intelia\/upstream-/, "");
-
-  const headSha = execGit(["rev-parse", "HEAD"]).trim();
-
-  // prepare leaves its state in .git of the same checkout; publish never runs without it.
-  const { autoResolvedFiles, addedWorkflows, drizzleChanged } = JSON.parse(
-    fs.readFileSync(STATE_FILE, "utf8"),
-  );
-
-  // Push branch without echoing the token
-  const pushUrl = `https://x-access-token:${token}@github.com/${repo}.git`;
-  try {
-    execFileSync("git", ["push", pushUrl, `HEAD:refs/heads/${branch}`], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-  } catch (err) {
-    const sanitizedMsg = (err.message || "").replaceAll(token, "***");
-    const sanitizedStderr = (err.stderr ? err.stderr.toString() : "").replaceAll(
-      token,
-      "***",
-    );
-    throw new Error(
-      `Git push failed without exposing credentials: ${sanitizedMsg}\n${sanitizedStderr}`,
-    );
-  }
-
-  // Create PR
-  const title = `chore: merge upstream ${ref}`;
-  const body = renderPrBody({
-    ref,
-    repo,
-    headSha,
-    autoResolvedFiles,
-    addedWorkflows,
-    drizzleChanged,
-  });
-
-  const prOutput = execFileSync(
-    "gh",
-    [
-      "pr",
-      "create",
-      "--repo",
-      repo,
-      "--base",
-      "main",
-      "--head",
-      branch,
-      "--title",
-      title,
-      "--body",
-      body,
-    ],
-    {
-      env: { ...process.env, GH_TOKEN: token },
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-
-  console.log(`Created PR: ${prOutput.trim()}`);
+  return reportData;
 }
 
 // Workflows the fork runs. Every other upstream workflow stays disabled; GitHub only
@@ -519,15 +526,13 @@ export function disableWorkflows() {
 async function main() {
   const subcommand = process.argv[2];
   if (subcommand === "prepare") {
-    const explicitRef = process.argv[3] || process.env.UPSTREAM_REF;
-    await prepare(explicitRef);
-  } else if (subcommand === "publish") {
-    await publish();
+    const parsed = parsePrepareArgs(process.argv.slice(3));
+    await prepare(parsed);
   } else if (subcommand === "disable-workflows") {
     disableWorkflows();
   } else {
     console.error(
-      "Usage: node scripts/ci/intelia-upstream-sync.mjs <prepare|publish|disable-workflows> [ref]",
+      "Usage: node scripts/ci/intelia-upstream-sync.mjs <prepare|disable-workflows> [options] [ref]",
     );
     process.exit(1);
   }
