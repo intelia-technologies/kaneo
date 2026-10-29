@@ -97,6 +97,7 @@ Pasos de adopción:
 4. **Merge de la PR:** Forja mergea la PR hacia `main` usando siempre **merge commit** (nunca squash ni rebase).
 5. **Etiquetar release en main:** crear y subir el tag de release de Intelia:
    ```sh
+   git fetch origin main
    git tag -a vX.Y.Z-intelia.1 -m vX.Y.Z-intelia.1 origin/main
    git push origin vX.Y.Z-intelia.1
    ```
