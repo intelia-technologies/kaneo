@@ -44,7 +44,7 @@ Kaneo se distribuye bajo licencia MIT. Se conservan [`LICENSE`](LICENSE) y el av
 El proceso de puesta al día está automatizado mediante `.github/workflows/intelia-upstream-sync.yml` y `scripts/ci/intelia-upstream-sync.mjs`:
 
 - **Automatización semanal:** se ejecuta cada lunes a las 05:00 UTC (`0 5 * * 1`) y bajo demanda (`workflow_dispatch`). Funciona exclusivamente con `GITHUB_TOKEN` (sin credenciales ni GitHub App).
-- **Preparación del merge:** detecta la versión más reciente de upstream (o la indicada en `UPSTREAM_REF`) y prepara el merge en el runner, resolviendo automáticamente los conflictos en `.github/workflows/ci.yml` con `forkCi()`.
+- **Preparación del merge:** detecta la última release de upstream (o la referencia del input `upstream_ref`) y prepara el merge en el runner, resolviendo automáticamente el conflicto de `.github/workflows/ci.yml` con `forkCi()`. No abre PR: la factory lee el mismo resultado, avisa y se abre la tarea de adopción.
 - **Estados de sincronización:**
   - `uptodate`: la última versión de upstream ya es ancestro de `main`. No requiere acción.
   - `open`: ya existe la rama `intelia/upstream-<ref>` en el fork (con o sin pull request). No se sobreescribe el trabajo humano; para regenerarla, cerrar la PR, borrar la rama y relanzar.
@@ -58,7 +58,7 @@ El proceso de puesta al día está automatizado mediante `.github/workflows/inte
 
 ## Runbook de adopción
 
-La adopción de una nueva versión de upstream la realiza un coder de forma **manual** (con su propia credencial de `gh` que tenga el scope `workflow`), con periodicidad **mensual**, o **inmediata fuera de ciclo** si upstream publica arreglos de seguridad (identificables en las notas de la release o en los avisos GHSA del repositorio upstream).
+La adopción de una nueva versión de upstream la realiza un coder de forma **manual** (con su propia credencial de `gh` que tenga el scope `workflow`), a partir del aviso de la factory: con periodicidad **mensual**, o **inmediata fuera de ciclo** si upstream publica arreglos de seguridad (identificables en las notas de la release o en los avisos GHSA del repositorio upstream).
 
 Pasos de adopción:
 
@@ -68,12 +68,12 @@ Pasos de adopción:
      git fetch origin
      git checkout intelia/upstream-<ref>
      ```
-   - Si el job semanal no empujó la rama (por cambios en workflows) o no hay conflictos:
+   - Si no hay rama empujada, prepararla en local desde `main` actualizado:
      ```sh
-     node scripts/ci/intelia-upstream-sync.mjs prepare <ref>
+     node scripts/ci/intelia-upstream-sync.mjs prepare vX.Y.Z
      ```
-     Esto crea localmente la rama con el merge y `.github/workflows/ci.yml` resuelto cuando no hay otros conflictos.
-   - Si hay conflictos que requieren resolución manual (siempre merge, nunca rebase):
+     Con estado `ready` deja la rama `intelia/upstream-vX.Y.Z` con el merge hecho y `ci.yml` resuelto. Con `conflicts` aborta y lista los ficheros: entonces, a mano:
+   - Resolución manual de conflictos (siempre merge, nunca rebase):
      ```sh
      git fetch origin
      git fetch --no-tags https://github.com/usekaneo/kaneo.git tag vX.Y.Z
