@@ -2,7 +2,7 @@
 
 Este repositorio es el fork de [Kaneo](https://github.com/usekaneo/kaneo) que mantiene Intelia (`intelia-technologies/kaneo`). Desplegamos Kaneo desde nuestras imágenes, no desde las públicas. Diseño de referencia: [diseño 11: fork de Kaneo](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-fork-kaneo.md) en `intelia-technologies/software-factory`.
 
-Además de este fichero, el fork solo adapta la CI de upstream a runners de GitHub y añade el workflow de versión (ver «CI y versiones»). El `README.md` original se conserva intacto.
+Además de este fichero, el fork adapta la CI de upstream a runners de GitHub, añade los workflows de sincronización, imagen candidata y versiones (ver «CI y versiones»), y herramientas auxiliares en `scripts/ci/intelia-*.mjs`. El `README.md` original se conserva intacto.
 
 **Este repositorio es público.** Aquí no va nada interno de Intelia: ni secretos, ni hostnames o IPs, ni configuración de despliegue, ni datos de clientes o de la factory. Todo eso vive en `software-factory`, que es privado. Código propietario dentro de Kaneo, solo tras hablarlo antes. Secret scanning y push protection están activados.
 
@@ -39,15 +39,71 @@ Kaneo se distribuye bajo licencia MIT. Se conservan [`LICENSE`](LICENSE) y el av
 - **Imagen:** la «todo en uno» de upstream (`Dockerfile.kaneo`: API en Node más Nginx con la SPA), publicada como `ghcr.io/intelia-technologies/kaneo:X.Y.Z-intelia.N`.
 - **CI y versión:** ver «CI y versiones».
 
-Para incorporar una versión nueva de upstream:
+## Puesta al día con upstream
+
+El proceso de puesta al día está automatizado mediante `.github/workflows/intelia-upstream-sync.yml` y `scripts/ci/intelia-upstream-sync.mjs`:
+
+- **Automatización semanal:** se ejecuta cada lunes a las 05:00 UTC (`0 5 * * 1`) y bajo demanda (`workflow_dispatch`).
+- **Estados de sincronización:**
+  - `uptodate`: la última versión de upstream ya es ancestro de `main`. No requiere acción.
+  - `open`: ya existe la rama `intelia/upstream-<ref>` en el fork (con PR abierta o con una resolución manual en curso). No se sobreescribe; para regenerarla, cerrar la PR, borrar la rama y relanzar.
+  - `conflicts`: hay conflictos fuera de `.github/workflows/ci.yml`. El merge se aborta, el resumen de la ejecución los lista (con anotaciones por fichero) y el workflow falla. Se resuelven a mano (ver abajo).
+  - `ready`: el merge es limpio o su conflicto en `.github/workflows/ci.yml` se ha resuelto automáticamente con `forkCi()`. Se crea la PR hacia `main`.
+- **Ramas e imágenes:**
+  - Rama de sincronización: `intelia/upstream-<ref>` (ejemplo: `intelia/upstream-v2.49.0`).
+  - Imagen candidata: ante cada push a la PR, `.github/workflows/intelia-candidate.yml` compila `Dockerfile.kaneo` (linux/amd64) y publica `ghcr.io/intelia-technologies/kaneo:candidate-<sha12>`, donde `<sha12>` son los 12 primeros caracteres del commit head de la PR.
+- **Ensayo:** `gh workflow run intelia-upstream-sync.yml -f upstream_ref=main` ensaya el merge de la rama principal de upstream sin esperar a un tag. La PR de ensayo se cierra sin mergear y se borra su rama.
+- **Por qué una GitHub App:** el `GITHUB_TOKEN` no puede empujar cambios en `.github/workflows/**` (casi todo merge de upstream los trae) y las PR que abre no disparan la CI. El push y la PR van con el token de la app (ver «Alta de la app de sincronización»).
+
+Resolución manual de conflictos (siempre merge, nunca rebase):
 
 ```sh
-git remote add upstream https://github.com/usekaneo/kaneo.git   # una sola vez
-git fetch upstream --tags
-git checkout -b upstream/vX.Y.Z main
-git merge vX.Y.Z          # merge, nunca rebase
-# PR hacia main; si ci.yml choca, tomar el de upstream y reaplicar la tabla de «CI y versiones»
+git fetch origin
+git fetch --no-tags https://github.com/usekaneo/kaneo.git tag vX.Y.Z
+git checkout -b intelia/upstream-vX.Y.Z origin/main
+git merge --no-ff vX.Y.Z
+# si choca ci.yml: tomar el de upstream y reaplicar la adaptación del fork
+git checkout --theirs .github/workflows/ci.yml && node scripts/ci/intelia-fork-ci.mjs .github/workflows/ci.yml
+# resolver el resto, git add, git commit
+git push origin intelia/upstream-vX.Y.Z
+gh pr create --base main --head intelia/upstream-vX.Y.Z --title "chore: merge upstream vX.Y.Z"
 ```
+
+## Runbook de adopción
+
+La adopción de una nueva versión de upstream es **mensual**, o **inmediata fuera de ciclo** si upstream publica arreglos de seguridad (identificables en las notas de la release o en los avisos GHSA del repositorio upstream).
+
+Checklist para adoptar una versión:
+
+1. **CI de la PR en verde:** comprobar que todos los checks (`quality`, `unit`, `integration`, `smoke`, `docker-build`, `workflows`) pasan en la PR de sincronización.
+2. **Tests live de la factory en verde:** verificar que los tests live de la suite de integración de la factory pasan contra la imagen candidata `candidate-<sha12>` (ejecutados en el repositorio privado de la factory).
+3. **Revisión de cambios propios:** inspeccionar `git diff vX.Y.Z main` para confirmar que las adaptaciones y personalizaciones de Intelia siguen intactas.
+4. **Desactivar nuevos workflows de upstream:** si upstream añadió workflows nuevos (listados en el cuerpo de la PR), desactivarlos inmediatamente tras el merge con `gh workflow disable <fichero>`.
+5. **Drizzle:** verificar que no existan migraciones propias en `apps/api/drizzle/` ni conflictos de secuencia en `meta/_journal.json`.
+6. **Merge de la PR:** mergear la PR hacia `main` usando siempre **merge commit** (nunca squash ni rebase).
+7. **Etiquetar release en main:** crear y subir el tag de release de Intelia:
+   ```sh
+   git tag -a vX.Y.Z-intelia.1 -m vX.Y.Z-intelia.1 origin/main
+   git push origin vX.Y.Z-intelia.1
+   ```
+8. **Despliegue:** el despliegue efectivo a los entornos se gestiona desde `software-factory`.
+
+## Alta de la app de sincronización
+
+Configuración única inicial de operaciones (ops):
+
+1. **Crear la GitHub App:**
+   - En la organización Intelia, crear una GitHub App dedicada para la sincronización.
+   - Permisos de repositorio requeridos:
+     - **Contents:** Read and write (para crear ramas y empujar commits de merge).
+     - **Pull requests:** Read and write (para abrir la PR de actualización).
+     - **Workflows:** Read and write (para actualizar `.github/workflows/**` en los merges).
+     - **Metadata:** Read-only.
+2. **Instalación:** instalar la App exclusivamente en el repositorio `intelia-technologies/kaneo`.
+3. **Entorno en GitHub:** configurar en el repositorio el entorno `upstream-sync` con política de despliegue restringida a la rama `main`:
+   - Variable de entorno: `KANEO_SYNC_APP_ID` (App ID numérico).
+   - Secreto de entorno: `KANEO_SYNC_APP_PRIVATE_KEY` (clave privada PEM de la App).
+4. **Rotación de claves:** para rotar la clave, generar un nuevo par de claves en la GitHub App, actualizar el secreto `KANEO_SYNC_APP_PRIVATE_KEY` en el entorno `upstream-sync` y revocar la clave anterior tras validar la sincronización.
 
 ## CI y versiones
 
@@ -61,8 +117,8 @@ git merge vX.Y.Z          # merge, nunca rebase
   | `useblacksmith/build-push-action` | `docker/build-push-action` |
 
 - **Prueba de actualización** (`scripts/ci/upgrade.sh`, job `docker-build`): parte de la imagen de upstream de la versión de `package.json` (`ghcr.io/usekaneo/kaneo:X.Y.Z`, la que lleva dentro el fork) en vez de la última release del repo, con `KANEO_UPGRADE_REPOSITORY` y `KANEO_UPGRADE_TAG`.
-- **Resto de workflows de upstream** (publicación en npm, Helm, la web, avisos a Discord, bots de PR, nightly…): desactivados en Actions del fork con `gh workflow disable`, no borrados, para que el merge de upstream no choque. Activos: `CI`, `Intelia release` y CodeQL. Si upstream añade un workflow nuevo, se desactiva igual.
-- **Versión** (`.github/workflows/intelia-release.yml`): al empujar un tag `vX.Y.Z-intelia.N` comprueba que el commit está en `main` con la CI en verde y que `X.Y.Z` es la versión de `package.json`; construye `Dockerfile.kaneo` (amd64 y arm64) y publica `ghcr.io/intelia-technologies/kaneo:X.Y.Z-intelia.N` con el `GITHUB_TOKEN` del propio fork. El digest queda en el resumen de la ejecución. El fork no guarda credenciales de Intelia ni avisa a nadie: el despliegue se lanza desde `software-factory`.
+- **Resto de workflows de upstream** (publicación en npm, Helm, la web, avisos a Discord, bots de PR, nightly…): desactivados en Actions del fork con `gh workflow disable`, no borrados, para que el merge de upstream no choque. Activos: `CI`, `Intelia release`, `Intelia upstream sync`, `Intelia candidate image` y CodeQL. Si upstream añade un workflow nuevo, se desactiva igual.
+- **Versión** (`.github/workflows/intelia-release.yml`): al empujar un tag `vX.Y.Z-intelia.N` comprueba que el commit está en `main` con la CI en verde y que `X.Y.Z` es la versión de `package.json`; construye `Dockerfile.kaneo` (amd64 y arm64) y publica `ghcr.io/intelia-technologies/kaneo:X.Y.Z-intelia.N` con el `GITHUB_TOKEN` del propio fork. El digest queda en el resumen de la ejecución. El fork contiene únicamente la credencial de la GitHub App de sincronización, en el entorno `upstream-sync`, acotada a este repositorio; nada más. El despliegue se gestiona desde `software-factory`.
 
 ```sh
 git tag -a v2.48.0-intelia.1 -m v2.48.0-intelia.1 origin/main
