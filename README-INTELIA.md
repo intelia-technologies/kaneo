@@ -57,3 +57,24 @@ Reglas:
 - **Nunca se añaden migraciones a `apps/api/drizzle/` ni a su `meta/_journal.json`.**
 - **Nunca alteramos tablas de upstream.** Las nuestras pueden referenciarlas (por ejemplo, con `ON DELETE CASCADE` hacia el id de un comentario).
 - Si upstream acepta una función nuestra, se migra de nuestras tablas a las suyas con una migración propia que mueve los datos.
+
+### Migrador del esquema `intelia`
+
+| Qué | Dónde |
+|---|---|
+| Tablas (Drizzle) | `apps/api/src/intelia/schema.ts`, con `inteliaSchema.table(...)` |
+| Migraciones y su diario | `apps/api/drizzle-intelia/` y `apps/api/drizzle-intelia/meta/_journal.json` |
+| Registro de aplicadas | tabla `intelia.__intelia_migrations` (la de upstream es `drizzle.__drizzle_migrations`) |
+| Migrador | `migrateInteliaSchema` en `apps/api/src/intelia/migrate.ts`, llamado en `runStartupTasks` (`apps/api/src/index.ts`) justo después del de upstream |
+| Configuración de drizzle-kit | `apps/api/drizzle-intelia.config.ts` |
+
+Para generar una migración nueva, tras cambiar `apps/api/src/intelia/schema.ts`:
+
+```sh
+cd apps/api
+pnpm exec drizzle-kit generate --config drizzle-intelia.config.ts --name <nombre>
+```
+
+Nunca con `pnpm db:generate` ni con `drizzle.config.ts`: esos escriben en el diario de upstream. La primera migración (`0000_intelia_schema`) es `CREATE SCHEMA IF NOT EXISTS`, porque el migrador crea el esquema antes para guardar su registro.
+
+El test `tests/api-integration/intelia-schema-migrations.test.ts` reproduce el arranque en una base de datos aparte y simula el merge de una versión de upstream con una migración nueva: se aplican las de los dos.

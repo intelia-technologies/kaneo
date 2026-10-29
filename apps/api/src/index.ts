@@ -58,6 +58,7 @@ import importRoutes from "./import";
 import { stopActiveImports } from "./import/runs/stop-active-imports";
 import getInstanceStatus from "./instance/controllers/get-instance-status";
 import invitation from "./invitation";
+import { migrateInteliaSchema } from "./intelia/migrate";
 import label from "./label";
 import mattermostIntegration from "./mattermost-integration";
 import mcpRoutes, { mcpWellKnownRoutes } from "./mcp";
@@ -1019,6 +1020,13 @@ export async function runStartupTasks() {
         migrationsFolder: `${currentDir}/../drizzle`,
       });
       console.log("✅ Database migrated successfully!");
+
+      console.log("🔄 Migrating intelia schema...");
+      await migrateInteliaSchema(
+        getDatabase(),
+        `${currentDir}/../drizzle-intelia`,
+      );
+      console.log("✅ Intelia schema migrated successfully!");
     },
   });
 
