@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { renderPrBody, renderReport, validateRef } from "./intelia-upstream-sync.mjs";
+import {
+  renderPrBody,
+  renderReport,
+  validateRef,
+  workflowsToDisable,
+} from "./intelia-upstream-sync.mjs";
 
 test("validateRef: the latest release must be a stable vX.Y.Z tag", () => {
   assert.equal(validateRef("v2.48.0", false), "v2.48.0");
@@ -60,4 +65,21 @@ test("renderReport: a conflicts report lists every conflicted file", () => {
   assert.ok(report.includes("`conflicts`"));
   assert.ok(report.includes("`package.json`"));
   assert.ok(report.includes("`apps/api/src/index.ts`"));
+});
+
+test("workflowsToDisable: only active upstream workflows outside the fork's set", () => {
+  const workflows = [
+    { id: 1, path: ".github/workflows/ci.yml", state: "active" },
+    { id: 2, path: ".github/workflows/intelia-release.yml", state: "active" },
+    { id: 3, path: ".github/workflows/intelia-upstream-sync.yml", state: "active" },
+    { id: 4, path: ".github/workflows/intelia-candidate.yml", state: "active" },
+    { id: 5, path: "dynamic/github-code-scanning/codeql", state: "active" },
+    { id: 6, path: ".github/workflows/nightly.yml", state: "active" },
+    { id: 7, path: ".github/workflows/mellon.yml", state: "active" },
+    { id: 8, path: ".github/workflows/release.yml", state: "disabled_manually" },
+  ];
+  assert.deepEqual(
+    workflowsToDisable(workflows).map((w) => w.id),
+    [6, 7],
+  );
 });

@@ -476,6 +476,46 @@ export async function publish() {
   console.log(`Created PR: ${prOutput.trim()}`);
 }
 
+// Workflows the fork runs. Every other upstream workflow stays disabled; GitHub only
+// registers a workflow (and lets us disable it) after its first event.
+const FORK_WORKFLOWS = new Set([
+  ".github/workflows/ci.yml",
+  ".github/workflows/intelia-release.yml",
+  ".github/workflows/intelia-upstream-sync.yml",
+  ".github/workflows/intelia-candidate.yml",
+]);
+
+export function workflowsToDisable(workflows) {
+  return workflows.filter(
+    (w) =>
+      w.state === "active" &&
+      !FORK_WORKFLOWS.has(w.path) &&
+      // dynamic/* are GitHub-managed (CodeQL default setup, Dependabot), not upstream files.
+      !w.path.startsWith("dynamic/"),
+  );
+}
+
+export function disableWorkflows() {
+  const repo = process.env.GITHUB_REPOSITORY;
+  const pages = JSON.parse(
+    execFileSync(
+      "gh",
+      ["api", "--paginate", "--slurp", `repos/${repo}/actions/workflows?per_page=100`],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    ),
+  );
+  const targets = workflowsToDisable(pages.flatMap((page) => page.workflows));
+  for (const w of targets) {
+    execFileSync("gh", ["api", "-X", "PUT", `repos/${repo}/actions/workflows/${w.id}/disable`], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  }
+  const report = targets.length
+    ? `## Workflows de upstream desactivados\n\n${targets.map((w) => `- \`${w.path}\``).join("\n")}\n`
+    : "## Workflows de upstream desactivados\n\nNinguno: no había ninguno activo fuera de los del fork.\n";
+  writeSummary(report);
+}
+
 async function main() {
   const subcommand = process.argv[2];
   if (subcommand === "prepare") {
@@ -483,9 +523,11 @@ async function main() {
     await prepare(explicitRef);
   } else if (subcommand === "publish") {
     await publish();
+  } else if (subcommand === "disable-workflows") {
+    disableWorkflows();
   } else {
     console.error(
-      "Usage: node scripts/ci/intelia-upstream-sync.mjs <prepare|publish> [ref]",
+      "Usage: node scripts/ci/intelia-upstream-sync.mjs <prepare|publish|disable-workflows> [ref]",
     );
     process.exit(1);
   }
