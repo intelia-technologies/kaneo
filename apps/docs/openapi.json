@@ -25368,6 +25368,108 @@
           }
         }
       }
+    },
+    "/intelia/user/avatar": {
+      "put": {
+        "operationId": "setUserAvatar",
+        "tags": [
+          "User"
+        ],
+        "summary": "Upload avatar and set it as the profile picture",
+        "description": "Store a base64 encoded avatar (PNG, JPEG, or WebP, up to 512KB) for the current user, replacing any existing one, and set the user's image to its public URL. Works with an API key.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contentType": {
+                    "type": "string",
+                    "maxLength": 64,
+                    "description": "One of image/png, image/jpeg, or image/webp.",
+                    "example": "image/png"
+                  },
+                  "data": {
+                    "type": "string",
+                    "maxLength": 700076,
+                    "description": "Base64 encoded image bytes."
+                  }
+                },
+                "required": [
+                  "contentType",
+                  "data"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Avatar stored and set as the user's image",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAvatar"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unsupported content type, malformed base64, or too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The custom OAuth/OIDC provider manages the profile picture",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "Request body timed out",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the upload limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
     }
   },
   "webhooks": {}
