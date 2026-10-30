@@ -1,7 +1,8 @@
 name: Intelia release
 
 # Intelia fork (README-INTELIA.md): a vX.Y.Z-intelia.N tag on reviewed main
-# publishes the bundled image as ghcr.io/<owner>/kaneo:X.Y.Z-intelia.N.
+# publishes the bundled image as ghcr.io/<owner>/kaneo:X.Y.Z-intelia.N once the
+# fork's CI and the integration tests pass on that commit.
 on:
   push:
     tags:
@@ -17,10 +18,9 @@ jobs:
   verify:
     name: Verify release source
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 5
     permissions:
       contents: read
-      actions: read
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -50,14 +50,22 @@ jobs:
           fi
           git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-      - name: Wait for successful main CI on this exact commit
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/ci/require-ci.mjs
+
+  ci:
+    needs: verify
+    permissions:
+      contents: read
+    uses: ./.github/workflows/intelia-ci.yml # zizmor: ignore[self-repository] $/-syntax not parsed by pinned actionlint v1.7.12; revisit when supported
+
+  integration:
+    needs: verify
+    permissions:
+      contents: read
+    uses: ./.github/workflows/intelia-integration.yml # zizmor: ignore[self-repository] $/-syntax not parsed by pinned actionlint v1.7.12; revisit when supported
 
   image:
     name: Image
-    needs: verify
+    needs: [verify, ci, integration]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
