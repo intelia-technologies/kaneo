@@ -42,7 +42,8 @@ Kaneo se distribuye bajo licencia MIT. Se conservan [`LICENSE`](LICENSE) y el av
   - `apps/api/src/index.ts`: migrador `intelia` al arrancar, montaje de `/api/intelia` (un solo router, `apps/api/src/intelia/index.ts`, que reúne los nuestros) y `AppType`.
   - `apps/api/src/scheduler/index.ts`: el job de las rutinas programadas. `apps/api/src/plugins/generic-webhook/events.ts`: `export` de `sendEvent`, para mandar `intelia.routine_skipped` con el sobre y la firma de upstream.
   - `Dockerfile.kaneo` y `apps/api/Dockerfile`: `COPY` de `drizzle-intelia`. `vite.config.ts`: ignora `drizzle-intelia/meta/**`.
-  - `apps/web/src/components/activity/comment-card.tsx` e `index.tsx`, y `apps/web/src/components/task/task-details-content.tsx`: las fichas de reacciones.
+  - `apps/web/src/components/activity/comment-card.tsx` e `index.tsx`, y `apps/web/src/components/task/task-details-content.tsx`: las fichas de reacciones y el panel «Programación» de las rutinas.
+  - `apps/web/src/components/nav-main.tsx`: el enlace a la pantalla «Rutinas».
   - `apps/web/src/components/project/views/project-views.ts`, `layout-switch.tsx`, `store/user-preferences.ts` y `hooks/use-project-websocket.ts`: el registro y el tiempo real de la vista «Dependencias».
   - `tests/api-integration/helpers/database.ts`: migrador `intelia` en los tests de integración.
   - `scripts/ci/upgrade.sh`: versión de partida configurable para la prueba de actualización.
@@ -265,6 +266,13 @@ Una rutina es una tarea que se **reabre a In progress** según una expresión cr
   ```
 
   `task` es la tarea en el momento del aviso (sigue abierta; `status` es su columna). `data.owner` es el dueño de la rutina (usuario de Kaneo), a quien hay que avisar; `data.runId` es la fila del historial.
+- **Web** (código en `apps/web/src/intelia/routines/`, ruta `routes/.../$workspaceId/routines.tsx`):
+  - **Panel «Programación»** en el detalle de la tarea, bajo «Recursos»: atajos (cada N horas, cada día a una hora, unos días de la semana a una hora) y cron libre para lo demás (`schedule.ts` traduce entre atajo y cron; un cron que no encaja en un atajo se edita como cron libre). La zona horaria es la del navegador al programar y se conserva al cambiar. Enseña la programación en texto, la próxima ejecución, el interruptor de pausa y las cinco últimas ejecuciones. Con la recurrencia de upstream en la tarea no ofrece programar.
+  - **Pantalla «Rutinas»** del espacio de trabajo, en el menú lateral tras «My tasks»: tarea, proyecto, a quién va, cuándo (en texto, con el cron en el tooltip), próxima, última y cómo acabó, dueño, y el interruptor para pausar o activar. Clic en la fila abre la tarea.
+  - Pausar o activar es un `PUT` con el mismo cron y zona horaria: quien lo hace pasa a ser el dueño, como en la API.
+  - **Solo se ofrece lo que se puede hacer:** sin `task:update` (la capacidad `updateTasks` de `useWorkspacePermission`), el panel no enseña ni programar, ni cambiar, ni quitar, y el interruptor de las dos vistas queda deshabilitado con un tooltip que lo explica (`components/active-switch.tsx`). En ese caso no se lanza ninguna mutación.
+  - **Ficheros de upstream:** dos líneas en `task-details-content.tsx` (el panel) y dos en `nav-main.tsx` (el enlace); `routeTree.gen.ts` lo regenera el plugin de TanStack Router. Las traducciones (en y es) van en `intelia/routines/i18n.ts`, con el registro común de `intelia/i18n.ts`.
+  - **Tests:** `schedule.test.ts`, `components/routine-panel.test.tsx` y `components/routines-page.test.tsx`.
 - **Test:** `tests/api-integration/intelia-routines.test.ts`, con un receptor HTTP real que comprueba la firma, y los casos de fallo cerrado: inicio de sesión y clave de API de la cuenta rechazados, email reservado ocupado por un usuario registrado (ningún tick reabre y ese usuario queda intacto), instancia vacía (la primera persona sigue siendo administradora), invariantes rotos y recurrencia añadida después.
 
 ## Vista «Dependencias»
