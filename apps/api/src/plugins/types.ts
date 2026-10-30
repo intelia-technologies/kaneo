@@ -57,6 +57,8 @@ export type TaskCommentCreatedEvent = {
   projectId: string;
   userId: string;
   comment: string;
+  commentId: string;
+  externalUserName: string | null;
 };
 
 export type TaskDeletedEvent = {

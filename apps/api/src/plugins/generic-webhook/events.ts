@@ -393,6 +393,8 @@ export async function handleTaskCommentCreated(
     event.userId,
     {
       comment: event.comment,
+      commentId: event.commentId,
+      externalUserName: event.externalUserName,
     },
   );
 }
