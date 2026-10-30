@@ -3,7 +3,6 @@ import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SectionAddButton } from "@/components/task/sections/section-add-button";
 import { SectionHeader } from "@/components/task/sections/section-header";
-import { Switch } from "@/components/ui/switch";
 import useGetTask from "@/hooks/queries/task/use-get-task";
 import { useWorkspacePermission } from "@/hooks/use-workspace-permission";
 import { formatDateTime } from "@/lib/format";
@@ -23,6 +22,7 @@ import {
   type Schedule,
   scheduleFromCron,
 } from "../schedule";
+import { ActiveSwitch } from "./active-switch";
 import { RoutineEditor } from "./routine-editor";
 import { RunResult } from "./run-result";
 
@@ -46,7 +46,10 @@ export function TaskRoutinePanel({ taskId }: { taskId: string }) {
   const hasRecurrence = !!task?.recurrence;
   const timezone = routine?.timezone ?? browserTimezone();
 
-  const submit = (input: RoutineInput, onSuccess?: () => void) =>
+  // Every write control below is hidden or disabled without task:update; this
+  // is the last guard so none of them can start the mutation.
+  const submit = (input: RoutineInput, onSuccess?: () => void) => {
+    if (!canEdit) return;
     save.mutate(
       { taskId, input },
       {
@@ -59,6 +62,7 @@ export function TaskRoutinePanel({ taskId }: { taskId: string }) {
           ),
       },
     );
+  };
 
   return (
     <section className="flex flex-col gap-1">
@@ -143,10 +147,11 @@ export function TaskRoutinePanel({ taskId }: { taskId: string }) {
                 ? t("intelia:routines.panel.active")
                 : t("intelia:routines.panel.paused")}
             </label>
-            <Switch
+            <ActiveSwitch
               id={switchId}
               checked={routine.active}
-              disabled={!canEdit || save.isPending}
+              canEdit={canEdit}
+              isSaving={save.isPending}
               onCheckedChange={(active) =>
                 submit({ cron: routine.cron, timezone, active })
               }

@@ -144,6 +144,24 @@ describe("TaskRoutinePanel", () => {
     );
   });
 
+  it("offers no write control to a read-only user", () => {
+    mocks.canUpdateTasks.mockReturnValue(false);
+    mocks.routine.mockReturnValue({ data: routine, isLoading: false });
+    render(<TaskRoutinePanel taskId="task-1" />);
+
+    const toggle = screen.getByRole("switch");
+    expect(toggle).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(toggle);
+    expect(
+      screen.queryByRole("button", { name: "intelia:routines.panel.edit" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "intelia:routines.panel.remove" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
   it("does not offer a routine on a task with upstream recurrence", () => {
     mocks.task.mockReturnValue({
       data: {

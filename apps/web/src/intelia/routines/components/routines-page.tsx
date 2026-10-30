@@ -11,7 +11,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -21,10 +20,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
+import { useWorkspacePermission } from "@/hooks/use-workspace-permission";
 import { toast } from "@/lib/toast";
 import { useSaveRoutine, useWorkspaceRoutines } from "../api";
 import "../i18n";
 import { describeSchedule } from "../schedule";
+import { ActiveSwitch } from "./active-switch";
 import { RunResult } from "./run-result";
 
 export function RoutinesPage({ workspaceId }: { workspaceId: string }) {
@@ -36,6 +37,8 @@ export function RoutinesPage({ workspaceId }: { workspaceId: string }) {
     isError,
   } = useWorkspaceRoutines(workspaceId);
   const save = useSaveRoutine();
+  const { canUpdateTasks } = useWorkspacePermission();
+  const canEdit = canUpdateTasks();
   const title = t("intelia:routines.title");
 
   return (
@@ -160,9 +163,10 @@ export function RoutinesPage({ workspaceId }: { workspaceId: string }) {
                         </TableCell>
                         <TableCell>{routine.ownerName ?? "—"}</TableCell>
                         <TableCell onClick={(event) => event.stopPropagation()}>
-                          <Switch
+                          <ActiveSwitch
                             checked={routine.active}
-                            disabled={save.isPending}
+                            canEdit={canEdit}
+                            isSaving={save.isPending}
                             aria-label={t(
                               routine.active
                                 ? "intelia:routines.page.pause"

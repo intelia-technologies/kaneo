@@ -3,6 +3,7 @@ import { registerInteliaI18n } from "../i18n";
 const en = {
   routines: {
     title: "Routines",
+    noPermission: "You don't have permission to change routines.",
     panel: {
       title: "Schedule",
       notScheduled: "Not scheduled",
@@ -75,6 +76,7 @@ const en = {
 const es = {
   routines: {
     title: "Rutinas",
+    noPermission: "No tienes permiso para cambiar las rutinas.",
     panel: {
       title: "Programación",
       notScheduled: "Sin programar",
