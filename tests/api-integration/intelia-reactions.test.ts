@@ -439,84 +439,73 @@ describe("API integration: Intelia reactions", () => {
     expect(taskReactions[0]?.commentId).toBeNull();
   });
 
-  it("returns 400 for invalid emoji", async () => {
+  it("accepts exactly one emoji and returns 400 otherwise, on POST and DELETE", async () => {
     const { regularMember, comment, task } = await setupFixture();
     mockAuthenticatedSession(regularMember.user);
     const { app } = createApp();
 
-    // Non-emoji text
-    const textRes = await app.request(
-      `/api/intelia/comment/${comment.id}/reactions`,
-      {
+    for (const emoji of ["👍", "1️⃣", "#️⃣"]) {
+      const res = await app.request(`/api/intelia/task/${task.id}/reactions`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ emoji: "notanemoji" }),
-      },
-    );
-    expect(textRes.status).toBe(400);
+        body: JSON.stringify({ emoji }),
+      });
+      expect(res.status, emoji).toBe(200);
+      const del = await app.request(
+        `/api/intelia/task/${task.id}/reactions?emoji=${encodeURIComponent(emoji)}`,
+        { method: "DELETE" },
+      );
+      expect(del.status, emoji).toBe(200);
+    }
 
-    // Empty string
-    const emptyRes = await app.request(
-      `/api/intelia/comment/${comment.id}/reactions`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ emoji: "" }),
-      },
-    );
-    expect(emptyRes.status).toBe(400);
-
-    // Mixed text and emoji
-    const mixedRes = await app.request(
-      `/api/intelia/task/${task.id}/reactions`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ emoji: "👍text" }),
-      },
-    );
-    expect(mixedRes.status).toBe(400);
-
-    // Invalid emoji on DELETE query
-    const deleteRes = await app.request(
-      `/api/intelia/comment/${comment.id}/reactions?emoji=notanemoji`,
-      { method: "DELETE" },
-    );
-    expect(deleteRes.status).toBe(400);
+    for (const emoji of ["👍1", "123🚀", "👍👍", "notanemoji", ""]) {
+      const post = await app.request(
+        `/api/intelia/comment/${comment.id}/reactions`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ emoji }),
+        },
+      );
+      expect(post.status, emoji).toBe(400);
+      const del = await app.request(
+        `/api/intelia/comment/${comment.id}/reactions?emoji=${encodeURIComponent(emoji)}`,
+        { method: "DELETE" },
+      );
+      expect(del.status, emoji).toBe(400);
+    }
   });
 
-  it("returns 403 or 404 for users without task access", async () => {
-    const { outsider, comment, task } = await setupFixture();
-    mockAuthenticatedSession(outsider.user);
+  it("returns 404 outside the workspace and 403 to a viewer that reacts", async () => {
+    const { adminMember, outsider, comment, task } = await setupFixture();
     const { app } = createApp();
-
-    const getComment = await app.request(
-      `/api/intelia/comment/${comment.id}/reactions`,
-    );
-    expect(getComment.status).toBeGreaterThanOrEqual(400);
-
-    const postComment = await app.request(
-      `/api/intelia/comment/${comment.id}/reactions`,
-      {
+    const post = (path: string) =>
+      app.request(path, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ emoji: "👍" }),
-      },
-    );
-    expect(postComment.status).toBeGreaterThanOrEqual(400);
+      });
+    const commentPath = `/api/intelia/comment/${comment.id}/reactions`;
+    const taskPath = `/api/intelia/task/${task.id}/reactions`;
 
-    const getTask = await app.request(`/api/intelia/task/${task.id}/reactions`);
-    expect(getTask.status).toBeGreaterThanOrEqual(400);
+    mockAuthenticatedSession(outsider.user);
+    expect((await app.request(commentPath)).status).toBe(404);
+    expect((await post(commentPath)).status).toBe(404);
+    expect((await app.request(taskPath)).status).toBe(404);
+    expect((await post(taskPath)).status).toBe(404);
 
-    const postTask = await app.request(
-      `/api/intelia/task/${task.id}/reactions`,
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ emoji: "👍" }),
-      },
-    );
-    expect(postTask.status).toBeGreaterThanOrEqual(400);
+    const viewer = await createWorkspaceMember({ role: "viewer" });
+    await db.insert(schema.workspaceUserTable).values({
+      workspaceId: adminMember.workspace.id,
+      userId: viewer.user.id,
+      role: "viewer",
+      joinedAt: new Date(),
+    });
+    mockAuthenticatedSession(viewer.user);
+    expect((await app.request(commentPath)).status).toBe(200);
+    expect((await post(commentPath)).status).toBe(403);
+    expect((await app.request(taskPath)).status).toBe(200);
+    expect((await post(taskPath)).status).toBe(403);
   });
 
   it("returns exactly one 200 and one 404 for concurrent DELETEs of the same reaction", async () => {

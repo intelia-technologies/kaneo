@@ -24782,9 +24782,7 @@
                 "properties": {
                   "emoji": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 32,
-                    "pattern": "^(?=.*[\\p{Extended_Pictographic}\\p{Regional_Indicator}])[\\p{Extended_Pictographic}\\p{Emoji_Component}\\u200d\\ufe0f]+$/u"
+                    "pattern": "^\\p{RGI_Emoji}$/v"
                   },
                   "externalUserName": {
                     "type": "string",
@@ -24875,9 +24873,7 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 32,
-              "pattern": "^(?=.*[\\p{Extended_Pictographic}\\p{Regional_Indicator}])[\\p{Extended_Pictographic}\\p{Emoji_Component}\\u200d\\ufe0f]+$/u"
+              "pattern": "^\\p{RGI_Emoji}$/v"
             },
             "required": true,
             "name": "emoji",
@@ -25046,9 +25042,7 @@
                 "properties": {
                   "emoji": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 32,
-                    "pattern": "^(?=.*[\\p{Extended_Pictographic}\\p{Regional_Indicator}])[\\p{Extended_Pictographic}\\p{Emoji_Component}\\u200d\\ufe0f]+$/u"
+                    "pattern": "^\\p{RGI_Emoji}$/v"
                   },
                   "externalUserName": {
                     "type": "string",
@@ -25139,9 +25133,7 @@
           {
             "schema": {
               "type": "string",
-              "minLength": 1,
-              "maxLength": 32,
-              "pattern": "^(?=.*[\\p{Extended_Pictographic}\\p{Regional_Indicator}])[\\p{Extended_Pictographic}\\p{Emoji_Component}\\u200d\\ufe0f]+$/u"
+              "pattern": "^\\p{RGI_Emoji}$/v"
             },
             "required": true,
             "name": "emoji",
