@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  assertForkCi,
-  checkForkCi,
-  forkCi,
-} from "./intelia-fork-ci.mjs";
+import { assertForkCi, checkForkCi, forkCi } from "./intelia-fork-ci.mjs";
 
 test("Rule 1: blacksmith runs-on is replaced with ubuntu-24.04 preserving indent", () => {
   const input = `
@@ -105,7 +101,7 @@ test("Rule 5: upgrade step is adapted with KANEO_UPGRADE_REPOSITORY and KANEO_UP
           GH_TOKEN: \${{ github.token }}
           # Intelia fork: the baseline is upstream's vX.Y.Z from package.json (README-INTELIA.md).
           KANEO_UPGRADE_REPOSITORY: usekaneo/kaneo
-        run: KANEO_UPGRADE_TAG="v\$(node -p 'require("./package.json").version')" bash scripts/ci/upgrade.sh
+        run: KANEO_UPGRADE_TAG="v$(node -p 'require("./package.json").version')" bash scripts/ci/upgrade.sh
       - name: Save container logs
 `.trim();
 
@@ -152,13 +148,16 @@ jobs:
           GH_TOKEN: \${{ github.token }}
           # Intelia fork: the baseline is upstream's vX.Y.Z from package.json (README-INTELIA.md).
           KANEO_UPGRADE_REPOSITORY: usekaneo/kaneo
-        run: KANEO_UPGRADE_TAG="v\$(node -p 'require("./package.json").version')" bash scripts/ci/upgrade.sh
+        run: KANEO_UPGRADE_TAG="v$(node -p 'require("./package.json").version')" bash scripts/ci/upgrade.sh
 `.trim();
 
   const problems = checkForkCi(withBlacksmith);
   assert.ok(problems.length > 0);
   assert.match(problems[0], /residual blacksmith/);
-  assert.throws(() => assertForkCi(withBlacksmith), /Residual fork CI problems detected/);
+  assert.throws(
+    () => assertForkCi(withBlacksmith),
+    /Residual fork CI problems detected/,
+  );
 });
 
 test("Residual problem detection flags unadapted upgrade step", () => {
@@ -175,6 +174,8 @@ jobs:
   const problems = checkForkCi(missingUpgradeConfig);
   assert.ok(problems.length >= 2);
   assert.ok(problems.some((p) => p.includes("KANEO_UPGRADE_REPOSITORY")));
-  assert.ok(problems.some((p) => p.includes("Upgrade from the latest stable release")));
+  assert.ok(
+    problems.some((p) => p.includes("Upgrade from the latest stable release")),
+  );
   assert.throws(() => assertForkCi(missingUpgradeConfig));
 });

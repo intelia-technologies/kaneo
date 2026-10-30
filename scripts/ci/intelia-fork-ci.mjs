@@ -106,7 +106,7 @@ export function forkCi(text) {
       );
       result.push(`${indent}    KANEO_UPGRADE_REPOSITORY: usekaneo/kaneo`);
       result.push(
-        `${indent}  run: KANEO_UPGRADE_TAG="v\$(node -p 'require("./package.json").version')" bash scripts/ci/upgrade.sh`,
+        `${indent}  run: KANEO_UPGRADE_TAG="v$(node -p 'require("./package.json").version')" bash scripts/ci/upgrade.sh`,
       );
       continue;
     }
@@ -177,6 +177,9 @@ async function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   await main();
 }

@@ -44,12 +44,14 @@ Kaneo se distribuye bajo licencia MIT. Se conservan [`LICENSE`](LICENSE) y el av
 El proceso de puesta al día está automatizado mediante `.github/workflows/intelia-upstream-sync.yml` y `scripts/ci/intelia-upstream-sync.mjs`:
 
 - **Automatización semanal:** se ejecuta cada lunes a las 05:00 UTC (`0 5 * * 1`) y bajo demanda (`workflow_dispatch`). Funciona exclusivamente con `GITHUB_TOKEN` (sin credenciales ni GitHub App).
-- **Preparación del merge:** detecta la última release de upstream (o la referencia del input `upstream_ref`) y prepara el merge en el runner, resolviendo automáticamente el conflicto de `.github/workflows/ci.yml` con `forkCi()`. No abre PR: la factory lee el mismo resultado, avisa y se abre la tarea de adopción.
+- **Preparación del merge:** detecta la última release de upstream (o la referencia del input `upstream_ref`) y prepara el merge en el runner. No abre PR: la factory lee el mismo resultado, avisa y se abre la tarea de adopción.
+- **Resolución automática, solo la conocida:** si `.github/workflows/ci.yml` choca, se resuelve solo cuando el `ci.yml` del fork es exactamente la adaptación de runners (`forkCi()`) del `ci.yml` de upstream de la versión anterior. Entonces la única resolución correcta es el `ci.yml` nuevo de upstream con la misma adaptación. Si el fork lleva cualquier otro cambio en `ci.yml`, o la adaptación no cubre el fichero nuevo, el choque cuenta como conflicto y se resuelve a mano.
 - **Estados de sincronización:**
   - `uptodate`: la última versión de upstream ya es ancestro de `main`. No requiere acción.
   - `open`: ya existe la rama `intelia/upstream-<ref>` en el fork (con o sin pull request). No se sobreescribe el trabajo humano; para regenerarla, cerrar la PR, borrar la rama y relanzar.
-  - `conflicts`: hay conflictos fuera de `.github/workflows/ci.yml`. El merge se aborta, el resumen de la ejecución los lista (con anotaciones por fichero) y el workflow falla. Se resuelven a mano (ver runbook).
-  - `ready`: el merge es limpio o su conflicto en `.github/workflows/ci.yml` se ha resuelto automáticamente con `forkCi()`. El resumen de la ejecución detalla el número de ficheros modificados, la lista completa dentro de `<details>`, si hay cambios en Drizzle, los ficheros autoresueltos y los workflows nuevos de upstream.
+  - `conflicts`: hay conflictos que no son el conocido de `ci.yml`. El merge se aborta, se borra la rama local y se vuelve a la rama de partida; el resumen de la ejecución los lista (con anotaciones por fichero) y el workflow falla. Se resuelven a mano (ver runbook).
+  - `ready`: el merge es limpio o su único conflicto era el conocido de `ci.yml`. El resumen de la ejecución detalla el número de ficheros modificados, la lista completa dentro de `<details>`, si hay cambios en Drizzle, los ficheros autoresueltos y los workflows nuevos de upstream.
+- **Avisos de workflows:** en todos los estados, el resumen (y `--report`) lista los workflows activos fuera de la lista blanca (ver «CI y versiones») y los ficheros de workflow con `pull_request_target`, con una anotación de aviso por cada uno.
 - **Ramas e imágenes:**
   - Rama de sincronización: `intelia/upstream-<ref>` (ejemplo: `intelia/upstream-v2.49.0`).
   - Si el merge **no modifica `.github/workflows/**`** respecto a `main`, el workflow semanal empuja la rama `intelia/upstream-<ref>` al fork con el `GITHUB_TOKEN` y compila y publica `ghcr.io/intelia-technologies/kaneo:candidate-<sha12>`, donde `<sha12>` son los 12 primeros caracteres del commit de merge.
@@ -72,17 +74,16 @@ Pasos de adopción:
      ```sh
      node scripts/ci/intelia-upstream-sync.mjs prepare vX.Y.Z
      ```
-     Con estado `ready` deja la rama `intelia/upstream-vX.Y.Z` con el merge hecho y `ci.yml` resuelto. Con `conflicts` aborta y lista los ficheros: entonces, a mano:
+     Con estado `ready` deja la rama `intelia/upstream-vX.Y.Z` con el merge hecho. Con `conflicts` lista los ficheros, aborta el merge, borra la rama local y te devuelve a la rama de partida, así que el procedimiento manual empieza limpio:
    - Resolución manual de conflictos (siempre merge, nunca rebase):
      ```sh
      git fetch origin
      git fetch --no-tags https://github.com/usekaneo/kaneo.git tag vX.Y.Z
      git checkout -b intelia/upstream-vX.Y.Z origin/main
      git merge --no-ff vX.Y.Z
-     # si choca ci.yml: tomar el de upstream y reaplicar la adaptación del fork
-     git checkout --theirs .github/workflows/ci.yml && node scripts/ci/intelia-fork-ci.mjs .github/workflows/ci.yml
-     # resolver el resto, git add, git commit
+     # resolver cada conflicto, git add, git commit
      ```
+     En `ci.yml`, tomar el de upstream y reaplicar la adaptación (`git checkout --theirs .github/workflows/ci.yml && node scripts/ci/intelia-fork-ci.mjs .github/workflows/ci.yml`) solo si el fork no lleva en él más cambios que los de la tabla de «CI y versiones» (`git diff <tag anterior> origin/main -- .github/workflows/ci.yml`); si los lleva, resolver hunk a hunk para no perderlos.
 2. **Empujar la rama y abrir PR:**
    ```sh
    git push origin intelia/upstream-vX.Y.Z
@@ -95,9 +96,10 @@ Pasos de adopción:
    - **Drizzle:** verificar que no existan migraciones propias en `apps/api/drizzle/` ni conflictos de secuencia en `meta/_journal.json`.
    - **Workflows nuevos de upstream:** revisar los workflows nuevos listados en el resumen del merge; el job semanal los desactiva de todos modos si llegan a registrarse activos.
 4. **Merge de la PR:** Forja mergea la PR hacia `main` usando siempre **merge commit** (nunca squash ni rebase).
-5. **Etiquetar release en main:** crear y subir el tag de release de Intelia:
+5. **Etiquetar release en main:** tras el merge, traer `main` y comprobar que ya contiene la versión de upstream antes de etiquetar (si no, el tag iría a un commit anterior al merge y `intelia-release.yml` lo rechazaría):
    ```sh
    git fetch origin main
+   git merge-base --is-ancestor vX.Y.Z origin/main && echo "origin/main ya incluye vX.Y.Z"
    git tag -a vX.Y.Z-intelia.1 -m vX.Y.Z-intelia.1 origin/main
    git push origin vX.Y.Z-intelia.1
    ```
@@ -117,7 +119,7 @@ Si con el tiempo este proceso manual resulta pesado, se valorará pasar a una Gi
   | `useblacksmith/build-push-action` | `docker/build-push-action` |
 
 - **Prueba de actualización** (`scripts/ci/upgrade.sh`, job `docker-build`): parte de la imagen de upstream de la versión de `package.json` (`ghcr.io/usekaneo/kaneo:X.Y.Z`, la que lleva dentro el fork) en vez de la última release del repo, con `KANEO_UPGRADE_REPOSITORY` y `KANEO_UPGRADE_TAG`.
-- **Resto de workflows de upstream** (publicación en npm, Helm, la web, avisos a Discord, bots de PR, nightly…): desactivados en Actions del fork, no borrados, para que el merge de upstream no choque. Activos: `CI`, `Intelia release`, `Intelia upstream sync`, `Intelia candidate image` y CodeQL. GitHub solo registra un workflow (y deja desactivarlo) cuando le llega su primer evento: por eso el job `disable-workflows` de `intelia-upstream-sync.yml` desactiva cada lunes todo workflow activo que no sea uno de esos (`node scripts/ci/intelia-upstream-sync.mjs disable-workflows`, con el `GITHUB_TOKEN` y `actions: write`). Así quedan cubiertos los que aún no se han registrado (`nightly`, `update-contributors`, `deploy-site`, `release-notify`, `issue-notify`, `helm-chart`, `docker`, `code-review`, `ui-review`…) y los que traiga un merge de upstream.
+- **Lista blanca de workflows:** en el fork solo corren `ci.yml`, los `intelia-*.yml` y el CodeQL por defecto de GitHub. Todo lo demás (los workflows de upstream de hoy y los que traiga cualquier merge futuro) se desactiva en Actions, sin borrarlo, para que el merge de upstream no choque. Es lista blanca y no lista negra porque upstream añade workflows sin avisar, y varios suyos usan `pull_request_target` con permisos de escritura y acciones de terceros, que en un fork público correrían con nuestro token sobre PR ajenas. GitHub solo registra un workflow (y deja desactivarlo) cuando le llega su primer evento, así que el job `disable-workflows` de `intelia-upstream-sync.yml` lo aplica cada lunes (`node scripts/ci/intelia-upstream-sync.mjs disable-workflows`, con el `GITHUB_TOKEN` y `actions: write`): desactiva todo workflow activo fuera de la lista, lista los ficheros con `pull_request_target` y falla si después queda alguno activo fuera de ella.
 - **Versión** (`.github/workflows/intelia-release.yml`): al empujar un tag `vX.Y.Z-intelia.N` comprueba que el commit está en `main` con la CI en verde y que `X.Y.Z` es la versión de `package.json`; construye `Dockerfile.kaneo` (amd64 y arm64) y publica `ghcr.io/intelia-technologies/kaneo:X.Y.Z-intelia.N` con el `GITHUB_TOKEN` del propio fork. El digest queda en el resumen de la ejecución. El fork no guarda credenciales de Intelia. El despliegue se gestiona desde `software-factory`.
 
 ```sh

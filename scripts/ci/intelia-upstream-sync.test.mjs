@@ -1,12 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { forkCi } from "./intelia-fork-ci.mjs";
 import {
   buildReportData,
   parsePrepareArgs,
   renderReport,
+  resolveForkCi,
+  usesPullRequestTarget,
   validateRef,
   workflowsToDisable,
 } from "./intelia-upstream-sync.mjs";
+
+const UPSTREAM_CI = `name: CI
+jobs:
+  docker-build:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1
+      - name: Upgrade from the latest stable release
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: bash scripts/ci/upgrade.sh
+      - run: pnpm test
+`;
 
 test("validateRef: the latest release must be a stable vX.Y.Z tag", () => {
   assert.equal(validateRef("v2.48.0", false), "v2.48.0");
@@ -46,7 +62,11 @@ test("parsePrepareArgs: parses flags and positional ref in any order", () => {
   );
 
   assert.deepEqual(
-    parsePrepareArgs(["v2.49.0", "--no-branch-check", "--report=out/report.json"]),
+    parsePrepareArgs([
+      "v2.49.0",
+      "--no-branch-check",
+      "--report=out/report.json",
+    ]),
     {
       noBranchCheck: true,
       reportPath: "out/report.json",
@@ -54,8 +74,14 @@ test("parsePrepareArgs: parses flags and positional ref in any order", () => {
     },
   );
 
-  assert.throws(() => parsePrepareArgs(["--report"]), /Missing path for --report/);
-  assert.throws(() => parsePrepareArgs(["--unknown"]), /Unknown option: --unknown/);
+  assert.throws(
+    () => parsePrepareArgs(["--report"]),
+    /Missing path for --report/,
+  );
+  assert.throws(
+    () => parsePrepareArgs(["--unknown"]),
+    /Unknown option: --unknown/,
+  );
   assert.throws(
     () => parsePrepareArgs(["ref1", "ref2"]),
     /Unexpected extra argument: ref2/,
@@ -105,6 +131,8 @@ test("buildReportData: creates contract-compliant report payload", () => {
     autoResolvedFiles: [],
     addedWorkflows: [],
     conflictedFiles: [],
+    activeOutsideAllowlist: [],
+    pullRequestTargetWorkflows: [],
   });
 
   const readyPayload = buildReportData({
@@ -146,10 +174,24 @@ test("renderReport: ready status includes details, touched count, auto-resolved,
   assert.ok(report.includes("- **Ficheros modificados:** 2"));
   assert.ok(report.includes("<details>"));
   assert.ok(report.includes("- `apps/api/src/index.ts`"));
-  assert.ok(report.includes("- `.\github/workflows/ci.yml`".replace(/\\/g, "")));
+  assert.ok(report.includes("- `.github/workflows/ci.yml`".replace(/\\/g, "")));
   assert.ok(report.includes("</details>"));
-  assert.ok(report.includes("- **Ficheros autoresueltos:** `.\github/workflows/ci.yml`".replace(/\\/g, "")));
-  assert.ok(report.includes("- **Nuevos workflows de upstream (a desactivar):** `.\github/workflows/new.yml`".replace(/\\/g, "")));
+  assert.ok(
+    report.includes(
+      "- **Ficheros autoresueltos:** `.github/workflows/ci.yml`".replace(
+        /\\/g,
+        "",
+      ),
+    ),
+  );
+  assert.ok(
+    report.includes(
+      "- **Nuevos workflows de upstream (a desactivar):** `.github/workflows/new.yml`".replace(
+        /\\/g,
+        "",
+      ),
+    ),
+  );
   assert.ok(report.includes("- **Cambios en Drizzle:** Sí"));
 });
 
@@ -178,22 +220,75 @@ test("renderReport: uptodate and open reports have descriptive explanations", ()
     ref: "v2.49.0",
     branch: "intelia/upstream-v2.49.0",
   });
-  assert.ok(openReport.includes("Ya existe la rama `intelia/upstream-v2.49.0`"));
+  assert.ok(
+    openReport.includes("Ya existe la rama `intelia/upstream-v2.49.0`"),
+  );
 });
 
-test("workflowsToDisable: only active upstream workflows outside the fork's set", () => {
+test("workflowsToDisable: every active workflow outside the allowlist, whatever its name", () => {
   const workflows = [
     { id: 1, path: ".github/workflows/ci.yml", state: "active" },
     { id: 2, path: ".github/workflows/intelia-release.yml", state: "active" },
-    { id: 3, path: ".github/workflows/intelia-upstream-sync.yml", state: "active" },
+    {
+      id: 3,
+      path: ".github/workflows/intelia-upstream-sync.yml",
+      state: "active",
+    },
     { id: 4, path: ".github/workflows/intelia-candidate.yml", state: "active" },
     { id: 5, path: "dynamic/github-code-scanning/codeql", state: "active" },
     { id: 6, path: ".github/workflows/nightly.yml", state: "active" },
-    { id: 7, path: ".github/workflows/mellon.yml", state: "active" },
-    { id: 8, path: ".github/workflows/release.yml", state: "disabled_manually" },
+    { id: 7, path: ".github/workflows/agentscan.yml", state: "active" },
+    {
+      id: 8,
+      path: ".github/workflows/release.yml",
+      state: "disabled_manually",
+    },
+    { id: 9, path: "dynamic/dependabot/dependabot-updates", state: "active" },
+    { id: 10, path: ".github/workflows/ci-intelia.yml", state: "active" },
   ];
   assert.deepEqual(
     workflowsToDisable(workflows).map((w) => w.id),
-    [6, 7],
+    [6, 7, 9, 10],
+  );
+});
+
+test("resolveForkCi: takes upstream's new ci.yml with the runner adaptation reapplied", () => {
+  const theirs = UPSTREAM_CI.replace("pnpm test", "pnpm test --coverage");
+  const resolved = resolveForkCi({
+    base: UPSTREAM_CI,
+    ours: forkCi(UPSTREAM_CI),
+    theirs,
+  });
+  assert.equal(resolved, forkCi(theirs));
+  assert.ok(resolved.includes("pnpm test --coverage"));
+  assert.ok(!resolved.includes("blacksmith"));
+});
+
+test("resolveForkCi: refuses when the fork's ci.yml carries a change of its own", () => {
+  const ours = forkCi(UPSTREAM_CI) + "      - run: echo intelia-only step\n";
+  const theirs = UPSTREAM_CI.replace("pnpm test", "pnpm test --coverage");
+  assert.equal(resolveForkCi({ base: UPSTREAM_CI, ours, theirs }), null);
+});
+
+test("resolveForkCi: refuses when upstream's new ci.yml cannot be adapted", () => {
+  const theirs = UPSTREAM_CI.replace(
+    "      - run: pnpm test\n",
+    "      - uses: useblacksmith/cache@v1\n      - run: pnpm test\n",
+  );
+  assert.equal(
+    resolveForkCi({ base: UPSTREAM_CI, ours: forkCi(UPSTREAM_CI), theirs }),
+    null,
+  );
+});
+
+test("usesPullRequestTarget: detects the trigger in any form, ignoring comments", () => {
+  assert.ok(
+    usesPullRequestTarget("on:\n  pull_request_target:\n    types: [opened]\n"),
+  );
+  assert.ok(usesPullRequestTarget("on: [push, pull_request_target]\n"));
+  assert.ok(
+    !usesPullRequestTarget(
+      "on:\n  pull_request:\n# pull_request_target is unsafe\n",
+    ),
   );
 });

@@ -40,9 +40,13 @@ jobs:
 
   sync:
     name: Sync upstream
+    # Runs after the cleanup so its report flags only what disable-workflows could not fix.
+    needs: disable-workflows
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
+      actions: read
       contents: write
       pull-requests: read
     outputs:

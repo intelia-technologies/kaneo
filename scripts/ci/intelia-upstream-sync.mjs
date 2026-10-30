@@ -1,9 +1,12 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
-import { assertForkCi, forkCi } from "./intelia-fork-ci.mjs";
+import { checkForkCi, forkCi } from "./intelia-fork-ci.mjs";
 
 const UPSTREAM_REPO_URL = "https://github.com/usekaneo/kaneo.git";
+const CI_YML = ".github/workflows/ci.yml";
+const FORK_REPOSITORY =
+  process.env.KANEO_FORK_REPOSITORY || "intelia-technologies/kaneo";
 
 export function validateRef(ref, isExplicit = false) {
   if (!ref || typeof ref !== "string") {
@@ -62,7 +65,11 @@ export function parsePrepareArgs(args = []) {
     }
   }
 
-  if (!explicitRef && process.env.UPSTREAM_REF && process.env.UPSTREAM_REF.trim()) {
+  if (
+    !explicitRef &&
+    process.env.UPSTREAM_REF &&
+    process.env.UPSTREAM_REF.trim()
+  ) {
     explicitRef = process.env.UPSTREAM_REF.trim();
   }
 
@@ -80,6 +87,8 @@ export function buildReportData({
   autoResolvedFiles = [],
   addedWorkflows = [],
   conflictedFiles = [],
+  activeOutsideAllowlist = [],
+  pullRequestTargetWorkflows = [],
 }) {
   return {
     status,
@@ -92,35 +101,63 @@ export function buildReportData({
     autoResolvedFiles,
     addedWorkflows,
     conflictedFiles,
+    activeOutsideAllowlist,
+    pullRequestTargetWorkflows,
   };
 }
 
-export function renderReport({
-  status,
-  ref,
-  branch,
-  sha = "",
-  changedFiles = [],
-  autoResolvedFiles = [],
-  addedWorkflows = [],
-  drizzleChanged = false,
-  conflictedFiles = [],
+/**
+ * Resolves a conflict in ci.yml only when it is the known one: the fork's ci.yml must be
+ * exactly forkCi(upstream base), i.e. carry no change of ours besides the runner adaptation.
+ * Then the right merge is upstream's new file with the same adaptation. Otherwise (an
+ * adaptation of ours would be lost, or forkCi cannot adapt the new file) returns null.
+ */
+export function resolveForkCi({ base, ours, theirs }) {
+  if (base == null || ours == null || theirs == null) return null;
+  if (ours !== forkCi(base)) return null;
+  const resolved = forkCi(theirs);
+  return checkForkCi(resolved).length === 0 ? resolved : null;
+}
+
+function renderWorkflowWarnings({
+  activeOutsideAllowlist = [],
+  pullRequestTargetWorkflows = [],
 }) {
+  let md = "";
+  if (activeOutsideAllowlist.length > 0) {
+    md += `\n### Workflows activos fuera de la lista blanca\n`;
+    md += activeOutsideAllowlist.map((w) => `- \`${w}\``).join("\n") + "\n";
+  }
+  if (pullRequestTargetWorkflows.length > 0) {
+    md += `\n### Workflows con \`pull_request_target\`\n`;
+    md += pullRequestTargetWorkflows.map((w) => `- \`${w}\``).join("\n") + "\n";
+  }
+  return md;
+}
+
+export function renderReport(data) {
+  const {
+    status,
+    ref,
+    branch,
+    sha = "",
+    changedFiles = [],
+    autoResolvedFiles = [],
+    addedWorkflows = [],
+    drizzleChanged = false,
+    conflictedFiles = [],
+  } = data;
   let md = `## Sincronización con upstream: ${ref}\n\n`;
   md += `- **Estado:** \`${status}\`\n`;
   md += `- **Rama:** \`${branch}\`\n`;
 
   if (status === "ready") {
-    if (sha) {
-      md += `- **Commit:** \`${sha}\`\n`;
-    }
+    if (sha) md += `- **Commit:** \`${sha}\`\n`;
     md += `- **Ficheros modificados:** ${changedFiles.length}\n`;
     if (changedFiles.length > 0) {
       md += `\n<details>\n<summary>Lista completa de ficheros modificados (${changedFiles.length})</summary>\n\n`;
       md += changedFiles.map((f) => `- \`${f}\``).join("\n") + "\n";
       md += `</details>\n\n`;
-    } else {
-      md += "\n";
     }
     md += `- **Ficheros autoresueltos:** ${
       autoResolvedFiles.length > 0
@@ -139,11 +176,11 @@ export function renderReport({
     md += `\nYa existe la rama \`${branch}\` en el fork (con o sin pull request). No se sobreescribe el trabajo humano: abre la PR desde esa rama o bórrala para regenerarla.\n`;
   } else if (status === "conflicts") {
     md += `\n### Conflictos no resolubles automáticamente\n`;
-    md += `Se ha abortado el merge debido a conflictos en:\n`;
+    md += `Se ha abortado el merge (y borrado la rama local) por conflictos en:\n`;
     md += conflictedFiles.map((f) => `- \`${f}\``).join("\n") + "\n";
   }
 
-  return md;
+  return md + renderWorkflowWarnings(data);
 }
 
 function execGit(args, options = {}) {
@@ -197,270 +234,85 @@ function writeSummary(report) {
   }
 }
 
-export async function prepare(optsOrRef = {}) {
-  const opts =
-    typeof optsOrRef === "string"
-      ? { explicitRef: optsOrRef }
-      : optsOrRef;
-  const {
-    explicitRef: explicitRefArg = null,
-    noBranchCheck = false,
-    reportPath = null,
-  } = opts;
+function gitLines(args) {
+  return execGit(args).trim().split("\n").filter(Boolean);
+}
 
-  let ref;
-  let isExplicit = false;
-
-  if (explicitRefArg) {
-    ref = validateRef(explicitRefArg, true);
-    isExplicit = true;
-  } else {
-    const latestRaw = execFileSync(
-      "gh",
-      ["api", "repos/usekaneo/kaneo/releases/latest", "--jq", ".tag_name"],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-    ).trim();
-    ref = validateRef(latestRaw, false);
-  }
-
-  const branch = getBranchName(ref);
-
-  // Fetch target ref from upstream without tags flood
+function showFile(rev, path) {
   try {
-    if (ref.startsWith("v")) {
-      execGit([
-        "fetch",
-        "--no-tags",
-        UPSTREAM_REPO_URL,
-        `+refs/tags/${ref}:refs/tags/${ref}`,
-      ]);
-    } else {
-      execGit([
-        "fetch",
-        "--no-tags",
-        UPSTREAM_REPO_URL,
-        `+refs/heads/${ref}:refs/remotes/upstream/${ref}`,
-      ]);
-    }
+    return execGit(["show", `${rev}:${path}`]);
   } catch {
-    // Not a tag or branch name (e.g. a commit SHA): fetch it into FETCH_HEAD.
-    execGit(["fetch", "--no-tags", UPSTREAM_REPO_URL, ref]);
+    return null;
   }
+}
 
-  const targetCommit = execGit(["rev-parse", "FETCH_HEAD^{commit}"]).trim();
-
-  // Check if target is already ancestor of HEAD
-  let isAncestor = false;
-  try {
-    execGit(["merge-base", "--is-ancestor", targetCommit, "HEAD"]);
-    isAncestor = true;
-  } catch {
-    isAncestor = false;
-  }
-
-  if (isAncestor) {
-    const status = "uptodate";
-    const reportData = buildReportData({ status, ref, branch });
-    if (reportPath) {
-      fs.writeFileSync(
-        reportPath,
-        JSON.stringify(reportData, null, 2) + "\n",
-        "utf8",
-      );
-    }
-    writeOutputs({
-      status,
-      ref,
-      branch,
-      sha: "",
-      workflows_changed: "false",
-    });
-    const report = renderReport(reportData);
-    writeSummary(report);
-    return reportData;
-  }
-
-  // Never clobber an existing sync branch (open PR or manual conflict resolution in progress).
-  if (!noBranchCheck) {
-    const repo = process.env.GITHUB_REPOSITORY;
-    if (repo) {
-      const prs = JSON.parse(
-        execFileSync(
-          "gh",
-          [
-            "pr",
-            "list",
-            "--repo",
-            repo,
-            "--head",
-            branch,
-            "--state",
-            "open",
-            "--json",
-            "number",
-          ],
-          { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-        ),
-      );
-      const remoteBranch = execGit([
-        "ls-remote",
-        "--heads",
-        `https://github.com/${repo}.git`,
-        `refs/heads/${branch}`,
-      ]).trim();
-      if (prs.length > 0 || remoteBranch) {
-        const status = "open";
-        const reportData = buildReportData({ status, ref, branch });
-        if (reportPath) {
-          fs.writeFileSync(
-            reportPath,
-            JSON.stringify(reportData, null, 2) + "\n",
-            "utf8",
-          );
-        }
-        writeOutputs({
-          status,
-          ref,
-          branch,
-          sha: "",
-          workflows_changed: "false",
-        });
-        writeSummary(renderReport(reportData));
-        return reportData;
-      }
-    }
-  }
-
-  // `checkout -b` refuses to reuse an existing local branch.
-  execGit(["checkout", "-b", branch, "HEAD"]);
-  // Attempt merge --no-ff --no-commit
-  const identity = getGitIdentityArgs();
-  let mergeError;
-  try {
-    execGit([
-      ...identity,
-      "merge",
-      "--no-ff",
-      "--no-commit",
-      targetCommit,
-      "-m",
-      `chore: merge upstream ${ref}`,
-    ]);
-  } catch (err) {
-    mergeError = err;
-  }
-
-  const unmerged = execGit(["diff", "--name-only", "--diff-filter=U"])
-    .trim()
-    .split("\n")
-    .filter(Boolean);
-  // A merge that stops without unmerged paths failed for another reason: surface it.
-  if (mergeError && unmerged.length === 0) throw mergeError;
-
-  const autoResolvedFiles = [];
-  if (unmerged.length > 0) {
-    const otherConflicts = unmerged.filter(
-      (f) => f !== ".github/workflows/ci.yml",
-    );
-    if (otherConflicts.length > 0) {
-      execGit(["merge", "--abort"]);
-      const status = "conflicts";
-      const reportData = buildReportData({
-        status,
-        ref,
-        branch,
-        conflictedFiles: unmerged,
-      });
-      if (reportPath) {
-        fs.writeFileSync(
-          reportPath,
-          JSON.stringify(reportData, null, 2) + "\n",
-          "utf8",
-        );
-      }
-      writeOutputs({
-        status,
-        ref,
-        branch,
-        sha: "",
-        workflows_changed: "false",
-      });
-      for (const f of unmerged) {
-        console.error(`::error file=${f}::Merge conflict in ${f}`);
-      }
-      const report = renderReport(reportData);
-      writeSummary(report);
-      process.exit(1);
-    }
-
-    // Only .github/workflows/ci.yml is in conflict
-    execGit(["checkout", "--theirs", "--", ".github/workflows/ci.yml"]);
-    autoResolvedFiles.push(".github/workflows/ci.yml");
-  }
-
-  // ALWAYS apply forkCi to ci.yml after merge (upstream may add new blacksmith jobs)
-  if (fs.existsSync(".github/workflows/ci.yml")) {
-    const ciContent = fs.readFileSync(".github/workflows/ci.yml", "utf8");
-    const adapted = forkCi(ciContent);
-    assertForkCi(adapted);
-    fs.writeFileSync(".github/workflows/ci.yml", adapted, "utf8");
-    execGit(["add", ".github/workflows/ci.yml"]);
-  }
-
-  // Commit the merge
-  execGit([...identity, "commit", "-m", `chore: merge upstream ${ref}`]);
-
-  const sha = execGit(["rev-parse", "HEAD"]).trim();
-
-  const changedFiles = execGit(["diff", "--name-only", "HEAD^1", "HEAD"])
-    .trim()
-    .split("\n")
-    .filter(Boolean);
-
-  const workflowsChanged = changedFiles.some((f) =>
-    f.startsWith(".github/workflows/"),
+// Workflows the fork runs: ours (`intelia-*`), upstream's CI adapted to GitHub runners and
+// GitHub's default CodeQL setup. Every other workflow (upstream's today and any it adds
+// later) must stay disabled; GitHub only registers a workflow, and lets us disable it,
+// after its first event, so the weekly job keeps enforcing this.
+export function isAllowedWorkflow(path) {
+  return (
+    path === CI_YML ||
+    /^\.github\/workflows\/intelia-[\w.-]+\.ya?ml$/.test(path) ||
+    path === "dynamic/github-code-scanning/codeql"
   );
+}
 
-  const drizzleFiles = execGit([
-    "diff",
-    "--name-only",
-    "HEAD^1",
-    "HEAD",
-    "--",
-    "apps/api/drizzle",
-  ])
-    .trim()
+export function workflowsToDisable(workflows) {
+  return workflows.filter(
+    (w) => w.state === "active" && !isAllowedWorkflow(w.path),
+  );
+}
+
+export function usesPullRequestTarget(text) {
+  return text
     .split("\n")
-    .filter(Boolean);
+    .some(
+      (line) => !/^\s*#/.test(line) && /\bpull_request_target\b/.test(line),
+    );
+}
 
-  const drizzleChanged = drizzleFiles.length > 0;
+function listWorkflows(repo) {
+  const pages = JSON.parse(
+    execFileSync(
+      "gh",
+      [
+        "api",
+        "--paginate",
+        "--slurp",
+        `repos/${repo}/actions/workflows?per_page=100`,
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    ),
+  );
+  return pages.flatMap((page) => page.workflows);
+}
 
-  const addedWorkflows = execGit([
-    "diff",
-    "--name-only",
-    "--diff-filter=A",
-    "HEAD^1",
-    "HEAD",
-    "--",
-    ".github/workflows",
-  ])
-    .trim()
-    .split("\n")
-    .filter(Boolean);
+function pullRequestTargetFiles() {
+  return gitLines(["ls-files", ".github/workflows"]).filter(
+    (f) =>
+      /\.ya?ml$/.test(f) && usesPullRequestTarget(fs.readFileSync(f, "utf8")),
+  );
+}
 
-  const status = "ready";
-  const reportData = buildReportData({
-    status,
-    ref,
-    branch,
-    sha,
-    changedFiles,
-    workflowsChanged,
-    drizzleChanged,
-    autoResolvedFiles,
-    addedWorkflows,
-  });
+function workflowWarnings() {
+  const activeOutsideAllowlist = workflowsToDisable(
+    listWorkflows(FORK_REPOSITORY),
+  ).map((w) => w.path);
+  const pullRequestTargetWorkflows = pullRequestTargetFiles();
+  for (const w of activeOutsideAllowlist) {
+    console.error(
+      `::warning file=${w}::Workflow activo fuera de la lista blanca del fork`,
+    );
+  }
+  for (const w of pullRequestTargetWorkflows) {
+    console.error(`::warning file=${w}::Workflow con pull_request_target`);
+  }
+  return { activeOutsideAllowlist, pullRequestTargetWorkflows };
+}
 
+function finish(reportPath, data) {
+  const reportData = buildReportData({ ...data, ...workflowWarnings() });
   if (reportPath) {
     fs.writeFileSync(
       reportPath,
@@ -468,59 +320,223 @@ export async function prepare(optsOrRef = {}) {
       "utf8",
     );
   }
-
   writeOutputs({
-    status,
-    ref,
-    branch,
-    sha,
-    workflows_changed: workflowsChanged ? "true" : "false",
+    status: reportData.status,
+    ref: reportData.ref,
+    branch: reportData.branch,
+    sha: reportData.sha,
+    workflows_changed: reportData.workflowsChanged ? "true" : "false",
   });
-
-  const report = renderReport(reportData);
-  writeSummary(report);
-
+  writeSummary(renderReport(reportData));
   return reportData;
 }
 
-// Workflows the fork runs. Every other upstream workflow stays disabled; GitHub only
-// registers a workflow (and lets us disable it) after its first event.
-const FORK_WORKFLOWS = new Set([
-  ".github/workflows/ci.yml",
-  ".github/workflows/intelia-release.yml",
-  ".github/workflows/intelia-upstream-sync.yml",
-  ".github/workflows/intelia-candidate.yml",
-]);
+function fetchUpstream(ref) {
+  try {
+    const refspec = ref.startsWith("v")
+      ? `+refs/tags/${ref}:refs/tags/${ref}`
+      : `+refs/heads/${ref}:refs/remotes/upstream/${ref}`;
+    execGit(["fetch", "--no-tags", UPSTREAM_REPO_URL, refspec]);
+  } catch {
+    // Not a tag or branch name (e.g. a commit SHA): fetch it into FETCH_HEAD.
+    execGit(["fetch", "--no-tags", UPSTREAM_REPO_URL, ref]);
+  }
+  return execGit(["rev-parse", "FETCH_HEAD^{commit}"]).trim();
+}
 
-export function workflowsToDisable(workflows) {
-  return workflows.filter(
-    (w) =>
-      w.state === "active" &&
-      !FORK_WORKFLOWS.has(w.path) &&
-      // dynamic/* are GitHub-managed (CodeQL default setup, Dependabot), not upstream files.
-      !w.path.startsWith("dynamic/"),
+function syncBranchExists(branch) {
+  const repo = process.env.GITHUB_REPOSITORY;
+  if (!repo) return false;
+  const prs = JSON.parse(
+    execFileSync(
+      "gh",
+      [
+        "pr",
+        "list",
+        "--repo",
+        repo,
+        "--head",
+        branch,
+        "--state",
+        "open",
+        "--json",
+        "number",
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    ),
   );
+  const remoteBranch = execGit([
+    "ls-remote",
+    "--heads",
+    `https://github.com/${repo}.git`,
+    `refs/heads/${branch}`,
+  ]).trim();
+  return prs.length > 0 || remoteBranch !== "";
+}
+
+export async function prepare(opts = {}) {
+  const { explicitRef = null, noBranchCheck = false, reportPath = null } = opts;
+
+  const ref = explicitRef
+    ? validateRef(explicitRef, true)
+    : validateRef(
+        execFileSync(
+          "gh",
+          ["api", "repos/usekaneo/kaneo/releases/latest", "--jq", ".tag_name"],
+          {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        ).trim(),
+        false,
+      );
+  const branch = getBranchName(ref);
+  const targetCommit = fetchUpstream(ref);
+
+  let merged = true;
+  try {
+    execGit(["merge-base", "--is-ancestor", targetCommit, "HEAD"]);
+  } catch {
+    merged = false;
+  }
+  if (merged) return finish(reportPath, { status: "uptodate", ref, branch });
+
+  // Never clobber an existing sync branch (open PR or manual conflict resolution in progress).
+  if (!noBranchCheck && syncBranchExists(branch)) {
+    return finish(reportPath, { status: "open", ref, branch });
+  }
+
+  const currentBranch = execGit(["rev-parse", "--abbrev-ref", "HEAD"]).trim();
+  const startRef =
+    currentBranch === "HEAD"
+      ? execGit(["rev-parse", "HEAD"]).trim()
+      : currentBranch;
+  const mergeBase = execGit(["merge-base", "HEAD", targetCommit]).trim();
+
+  // `checkout -b` refuses to reuse an existing local branch.
+  execGit(["checkout", "-b", branch, "HEAD"]);
+  const identity = getGitIdentityArgs();
+  let mergeError;
+  try {
+    execGit([...identity, "merge", "--no-ff", "--no-commit", targetCommit]);
+  } catch (err) {
+    mergeError = err;
+  }
+
+  const unmerged = gitLines(["diff", "--name-only", "--diff-filter=U"]);
+  // A merge that stops without unmerged paths failed for another reason: surface it.
+  if (mergeError && unmerged.length === 0) throw mergeError;
+
+  const autoResolvedFiles = [];
+  let conflictedFiles = unmerged.filter((f) => f !== CI_YML);
+  if (unmerged.includes(CI_YML)) {
+    const resolved = resolveForkCi({
+      base: showFile(mergeBase, CI_YML),
+      ours: showFile("HEAD", CI_YML),
+      theirs: showFile(targetCommit, CI_YML),
+    });
+    if (resolved === null) {
+      conflictedFiles = unmerged;
+    } else if (conflictedFiles.length === 0) {
+      fs.writeFileSync(CI_YML, resolved, "utf8");
+      execGit(["add", CI_YML]);
+      autoResolvedFiles.push(CI_YML);
+    }
+  }
+
+  if (conflictedFiles.length > 0) {
+    // Leave the checkout as it was, so the manual procedure can start from scratch.
+    execGit(["merge", "--abort"]);
+    execGit(["checkout", startRef]);
+    execGit(["branch", "-D", branch]);
+    for (const f of unmerged) {
+      console.error(`::error file=${f}::Merge conflict in ${f}`);
+    }
+    finish(reportPath, {
+      status: "conflicts",
+      ref,
+      branch,
+      conflictedFiles: unmerged,
+    });
+    process.exit(1);
+  }
+
+  // A clean merge can still bring new Blacksmith jobs: adapt them. forkCi only rewrites the
+  // Blacksmith-specific lines, so nothing else in the merged file changes.
+  if (fs.existsSync(CI_YML) && autoResolvedFiles.length === 0) {
+    const merged = fs.readFileSync(CI_YML, "utf8");
+    const adapted = forkCi(merged);
+    const problems = checkForkCi(adapted);
+    if (problems.length > 0)
+      throw new Error(`ci.yml cannot be adapted: ${problems.join("; ")}`);
+    if (adapted !== merged) {
+      fs.writeFileSync(CI_YML, adapted, "utf8");
+      execGit(["add", CI_YML]);
+    }
+  }
+
+  execGit([...identity, "commit", "-m", `chore: merge upstream ${ref}`]);
+
+  const changedFiles = gitLines(["diff", "--name-only", "HEAD^1", "HEAD"]);
+  return finish(reportPath, {
+    status: "ready",
+    ref,
+    branch,
+    sha: execGit(["rev-parse", "HEAD"]).trim(),
+    changedFiles,
+    workflowsChanged: changedFiles.some((f) =>
+      f.startsWith(".github/workflows/"),
+    ),
+    drizzleChanged: changedFiles.some((f) => f.startsWith("apps/api/drizzle/")),
+    autoResolvedFiles,
+    addedWorkflows: gitLines([
+      "diff",
+      "--name-only",
+      "--diff-filter=A",
+      "HEAD^1",
+      "HEAD",
+      "--",
+      ".github/workflows",
+    ]),
+  });
 }
 
 export function disableWorkflows() {
   const repo = process.env.GITHUB_REPOSITORY;
-  const pages = JSON.parse(
+  const targets = workflowsToDisable(listWorkflows(repo));
+  for (const w of targets) {
     execFileSync(
       "gh",
-      ["api", "--paginate", "--slurp", `repos/${repo}/actions/workflows?per_page=100`],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-    ),
-  );
-  const targets = workflowsToDisable(pages.flatMap((page) => page.workflows));
-  for (const w of targets) {
-    execFileSync("gh", ["api", "-X", "PUT", `repos/${repo}/actions/workflows/${w.id}/disable`], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+      ["api", "-X", "PUT", `repos/${repo}/actions/workflows/${w.id}/disable`],
+      {
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
   }
-  const report = targets.length
-    ? `## Workflows de upstream desactivados\n\n${targets.map((w) => `- \`${w.path}\``).join("\n")}\n`
-    : "## Workflows de upstream desactivados\n\nNinguno: no había ninguno activo fuera de los del fork.\n";
-  writeSummary(report);
+  const stillActive = workflowsToDisable(listWorkflows(repo)).map(
+    (w) => w.path,
+  );
+  const pullRequestTarget = pullRequestTargetFiles();
+
+  let md = "## Workflows fuera de la lista blanca\n\n";
+  md += targets.length
+    ? `Desactivados ahora:\n${targets.map((w) => `- \`${w.path}\``).join("\n")}\n`
+    : "No había ninguno activo.\n";
+  if (pullRequestTarget.length > 0) {
+    md += `\nCon \`pull_request_target\` en el repo (desactivados salvo que estén abajo):\n`;
+    md += pullRequestTarget.map((w) => `- \`${w}\``).join("\n") + "\n";
+  }
+  if (stillActive.length > 0) {
+    md += `\n**Siguen activos fuera de la lista blanca:**\n`;
+    md += stillActive.map((w) => `- \`${w}\``).join("\n") + "\n";
+  }
+  writeSummary(md);
+  if (stillActive.length > 0) {
+    for (const w of stillActive) {
+      console.error(`::error file=${w}::Sigue activo fuera de la lista blanca`);
+    }
+    process.exit(1);
+  }
 }
 
 async function main() {
@@ -538,6 +554,9 @@ async function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   await main();
 }
