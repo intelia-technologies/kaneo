@@ -1,4 +1,4 @@
-import i18n from "i18next";
+import { registerInteliaI18n } from "../i18n";
 
 const en = {
   dependencies: {
@@ -61,30 +61,4 @@ const es = {
   },
 };
 
-export function registerDependenciesI18n(): void {
-  const instance = i18n as unknown as {
-    addResourceBundle?: (
-      lng: string,
-      ns: string,
-      resources: unknown,
-      deep?: boolean,
-      overwrite?: boolean,
-    ) => void;
-    on?: (event: string, callback: () => void) => void;
-  };
-
-  if (typeof instance.addResourceBundle === "function") {
-    for (const lng of ["en", "en-US"]) {
-      instance.addResourceBundle(lng, "intelia", en, true, true);
-    }
-    for (const lng of ["es", "es-ES"]) {
-      instance.addResourceBundle(lng, "intelia", es, true, true);
-    }
-  } else if (typeof instance.on === "function") {
-    instance.on("initialized", () => {
-      registerDependenciesI18n();
-    });
-  }
-}
-
-registerDependenciesI18n();
+registerInteliaI18n(en, es);

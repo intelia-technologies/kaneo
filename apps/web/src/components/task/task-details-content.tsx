@@ -15,6 +15,7 @@ import TaskRelations from "./task-relations";
 import TaskSubtasks from "./task-subtasks";
 import TaskTitle from "./task-title";
 import { ReactionBar } from "../intelia/reaction-bar";
+import { TaskRoutinePanel } from "@/intelia/routines/components/routine-panel";
 
 type TaskDetailsContentProps = {
   taskId: string | undefined;
@@ -100,6 +101,7 @@ export default function TaskDetailsContent({
           externalLinks={externalLinks as ExternalLink[]}
           isLoading={isLoadingExternalLinks}
         />
+        <TaskRoutinePanel taskId={taskId} />
       </div>
 
       <TaskActivity
