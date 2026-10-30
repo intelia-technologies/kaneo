@@ -5516,6 +5516,81 @@
           "joinedAt"
         ]
       },
+      "WorkspaceCommentsResponse": {
+        "type": "object",
+        "properties": {
+          "comments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceComment"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "comments",
+          "hasMore"
+        ]
+      },
+      "WorkspaceComment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "taskTitle": {
+            "type": "string"
+          },
+          "taskStatus": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "userName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "externalUserName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "taskId",
+          "taskTitle",
+          "taskStatus",
+          "projectId",
+          "userId",
+          "userName",
+          "externalUserName",
+          "content",
+          "createdAt"
+        ]
+      },
       "Reaction": {
         "type": "object",
         "properties": {
@@ -24960,6 +25035,120 @@
           },
           "404": {
             "description": "Workspace or member not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/workspace/{workspaceId}/comments": {
+      "get": {
+        "operationId": "listWorkspaceComments",
+        "tags": [
+          "Comments"
+        ],
+        "summary": "List workspace comments by date",
+        "description": "Comments across the workspace's active projects visible to the caller, created at or after since, ordered ascending by (createdAt, id) for event reconciliation.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Workspace ID",
+              "example": "ws_xxxxxxxxxxxxxxxxxxxxxxxxx"
+            },
+            "required": true,
+            "description": "Workspace ID",
+            "name": "workspaceId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "description": "ISO 8601 timestamp. Returns comments created at or after this time (or strictly after when afterId is also supplied).",
+              "example": "2026-10-30T10:00:00.000Z"
+            },
+            "required": true,
+            "description": "ISO 8601 timestamp. Returns comments created at or after this time (or strictly after when afterId is also supplied).",
+            "name": "since",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Comment ID cursor for stable pagination when multiple comments share the same createdAt timestamp.",
+              "example": "act_xxxxxxxxxxxxxxxxxxxxxxxxx"
+            },
+            "required": false,
+            "description": "Comment ID cursor for stable pagination when multiple comments share the same createdAt timestamp.",
+            "name": "afterId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 100,
+              "description": "Maximum number of comments to return (default 100, max 200)."
+            },
+            "required": false,
+            "description": "Maximum number of comments to return (default 100, max 200).",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Comments of the workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceCommentsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing project:read or task:read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found or not a member",
             "content": {
               "application/json": {
                 "schema": {
