@@ -4,8 +4,8 @@ import type Task from "@/types/task";
 import {
   computeCriticalPath,
   edgeKey,
-  type BlocksEdge,
-  type PathTask,
+  findCycle,
+  type CriticalPathResult,
 } from "./critical-path";
 import type {
   ExternalNodeData,
@@ -38,6 +38,7 @@ export type GraphModelResult = {
   hasCycle: boolean;
   cycleTaskNames: string[];
   totalProjectTasks: number;
+  filteredProjectTasks: number;
   visibleProjectTasks: number;
   hasVisibleNodes: boolean;
 };
@@ -245,22 +246,27 @@ export function buildGraphModel({
     (e) => finalNodeIds.has(e.source) && finalNodeIds.has(e.target),
   );
 
-  // 5. Critical path computation (over displayed project tasks only)
-  const pathTasks: PathTask[] = displayedProjectTasks.map((task) => ({
-    id: task.id,
-    priority: task.priority ?? null,
-    finished: isTaskFinal(task, columnsBySlug),
-  }));
+  // 5. The cycle check covers every drawn node (external ones included) and
+  // edge; the critical path only runs over project tasks when there is none.
+  const cycle = findCycle(
+    Array.from(finalNodeIds),
+    finalEdgesRaw.map((e) => ({ source: e.source, target: e.target })),
+  );
 
-  const pathEdges: BlocksEdge[] = finalEdgesRaw
-    .filter(
-      (e) =>
-        displayedProjectTaskIds.has(e.source) &&
-        displayedProjectTaskIds.has(e.target),
-    )
-    .map((e) => ({ source: e.source, target: e.target }));
-
-  const criticalResult = computeCriticalPath(pathTasks, pathEdges);
+  const criticalResult: CriticalPathResult = cycle
+    ? { kind: "cycle", taskIds: cycle }
+    : computeCriticalPath(
+        displayedProjectTasks.map((task) => ({
+          id: task.id,
+          priority: task.priority ?? null,
+          finished: isTaskFinal(task, columnsBySlug),
+        })),
+        finalEdgesRaw.filter(
+          (e) =>
+            displayedProjectTaskIds.has(e.source) &&
+            displayedProjectTaskIds.has(e.target),
+        ),
+      );
 
   let hasCycle = false;
   let cycleTaskNames: string[] = [];
@@ -272,9 +278,15 @@ export function buildGraphModel({
     cycleTaskNames = criticalResult.taskIds.map((id) => {
       const task = allTasksById.get(id);
       if (task) {
-        const numStr =
-          task.number !== null ? `${projectSlug}-${task.number}` : "";
-        return `${numStr} ${task.title}`.trim();
+        return task.number !== null
+          ? `${projectSlug}-${task.number} ${task.title}`
+          : task.title;
+      }
+      const ext = externalTasksById.get(id);
+      if (ext) {
+        return ext.number !== null
+          ? `${ext.projectSlug}-${ext.number} ${ext.title}`
+          : ext.title;
       }
       return id;
     });
@@ -443,6 +455,7 @@ export function buildGraphModel({
     hasCycle,
     cycleTaskNames,
     totalProjectTasks: tasks.length,
+    filteredProjectTasks: candidateProjectTasks.length,
     visibleProjectTasks: displayedProjectTasks.length,
     hasVisibleNodes: nodes.length > 0,
   };

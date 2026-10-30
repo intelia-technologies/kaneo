@@ -22,7 +22,11 @@ const en = {
     noDependenciesDescription:
       'Visible tasks have no dependencies between them. Turn on "Show loose tasks" to view them all.',
     unassigned: "Unassigned",
-    openExternal: "Open in project {{project}}",
+    openExternal: "Open {{task}} in {{project}}",
+    loadError: "Failed to load dependencies",
+    loadErrorDescription: "Could not retrieve task relations for this project.",
+    retry: "Retry",
+    loading: "Loading dependencies...",
   },
 };
 
@@ -48,7 +52,12 @@ const es = {
     noDependenciesDescription:
       "Las tareas visibles no tienen dependencias entre sí. Activa «Tareas sueltas» para verlas todas.",
     unassigned: "Sin asignar",
-    openExternal: "Abrir en el proyecto {{project}}",
+    openExternal: "Abrir {{task}} en {{project}}",
+    loadError: "Error al cargar las dependencias",
+    loadErrorDescription:
+      "No se pudieron obtener las relaciones entre tareas de este proyecto.",
+    retry: "Reintentar",
+    loading: "Cargando dependencias...",
   },
 };
 

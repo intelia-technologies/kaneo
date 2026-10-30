@@ -49,12 +49,6 @@ export function edgeKey(source: string, target: string): string {
   return `${source}->${target}`;
 }
 
-const enum VisitState {
-  Unvisited = 0,
-  Visiting = 1,
-  Visited = 2,
-}
-
 function canonicalizeCycle(cycle: string[]): string[] {
   if (cycle.length <= 1) return cycle;
   let minIdx = 0;
@@ -67,23 +61,140 @@ function canonicalizeCycle(cycle: string[]): string[] {
   return [...cycle.slice(minIdx), ...cycle.slice(0, minIdx)];
 }
 
-type PathInfo = {
-  taskIds: string[];
+/**
+ * Returns one cycle (ids in cycle order, rotated to start at the smallest id) among nodeIds, or null.
+ * Edges with an endpoint not in nodeIds are ignored; a self-loop is a 1-node cycle.
+ * Iterative (no recursion), deterministic regardless of input order.
+ */
+export function findCycle(
+  nodeIds: string[],
+  edges: BlocksEdge[],
+): string[] | null {
+  const nodeSet = new Set(nodeIds);
+  if (nodeSet.size === 0) {
+    return null;
+  }
+
+  // Deduplicate edges and build outgoing / incoming adjacency sets for the induced graph
+  const outgoing = new Map<string, Set<string>>();
+  const incoming = new Map<string, Set<string>>();
+
+  for (const id of nodeSet) {
+    outgoing.set(id, new Set<string>());
+    incoming.set(id, new Set<string>());
+  }
+
+  for (const edge of edges) {
+    if (nodeSet.has(edge.source) && nodeSet.has(edge.target)) {
+      outgoing.get(edge.source)!.add(edge.target);
+      incoming.get(edge.target)!.add(edge.source);
+    }
+  }
+
+  // Kahn's algorithm over the induced graph
+  const inDegree = new Map<string, number>();
+  const queue: string[] = [];
+
+  for (const id of nodeSet) {
+    const deg = incoming.get(id)!.size;
+    inDegree.set(id, deg);
+    if (deg === 0) {
+      queue.push(id);
+    }
+  }
+
+  let head = 0;
+  while (head < queue.length) {
+    const u = queue[head++];
+    const targets = outgoing.get(u)!;
+    for (const v of targets) {
+      const nextDeg = inDegree.get(v)! - 1;
+      inDegree.set(v, nextDeg);
+      if (nextDeg === 0) {
+        queue.push(v);
+      }
+    }
+  }
+
+  // If all nodes had in-degree reach 0, the graph is acyclic
+  if (queue.length === nodeSet.size) {
+    return null;
+  }
+
+  // Remaining nodes are those whose in-degree never reached 0
+  const remainingSet = new Set<string>();
+  for (const id of nodeSet) {
+    if (inDegree.get(id)! > 0) {
+      remainingSet.add(id);
+    }
+  }
+
+  // Find the deterministically smallest remaining id
+  let startNode: string | null = null;
+  for (const id of remainingSet) {
+    if (startNode === null || id < startNode) {
+      startNode = id;
+    }
+  }
+
+  // Walk predecessors inside the remaining set until a node repeats
+  const visitedOrder: string[] = [];
+  const visitedIndex = new Map<string, number>();
+
+  let curr = startNode!;
+  while (!visitedIndex.has(curr)) {
+    visitedIndex.set(curr, visitedOrder.length);
+    visitedOrder.push(curr);
+
+    // Pick the deterministically smallest predecessor in remainingSet
+    let bestPred: string | null = null;
+    for (const pred of incoming.get(curr)!) {
+      if (remainingSet.has(pred)) {
+        if (bestPred === null || pred < bestPred) {
+          bestPred = pred;
+        }
+      }
+    }
+
+    curr = bestPred!;
+  }
+
+  // curr repeated: slice from its first occurrence
+  const cycleStartIndex = visitedIndex.get(curr)!;
+  const cycleReversed = visitedOrder.slice(cycleStartIndex);
+  // Reversing predecessor order yields forward directed cycle order
+  const forwardCycle = cycleReversed.reverse();
+
+  return canonicalizeCycle(forwardCycle);
+}
+
+type NodeDP = {
+  length: number;
   prioritySum: number;
+  next: string | null;
 };
 
-function isBetterPath(candidate: PathInfo, currentBest: PathInfo): boolean {
-  if (candidate.taskIds.length !== currentBest.taskIds.length) {
-    return candidate.taskIds.length > currentBest.taskIds.length;
+function isBetterChain(
+  nodeA: string,
+  nodeB: string,
+  dp: Map<string, NodeDP>,
+): boolean {
+  const a = dp.get(nodeA)!;
+  const b = dp.get(nodeB)!;
+  if (a.length !== b.length) {
+    return a.length > b.length;
   }
-  if (candidate.prioritySum !== currentBest.prioritySum) {
-    return candidate.prioritySum > currentBest.prioritySum;
+  if (a.prioritySum !== b.prioritySum) {
+    return a.prioritySum > b.prioritySum;
   }
-  const len = candidate.taskIds.length;
-  for (let i = 0; i < len; i++) {
-    if (candidate.taskIds[i] !== currentBest.taskIds[i]) {
-      return candidate.taskIds[i] < currentBest.taskIds[i];
+  let currA: string | null = nodeA;
+  let currB: string | null = nodeB;
+  while (currA !== null && currB !== null) {
+    if (currA !== currB) {
+      return currA < currB;
     }
+    currA = dp.get(currA)!.next;
+    currB = dp.get(currB)!.next;
   }
   return false;
 }
@@ -99,73 +210,16 @@ export function computeCriticalPath(
     }
   }
 
-  // Edges with an endpoint not in tasks are ignored
-  const fullAdjSets = new Map<string, Set<string>>();
-  for (const id of taskMap.keys()) {
-    fullAdjSets.set(id, new Set<string>());
-  }
-  for (const edge of edges) {
-    if (taskMap.has(edge.source) && taskMap.has(edge.target)) {
-      fullAdjSets.get(edge.source)!.add(edge.target);
-    }
+  const allTaskIds = Array.from(taskMap.keys());
+  const cycle = findCycle(allTaskIds, edges);
+  if (cycle !== null) {
+    return {
+      kind: "cycle",
+      taskIds: cycle,
+    };
   }
 
-  const fullAdj = new Map<string, string[]>();
-  for (const [id, neighbors] of fullAdjSets) {
-    fullAdj.set(id, Array.from(neighbors).sort());
-  }
-
-  // Cycle detection over ALL given tasks and edges (finished included)
-  const state = new Map<string, VisitState>();
-  for (const id of taskMap.keys()) {
-    state.set(id, VisitState.Unvisited);
-  }
-
-  const stack: string[] = [];
-  let detectedCycle: string[] | null = null;
-
-  function dfs(u: string): boolean {
-    state.set(u, VisitState.Visiting);
-    stack.push(u);
-
-    const neighbors = fullAdj.get(u) ?? [];
-    for (const v of neighbors) {
-      if (v === u) {
-        detectedCycle = [u];
-        return true;
-      }
-      const vState = state.get(v);
-      if (vState === VisitState.Visiting) {
-        const idx = stack.indexOf(v);
-        if (idx !== -1) {
-          detectedCycle = stack.slice(idx);
-          return true;
-        }
-      } else if (vState === VisitState.Unvisited) {
-        if (dfs(v)) {
-          return true;
-        }
-      }
-    }
-
-    stack.pop();
-    state.set(u, VisitState.Visited);
-    return false;
-  }
-
-  const sortedAllIds = Array.from(taskMap.keys()).sort();
-  for (const id of sortedAllIds) {
-    if (state.get(id) === VisitState.Unvisited) {
-      if (dfs(id)) {
-        return {
-          kind: "cycle",
-          taskIds: canonicalizeCycle(detectedCycle!),
-        };
-      }
-    }
-  }
-
-  // Unfinished subgraph only
+  // Unfinished tasks only
   const unfinishedTasks: PathTask[] = [];
   for (const task of tasks) {
     if (!task.finished && taskMap.get(task.id) === task) {
@@ -177,63 +231,109 @@ export function computeCriticalPath(
     return { kind: "path", taskIds: [], edgeKeys: [] };
   }
 
-  const unfinishedTaskSet = new Set(unfinishedTasks.map((t) => t.id));
-  const unfinishedAdj = new Map<string, string[]>();
-  for (const task of unfinishedTasks) {
-    const rawNeighbors = fullAdj.get(task.id) ?? [];
-    const filtered = rawNeighbors.filter((v) => unfinishedTaskSet.has(v));
-    unfinishedAdj.set(task.id, filtered);
+  const unfinishedSet = new Set(unfinishedTasks.map((t) => t.id));
+  const unfinishedAdjSets = new Map<string, Set<string>>();
+  const unfinishedInDegree = new Map<string, number>();
+
+  for (const id of unfinishedSet) {
+    unfinishedAdjSets.set(id, new Set<string>());
+    unfinishedInDegree.set(id, 0);
   }
 
-  // Topological DP on DAG of unfinished tasks
-  const memo = new Map<string, PathInfo>();
+  for (const edge of edges) {
+    if (unfinishedSet.has(edge.source) && unfinishedSet.has(edge.target)) {
+      const targets = unfinishedAdjSets.get(edge.source)!;
+      if (!targets.has(edge.target)) {
+        targets.add(edge.target);
+        unfinishedInDegree.set(
+          edge.target,
+          unfinishedInDegree.get(edge.target)! + 1,
+        );
+      }
+    }
+  }
 
-  function getBestPathFrom(u: string): PathInfo {
-    const cached = memo.get(u);
-    if (cached) return cached;
+  const unfinishedAdj = new Map<string, string[]>();
+  for (const [id, targets] of unfinishedAdjSets) {
+    unfinishedAdj.set(id, Array.from(targets));
+  }
 
-    const uPriority = getPriorityRank(taskMap.get(u)?.priority);
-    let bestFromU: PathInfo = {
-      taskIds: [u],
-      prioritySum: uPriority,
-    };
+  // Iterative topological sort of unfinished tasks (Kahn's algorithm)
+  const queue: string[] = [];
+  for (const id of unfinishedSet) {
+    if (unfinishedInDegree.get(id) === 0) {
+      queue.push(id);
+    }
+  }
+
+  const topoOrder: string[] = [];
+  let head = 0;
+  while (head < queue.length) {
+    const u = queue[head++];
+    topoOrder.push(u);
 
     const neighbors = unfinishedAdj.get(u) ?? [];
     for (const v of neighbors) {
-      const nextPath = getBestPathFrom(v);
-      const candidate: PathInfo = {
-        taskIds: [u, ...nextPath.taskIds],
-        prioritySum: uPriority + nextPath.prioritySum,
-      };
-      if (isBetterPath(candidate, bestFromU)) {
-        bestFromU = candidate;
+      const newDeg = unfinishedInDegree.get(v)! - 1;
+      unfinishedInDegree.set(v, newDeg);
+      if (newDeg === 0) {
+        queue.push(v);
+      }
+    }
+  }
+
+  // DP in reverse topological order
+  const dp = new Map<string, NodeDP>();
+
+  for (let i = topoOrder.length - 1; i >= 0; i--) {
+    const u = topoOrder[i];
+    const uPriority = getPriorityRank(taskMap.get(u)?.priority);
+
+    let bestNext: string | null = null;
+    const neighbors = unfinishedAdj.get(u) ?? [];
+    for (const v of neighbors) {
+      if (bestNext === null || isBetterChain(v, bestNext, dp)) {
+        bestNext = v;
       }
     }
 
-    memo.set(u, bestFromU);
-    return bestFromU;
+    const vDP = bestNext !== null ? dp.get(bestNext)! : null;
+    dp.set(u, {
+      length: vDP !== null ? 1 + vDP.length : 1,
+      prioritySum: vDP !== null ? uPriority + vDP.prioritySum : uPriority,
+      next: bestNext,
+    });
   }
 
-  let overallBest: PathInfo | null = null;
+  // Select the best starting node
+  let overallBestStart: string | null = null;
   for (const task of unfinishedTasks) {
-    const path = getBestPathFrom(task.id);
-    if (!overallBest || isBetterPath(path, overallBest)) {
-      overallBest = path;
+    const id = task.id;
+    if (overallBestStart === null || isBetterChain(id, overallBestStart, dp)) {
+      overallBestStart = id;
     }
   }
 
-  if (!overallBest) {
+  if (overallBestStart === null) {
     return { kind: "path", taskIds: [], edgeKeys: [] };
   }
 
+  // Reconstruct path by following `next` pointers
+  const pathTaskIds: string[] = [];
+  let curr: string | null = overallBestStart;
+  while (curr !== null) {
+    pathTaskIds.push(curr);
+    curr = dp.get(curr)!.next;
+  }
+
   const edgeKeys: string[] = [];
-  for (let i = 0; i < overallBest.taskIds.length - 1; i++) {
-    edgeKeys.push(edgeKey(overallBest.taskIds[i], overallBest.taskIds[i + 1]));
+  for (let i = 0; i < pathTaskIds.length - 1; i++) {
+    edgeKeys.push(edgeKey(pathTaskIds[i], pathTaskIds[i + 1]));
   }
 
   return {
     kind: "path",
-    taskIds: overallBest.taskIds,
+    taskIds: pathTaskIds,
     edgeKeys,
   };
 }

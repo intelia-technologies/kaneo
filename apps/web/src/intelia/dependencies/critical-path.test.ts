@@ -3,6 +3,7 @@ import {
   type BlocksEdge,
   computeCriticalPath,
   edgeKey,
+  findCycle,
   type PathTask,
 } from "./critical-path";
 
@@ -375,5 +376,170 @@ describe("critical path calculation", () => {
         edgeKeys: ["N1->N2"],
       });
     });
+  });
+});
+
+describe("findCycle direct contract", () => {
+  it("returns 3-cycle in cycle order rotated to start at smallest id", () => {
+    // c -> a -> b -> c
+    const edges1: BlocksEdge[] = [
+      edge("c", "a"),
+      edge("a", "b"),
+      edge("b", "c"),
+    ];
+    expect(findCycle(["c", "b", "a"], edges1)).toEqual(["a", "b", "c"]);
+
+    // c -> b -> a -> c
+    const edges2: BlocksEdge[] = [
+      edge("c", "b"),
+      edge("b", "a"),
+      edge("a", "c"),
+    ];
+    expect(findCycle(["a", "b", "c"], edges2)).toEqual(["a", "c", "b"]);
+  });
+
+  it("returns a 1-node cycle for a self-loop", () => {
+    const edges: BlocksEdge[] = [
+      edge("task-2", "task-2"),
+      edge("task-1", "task-2"),
+    ];
+    expect(findCycle(["task-1", "task-2"], edges)).toEqual(["task-2"]);
+  });
+
+  it("returns null for acyclic graphs or empty input", () => {
+    expect(findCycle([], [])).toBeNull();
+
+    const edges: BlocksEdge[] = [edge("a", "b"), edge("b", "c")];
+    expect(findCycle(["a", "b", "c"], edges)).toBeNull();
+  });
+
+  it("ignores edges with unknown endpoints", () => {
+    const ghostCycleEdges: BlocksEdge[] = [
+      edge("a", "b"),
+      edge("b", "ghost"),
+      edge("ghost", "a"),
+    ];
+    expect(findCycle(["a", "b"], ghostCycleEdges)).toBeNull();
+
+    const realCycleWithGhostEdges: BlocksEdge[] = [
+      edge("a", "b"),
+      edge("b", "a"),
+      edge("a", "ghost"),
+      edge("ghost", "b"),
+    ];
+    expect(findCycle(["a", "b"], realCycleWithGhostEdges)).toEqual(["a", "b"]);
+  });
+
+  it("is independent of nodeIds and edges input order", () => {
+    const baseNodes = ["t1", "t2", "t3", "tail"];
+    const baseEdges: BlocksEdge[] = [
+      edge("t1", "t2"),
+      edge("t2", "t3"),
+      edge("t3", "t1"),
+      edge("tail", "t1"),
+    ];
+    const expected = ["t1", "t2", "t3"];
+
+    expect(findCycle(baseNodes, baseEdges)).toEqual(expected);
+    expect(
+      findCycle([...baseNodes].reverse(), [...baseEdges].reverse()),
+    ).toEqual(expected);
+
+    const shuffledNodes = ["tail", "t2", "t1", "t3"];
+    const shuffledEdges = [
+      baseEdges[2],
+      baseEdges[0],
+      baseEdges[3],
+      baseEdges[1],
+    ];
+    expect(findCycle(shuffledNodes, shuffledEdges)).toEqual(expected);
+  });
+});
+
+describe("scale benchmarks", () => {
+  it("handles a chain of 10,000 unfinished tasks under 2000ms without stack overflow", () => {
+    const n = 10000;
+    const tasks: PathTask[] = new Array(n);
+    const edges: BlocksEdge[] = new Array(n - 1);
+    for (let i = 0; i < n; i++) {
+      tasks[i] = task(`t-${i.toString().padStart(5, "0")}`, "medium");
+      if (i > 0) {
+        edges[i - 1] = edge(
+          `t-${(i - 1).toString().padStart(5, "0")}`,
+          `t-${i.toString().padStart(5, "0")}`,
+        );
+      }
+    }
+
+    const start = performance.now();
+    const result = computeCriticalPath(tasks, edges);
+    const duration = performance.now() - start;
+
+    expect(duration).toBeLessThan(2000);
+    expect(result.kind).toBe("path");
+    if (result.kind === "path") {
+      expect(result.taskIds).toHaveLength(10000);
+      expect(result.edgeKeys).toHaveLength(9999);
+      expect(result.taskIds[0]).toBe("t-00000");
+      expect(result.taskIds[9999]).toBe("t-09999");
+      expect(result.edgeKeys[0]).toBe("t-00000->t-00001");
+      expect(result.edgeKeys[9998]).toBe("t-09998->t-09999");
+    }
+  });
+
+  it("handles a wide DAG (200 layers x 50 nodes) under 2000ms", () => {
+    const layers = 200;
+    const width = 50;
+    const tasks: PathTask[] = [];
+    const edges: BlocksEdge[] = [];
+
+    for (let l = 0; l < layers; l++) {
+      const layerStr = l.toString().padStart(3, "0");
+      for (let w = 0; w < width; w++) {
+        const nodeStr = `l${layerStr}-w${w.toString().padStart(2, "0")}`;
+        tasks.push(task(nodeStr));
+        if (l < layers - 1) {
+          const nextLayerStr = (l + 1).toString().padStart(3, "0");
+          for (let offset = 0; offset < 3; offset++) {
+            const targetW = ((w + offset) % width).toString().padStart(2, "0");
+            edges.push(edge(nodeStr, `l${nextLayerStr}-w${targetW}`));
+          }
+        }
+      }
+    }
+
+    const start = performance.now();
+    const result = computeCriticalPath(tasks, edges);
+    const duration = performance.now() - start;
+
+    expect(duration).toBeLessThan(2000);
+    expect(result.kind).toBe("path");
+    if (result.kind === "path") {
+      expect(result.taskIds).toHaveLength(200);
+      expect(result.edgeKeys).toHaveLength(199);
+    }
+  });
+
+  it("detects a 10,000-node cycle without stack overflow under 2000ms", () => {
+    const n = 10000;
+    const nodeIds: string[] = new Array(n);
+    const edges: BlocksEdge[] = new Array(n);
+    for (let i = 0; i < n; i++) {
+      nodeIds[i] = `c-${i.toString().padStart(5, "0")}`;
+    }
+    for (let i = 0; i < n; i++) {
+      edges[i] = edge(nodeIds[i], nodeIds[(i + 1) % n]);
+    }
+
+    const start = performance.now();
+    const cycle = findCycle(nodeIds, edges);
+    const duration = performance.now() - start;
+
+    expect(duration).toBeLessThan(2000);
+    expect(cycle).not.toBeNull();
+    expect(cycle).toHaveLength(10000);
+    expect(cycle![0]).toBe("c-00000");
+    expect(cycle![1]).toBe("c-00001");
+    expect(cycle![9999]).toBe("c-09999");
   });
 });

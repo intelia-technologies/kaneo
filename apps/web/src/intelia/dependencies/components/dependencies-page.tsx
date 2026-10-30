@@ -32,7 +32,12 @@ export function DependenciesPage({
   const navigate = useNavigate();
 
   const { data: project } = useGetTasks(projectId);
-  const { data: relationsData } = useGetProjectRelations(projectId);
+  const {
+    data: relationsData,
+    isLoading: isRelationsLoading,
+    isError: isRelationsError,
+    refetch: refetchRelations,
+  } = useGetProjectRelations(projectId);
   const [showLoose, setShowLoose] = useState(false);
 
   const view = useProjectTaskView({
@@ -145,6 +150,9 @@ export function DependenciesPage({
           model={graphModel}
           showLoose={showLoose}
           onToggleShowLoose={() => setShowLoose(true)}
+          isLoading={isRelationsLoading}
+          isError={isRelationsError}
+          onRetry={() => void refetchRelations()}
         />
 
         <TaskDetailsSheet

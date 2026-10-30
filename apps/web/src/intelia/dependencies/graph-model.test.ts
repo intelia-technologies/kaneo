@@ -485,4 +485,179 @@ describe("graph-model rules", () => {
       expect(node1?.position.x).toBeLessThan(node2?.position.x ?? 0);
     });
   });
+
+  describe("cycle detection with external tasks", () => {
+    it("detects cycle involving external task: A (project) -> X (external) -> B (project) -> A", () => {
+      const taskA = createTask({
+        id: "task-a",
+        number: 1,
+        title: "Task A",
+        status: "todo",
+      });
+      const taskB = createTask({
+        id: "task-b",
+        number: 2,
+        title: "Task B",
+        status: "todo",
+      });
+
+      const externalX: ProjectRelationExternalTask = {
+        id: "task-x",
+        number: 99,
+        title: "External X",
+        status: "in-progress",
+        isCompleted: false,
+        projectId: "proj-ext",
+        projectSlug: "EXT",
+        projectName: "External Project",
+      };
+
+      const relations: ProjectRelation[] = [
+        {
+          id: "r1",
+          sourceTaskId: "task-a",
+          targetTaskId: "task-x",
+          relationType: "blocks",
+        },
+        {
+          id: "r2",
+          sourceTaskId: "task-x",
+          targetTaskId: "task-b",
+          relationType: "blocks",
+        },
+        {
+          id: "r3",
+          sourceTaskId: "task-b",
+          targetTaskId: "task-a",
+          relationType: "blocks",
+        },
+      ];
+
+      const model = buildGraphModel({
+        tasks: [taskA, taskB],
+        columns: mockColumns,
+        filteredTaskIds: new Set(["task-a", "task-b"]),
+        relations,
+        externalTasks: [externalX],
+        showLoose: false,
+        projectSlug: "DEMO",
+        workspaceId: "ws-1",
+        onOpenTask: vi.fn(),
+      });
+
+      expect(model.hasCycle).toBe(true);
+      expect(model.critical.kind).toBe("cycle");
+      expect(model.critical.edgeKeys).toHaveLength(0);
+
+      // Names should include external task formatted as ${projectSlug}-${number} title
+      expect(model.cycleTaskNames).toContain("EXT-99 External X");
+      expect(model.cycleTaskNames).toContain("DEMO-1 Task A");
+      expect(model.cycleTaskNames).toContain("DEMO-2 Task B");
+
+      // No critical nodes or edges
+      const criticalNodes = model.nodes.filter((n) => {
+        const data = n.data;
+        return Boolean(
+          data &&
+          typeof data === "object" &&
+          "isCritical" in data &&
+          data.isCritical,
+        );
+      });
+      expect(criticalNodes).toHaveLength(0);
+
+      const criticalEdges = model.edges.filter((e) => e.animated);
+      expect(criticalEdges).toHaveLength(0);
+    });
+
+    it("detects cycle with only project tasks", () => {
+      const taskA = createTask({
+        id: "task-a",
+        number: 1,
+        title: "Task A",
+        status: "todo",
+      });
+      const taskB = createTask({
+        id: "task-b",
+        number: 2,
+        title: "Task B",
+        status: "todo",
+      });
+
+      const relations: ProjectRelation[] = [
+        {
+          id: "r1",
+          sourceTaskId: "task-a",
+          targetTaskId: "task-b",
+          relationType: "blocks",
+        },
+        {
+          id: "r2",
+          sourceTaskId: "task-b",
+          targetTaskId: "task-a",
+          relationType: "blocks",
+        },
+      ];
+
+      const model = buildGraphModel({
+        tasks: [taskA, taskB],
+        columns: mockColumns,
+        filteredTaskIds: new Set(["task-a", "task-b"]),
+        relations,
+        externalTasks: [],
+        showLoose: false,
+        projectSlug: "DEMO",
+        workspaceId: "ws-1",
+        onOpenTask: vi.fn(),
+      });
+
+      expect(model.hasCycle).toBe(true);
+      expect(model.cycleTaskNames).toEqual(["DEMO-1 Task A", "DEMO-2 Task B"]);
+      expect(model.critical.kind).toBe("cycle");
+      expect(model.critical.edgeKeys).toHaveLength(0);
+    });
+  });
+
+  describe("filteredProjectTasks count", () => {
+    it("reflects tasks matching filter before loose task filtering", () => {
+      const task1 = createTask({ id: "t1", title: "T1", status: "todo" });
+      const task2 = createTask({ id: "t2", title: "T2", status: "todo" });
+      const task3 = createTask({ id: "t3", title: "T3", status: "todo" });
+
+      // No relations: all tasks are loose
+      const modelHidden = buildGraphModel({
+        tasks: [task1, task2, task3],
+        columns: mockColumns,
+        filteredTaskIds: new Set(["t1", "t2"]),
+        relations: [],
+        externalTasks: [],
+        showLoose: false,
+        projectSlug: "DEMO",
+        workspaceId: "ws-1",
+        onOpenTask: vi.fn(),
+      });
+
+      expect(modelHidden.totalProjectTasks).toBe(3);
+      expect(modelHidden.filteredProjectTasks).toBe(2);
+      expect(modelHidden.visibleProjectTasks).toBe(0);
+      expect(modelHidden.hasVisibleNodes).toBe(false);
+
+      const modelShown = buildGraphModel({
+        tasks: [task1, task2, task3],
+        columns: mockColumns,
+        filteredTaskIds: new Set(["t1", "t2"]),
+        relations: [],
+        externalTasks: [],
+        showLoose: true,
+        projectSlug: "DEMO",
+        workspaceId: "ws-1",
+        onOpenTask: vi.fn(),
+      });
+
+      expect(modelShown.totalProjectTasks).toBe(3);
+      expect(modelShown.filteredProjectTasks).toBe(2);
+      expect(modelShown.visibleProjectTasks).toBe(2);
+      expect(modelShown.hasVisibleNodes).toBe(true);
+    });
+  });
 });
