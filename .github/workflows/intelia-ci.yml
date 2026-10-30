@@ -178,11 +178,18 @@ jobs:
           fetch-depth: 0
       - name: Scan the change for leaked credentials
         env:
-          # Pull requests: since the PR base. Pushes to main: since the previous head.
+          # Pull requests: since the PR base. Pushes to main: since the previous head; if that
+          # commit is gone (force-push) the whole history is scanned, never an empty range.
           # Anything else (manual runs, the release): since the merge base with main.
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT: ${{ github.event_name }}
         run: |
           if ! git rev-parse --verify --quiet "${BASE:-none}^{commit}" >/dev/null; then
-            BASE="$(git merge-base origin/main HEAD)"
+            if [ "$EVENT" = push ]; then
+              echo "::notice::Push base ${BASE:-none} not found; scanning the whole history"
+              BASE=""
+            else
+              BASE="$(git merge-base origin/main HEAD)"
+            fi
           fi
-          bash scripts/ci/intelia-secret-scan.sh "$(git rev-parse HEAD)" "$BASE"
+          bash scripts/ci/intelia-secret-scan.sh "$(git rev-parse HEAD)" ${BASE:+"$BASE"}

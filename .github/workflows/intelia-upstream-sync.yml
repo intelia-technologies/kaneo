@@ -1,0 +1,92 @@
+name: Intelia upstream sync
+
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: "Upstream ref to sync (default: latest release tag; or e.g. main for rehearsal)"
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: intelia-upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  disable-workflows:
+    name: Disable upstream workflows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.22.1
+          package-manager-cache: false
+      - name: Disable active workflows the fork does not run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ci/intelia-upstream-sync.mjs disable-workflows
+
+  sync:
+    name: Sync upstream
+    # Runs after the cleanup so its report flags only what disable-workflows could not fix.
+    needs: disable-workflows
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: read
+    outputs:
+      pushed: ${{ steps.push.outputs.pushed || 'false' }}
+      sha: ${{ steps.prepare.outputs.sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.22.1
+          package-manager-cache: false
+      - name: Prepare upstream sync branch
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM_REF: ${{ inputs.upstream_ref }}
+        run: node scripts/ci/intelia-upstream-sync.mjs prepare
+      - name: Push candidate branch
+        if: steps.prepare.outputs.status == 'ready' && steps.prepare.outputs.workflows_changed == 'false'
+        id: push
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.prepare.outputs.branch }}
+        run: |
+          set -euo pipefail
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${BRANCH}"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+  candidate:
+    name: Build candidate image
+    needs: sync
+    if: needs.sync.outputs.pushed == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/intelia-candidate.yml # zizmor: ignore[self-repository]
+    with:
+      sha: ${{ needs.sync.outputs.sha }}
