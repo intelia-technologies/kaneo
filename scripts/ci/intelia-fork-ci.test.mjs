@@ -108,6 +108,34 @@ test("Rule 5: upgrade step is adapted with KANEO_UPGRADE_REPOSITORY and KANEO_UP
   assert.equal(forkCi(input), expected);
 });
 
+test("Rule 5: an upgrade step whose body upstream changed is left untouched and flagged", () => {
+  const input = `
+    steps:
+      - name: Upgrade from the latest stable release
+        env:
+          GH_TOKEN: \${{ github.token }}
+          KANEO_UPGRADE_TIMEOUT: "600"
+        run: bash scripts/ci/upgrade.sh
+`.trim();
+
+  assert.equal(forkCi(input), input);
+  assert.ok(checkForkCi(forkCi(input)).length > 0);
+});
+
+test("Rule 3: a Blacksmith builder step with unknown settings is left untouched and flagged", () => {
+  const input = `
+    steps:
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@19215110ab936351210feebdfa5b440b4493e184 # v2.2.0
+        with:
+          cache-key: kaneo
+          max-cache-size: 10
+`.trim();
+
+  assert.equal(forkCi(input), input);
+  assert.ok(checkForkCi(forkCi(input)).length > 0);
+});
+
 test("Idempotence: running forkCi multiple times gives the same result", () => {
   const fullFixture = `
 jobs:

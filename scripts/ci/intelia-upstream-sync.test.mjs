@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
-import { forkCi } from "./intelia-fork-ci.mjs";
+import { checkForkCi, forkCi } from "./intelia-fork-ci.mjs";
 import {
   buildReportData,
   parsePrepareArgs,
@@ -291,4 +295,58 @@ test("usesPullRequestTarget: detects the trigger in any form, ignoring comments"
       "on:\n  pull_request:\n# pull_request_target is unsafe\n",
     ),
   );
+});
+
+test("forkCi after a clean git merge keeps the fork's own ci.yml customisations", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "intelia-clean-merge-"));
+  const git = (...args) =>
+    execFileSync(
+      "git",
+      ["-c", "user.name=t", "-c", "user.email=t@t", ...args],
+      {
+        cwd: dir,
+        encoding: "utf8",
+      },
+    );
+  const ci = path.join(dir, "ci.yml");
+  try {
+    git("init", "-q", "-b", "upstream");
+    fs.writeFileSync(ci, UPSTREAM_CI);
+    git("add", "ci.yml");
+    git("commit", "-qm", "upstream base");
+
+    git("checkout", "-qb", "fork");
+    const custom = forkCi(UPSTREAM_CI)
+      .replace(
+        "KANEO_UPGRADE_REPOSITORY: usekaneo/kaneo",
+        "KANEO_UPGRADE_REPOSITORY: usekaneo/kaneo\n          INTELIA_CUSTOM_FLAG: '1'",
+      )
+      .replace(
+        "bash scripts/ci/upgrade.sh",
+        "bash scripts/ci/upgrade.sh --intelia-option",
+      );
+    fs.writeFileSync(ci, custom);
+    git("commit", "-qam", "fork adaptation and customisation");
+
+    git("checkout", "-q", "upstream");
+    fs.writeFileSync(
+      ci,
+      UPSTREAM_CI.replace(
+        "      - run: pnpm test\n",
+        "      - run: pnpm test\n      - run: pnpm e2e\n",
+      ),
+    );
+    git("commit", "-qam", "upstream change elsewhere");
+
+    git("checkout", "-q", "fork");
+    git("merge", "-q", "--no-ff", "--no-commit", "upstream");
+    const adapted = forkCi(fs.readFileSync(ci, "utf8"));
+
+    assert.ok(adapted.includes("INTELIA_CUSTOM_FLAG: '1'"));
+    assert.ok(adapted.includes("upgrade.sh --intelia-option"));
+    assert.ok(adapted.includes("- run: pnpm e2e"));
+    assert.deepEqual(checkForkCi(adapted), []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

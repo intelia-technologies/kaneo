@@ -442,37 +442,36 @@ export async function prepare(opts = {}) {
       execGit(["add", CI_YML]);
       autoResolvedFiles.push(CI_YML);
     }
+  } else if (fs.existsSync(CI_YML)) {
+    // A clean merge can still bring new Blacksmith jobs: adapt them. forkCi only rewrites
+    // what it recognises with certainty and keeps every other line (ours included); if
+    // something is left that it cannot adapt, the file goes to a human like a conflict.
+    const merged = fs.readFileSync(CI_YML, "utf8");
+    const adapted = forkCi(merged);
+    if (checkForkCi(adapted).length > 0) {
+      conflictedFiles = [...conflictedFiles, CI_YML];
+    } else if (adapted !== merged) {
+      fs.writeFileSync(CI_YML, adapted, "utf8");
+      execGit(["add", CI_YML]);
+    }
   }
 
   if (conflictedFiles.length > 0) {
+    const reported = [...new Set([...unmerged, ...conflictedFiles])];
     // Leave the checkout as it was, so the manual procedure can start from scratch.
     execGit(["merge", "--abort"]);
     execGit(["checkout", startRef]);
     execGit(["branch", "-D", branch]);
-    for (const f of unmerged) {
+    for (const f of reported) {
       console.error(`::error file=${f}::Merge conflict in ${f}`);
     }
     finish(reportPath, {
       status: "conflicts",
       ref,
       branch,
-      conflictedFiles: unmerged,
+      conflictedFiles: reported,
     });
     process.exit(1);
-  }
-
-  // A clean merge can still bring new Blacksmith jobs: adapt them. forkCi only rewrites the
-  // Blacksmith-specific lines, so nothing else in the merged file changes.
-  if (fs.existsSync(CI_YML) && autoResolvedFiles.length === 0) {
-    const merged = fs.readFileSync(CI_YML, "utf8");
-    const adapted = forkCi(merged);
-    const problems = checkForkCi(adapted);
-    if (problems.length > 0)
-      throw new Error(`ci.yml cannot be adapted: ${problems.join("; ")}`);
-    if (adapted !== merged) {
-      fs.writeFileSync(CI_YML, adapted, "utf8");
-      execGit(["add", CI_YML]);
-    }
   }
 
   execGit([...identity, "commit", "-m", `chore: merge upstream ${ref}`]);

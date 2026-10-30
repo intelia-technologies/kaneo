@@ -26,6 +26,36 @@ function skipStepBody(lines, startIndex, indent) {
   return i;
 }
 
+// A step body (the lines after its `- ` line) matches only if every line, trimmed, matches
+// the expected patterns in order. Anything else is left untouched for checkForkCi to flag.
+function stepBody(lines, start, indent) {
+  const end = skipStepBody(lines, start, indent);
+  return { end, body: lines.slice(start, end).map((l) => l.trim()) };
+}
+
+function bodyIs(body, patterns) {
+  return (
+    body.length === patterns.length && body.every((l, k) => patterns[k].test(l))
+  );
+}
+
+const BUILDER_BODY = [
+  /^uses:\s+useblacksmith\/setup-docker-builder@\S+(\s+#.*)?$/,
+  /^with:$/,
+  /^cache-key:\s+\S.*$/,
+];
+const BUILDER_USES_BODY = [/^with:$/, /^cache-key:\s+\S.*$/];
+const UPSTREAM_UPGRADE_BODY = [
+  /^env:$/,
+  /^GH_TOKEN:\s+\$\{\{\s*github\.token\s*\}\}$/,
+  /^run:\s+bash scripts\/ci\/upgrade\.sh$/,
+];
+
+/**
+ * Adapts upstream's ci.yml to GitHub-hosted runners. Only rewrites what it recognises with
+ * certainty (Blacksmith runners and actions, and upstream's untouched upgrade step); every
+ * other line, including our own customisations, is kept byte for byte.
+ */
 export function forkCi(text) {
   const lines = text.split("\n");
   const result = [];
@@ -52,30 +82,34 @@ export function forkCi(text) {
       continue;
     }
 
-    // Rule 3: Setup Blacksmith Builder step (and its with: cache-key) -> Set up Docker Buildx
+    // Rule 3: Setup Blacksmith Builder step (with only its cache-key) -> Set up Docker Buildx
     const builderMatch = line.match(
       /^(\s*)-\s+name:\s+Set(?:up|\s+up)\s+Blacksmith\s+Builder\s*$/,
     );
     if (builderMatch) {
       const indent = builderMatch[1];
-      result.push(`${indent}- name: Set up Docker Buildx`);
-      result.push(`${indent}  uses: ${PINNED_BUILDX}`);
-      i++;
-      i = skipStepBody(lines, i, indent);
-      continue;
+      const { end, body } = stepBody(lines, i + 1, indent);
+      if (bodyIs(body, BUILDER_BODY)) {
+        result.push(`${indent}- name: Set up Docker Buildx`);
+        result.push(`${indent}  uses: ${PINNED_BUILDX}`);
+        i = end;
+        continue;
+      }
     }
 
-    // Rule 3b: In case builder step starts directly with useblacksmith/setup-docker-builder
+    // Rule 3b: the same builder step written as `- uses: useblacksmith/setup-docker-builder`
     const builderUsesMatch = line.match(
       /^(\s*)-\s+uses:\s+useblacksmith\/setup-docker-builder@\S+.*$/,
     );
     if (builderUsesMatch) {
       const indent = builderUsesMatch[1];
-      result.push(`${indent}- name: Set up Docker Buildx`);
-      result.push(`${indent}  uses: ${PINNED_BUILDX}`);
-      i++;
-      i = skipStepBody(lines, i, indent);
-      continue;
+      const { end, body } = stepBody(lines, i + 1, indent);
+      if (bodyIs(body, BUILDER_USES_BODY)) {
+        result.push(`${indent}- name: Set up Docker Buildx`);
+        result.push(`${indent}  uses: ${PINNED_BUILDX}`);
+        i = end;
+        continue;
+      }
     }
 
     // Rule 4: useblacksmith/build-push-action -> docker/build-push-action pinned
@@ -88,27 +122,31 @@ export function forkCi(text) {
       continue;
     }
 
-    // Rule 5: Upgrade step -> fork version with KANEO_UPGRADE_REPOSITORY and KANEO_UPGRADE_TAG
+    // Rule 5: upstream's upgrade step, exactly as upstream writes it -> fork version with
+    // KANEO_UPGRADE_REPOSITORY and KANEO_UPGRADE_TAG. An already adapted step (ours, maybe
+    // with our own additions) or a changed upstream body is left untouched.
     const upgradeMatch = line.match(
-      /^(\s*)-\s+name:\s+Upgrade from (?:the )?(?:latest stable release|upstream release this fork is built on)\s*$/,
+      /^(\s*)-\s+name:\s+Upgrade from the latest stable release\s*$/,
     );
     if (upgradeMatch) {
       const indent = upgradeMatch[1];
-      result.push(
-        `${indent}- name: Upgrade from the upstream release this fork is built on`,
-      );
-      i++;
-      i = skipStepBody(lines, i, indent);
-      result.push(`${indent}  env:`);
-      result.push(`${indent}    GH_TOKEN: \${{ github.token }}`);
-      result.push(
-        `${indent}    # Intelia fork: the baseline is upstream's vX.Y.Z from package.json (README-INTELIA.md).`,
-      );
-      result.push(`${indent}    KANEO_UPGRADE_REPOSITORY: usekaneo/kaneo`);
-      result.push(
-        `${indent}  run: KANEO_UPGRADE_TAG="v$(node -p 'require("./package.json").version')" bash scripts/ci/upgrade.sh`,
-      );
-      continue;
+      const { end, body } = stepBody(lines, i + 1, indent);
+      if (bodyIs(body, UPSTREAM_UPGRADE_BODY)) {
+        result.push(
+          `${indent}- name: Upgrade from the upstream release this fork is built on`,
+        );
+        result.push(`${indent}  env:`);
+        result.push(`${indent}    GH_TOKEN: \${{ github.token }}`);
+        result.push(
+          `${indent}    # Intelia fork: the baseline is upstream's vX.Y.Z from package.json (README-INTELIA.md).`,
+        );
+        result.push(`${indent}    KANEO_UPGRADE_REPOSITORY: usekaneo/kaneo`);
+        result.push(
+          `${indent}  run: KANEO_UPGRADE_TAG="v$(node -p 'require("./package.json").version')" bash scripts/ci/upgrade.sh`,
+        );
+        i = end;
+        continue;
+      }
     }
 
     result.push(line);
