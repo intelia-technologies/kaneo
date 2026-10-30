@@ -14,6 +14,7 @@ import { useGetTasks } from "@/hooks/queries/task/use-get-tasks";
 import { useGetProjectRelations } from "../api";
 import { buildGraphModel } from "../graph-model";
 import "../i18n";
+import { useBurstValue } from "../realtime";
 import { DependenciesView } from "./dependencies-view";
 import { LooseTasksToggle } from "./loose-tasks-toggle";
 
@@ -31,14 +32,25 @@ export function DependenciesPage({
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const { data: project } = useGetTasks(projectId);
+  const { data: liveProject } = useGetTasks(projectId);
   const {
-    data: relationsData,
+    data: liveRelations,
     isLoading: isRelationsLoading,
     isError: isRelationsError,
     refetch: refetchRelations,
   } = useGetProjectRelations(projectId);
   const [showLoose, setShowLoose] = useState(false);
+
+  // Realtime events patch tasks and refetch relations one by one; lay the
+  // graph out once per burst. Filters and toggles still apply at once.
+  const live = useMemo(
+    () => ({ project: liveProject, relationsData: liveRelations }),
+    [liveProject, liveRelations],
+  );
+  const { project, relationsData } = useBurstValue(
+    live,
+    (shown) => !!shown.project && !!shown.relationsData,
+  );
 
   const view = useProjectTaskView({
     project,
