@@ -2,7 +2,7 @@
 
 Este repositorio es el fork de [Kaneo](https://github.com/usekaneo/kaneo) que mantiene Intelia (`intelia-technologies/kaneo`). Desplegamos Kaneo desde nuestras imágenes, no desde las públicas. Diseño de referencia: [diseño 11: fork de Kaneo](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-fork-kaneo.md) en `intelia-technologies/software-factory`.
 
-Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas», «Relaciones por proyecto» y «Foto de perfil con API key»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
+Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas», «Relaciones por proyecto», «Foto de perfil con API key» y «Rutinas programadas»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
 
 **Este repositorio es público.** Aquí no va nada interno de Intelia: ni secretos, ni hostnames o IPs, ni configuración de despliegue, ni datos de clientes o de la factory. Todo eso vive en `software-factory`, que es privado. Código propietario dentro de Kaneo, solo tras hablarlo antes. Secret scanning y push protection están activados.
 
@@ -39,7 +39,8 @@ Kaneo se distribuye bajo licencia MIT. Se conservan [`LICENSE`](LICENSE) y el av
 - **Imagen:** la «todo en uno» de upstream (`Dockerfile.kaneo`: API en Node más Nginx con la SPA), publicada como `ghcr.io/intelia-technologies/kaneo:X.Y.Z-intelia.N`.
 - **CI y versión:** ver «CI y versiones».
 - **Ficheros de upstream que toca el fork:** pocos, cada uno con menos de 20 líneas cambiadas. Son ganchos para lo nuestro:
-  - `apps/api/src/index.ts`: migrador `intelia` al arrancar, montaje de `/api/intelia` y `AppType`.
+  - `apps/api/src/index.ts`: migrador `intelia` al arrancar, montaje de `/api/intelia` (un solo router, `apps/api/src/intelia/index.ts`, que reúne los nuestros) y `AppType`.
+  - `apps/api/src/scheduler/index.ts`: el job de las rutinas programadas. `apps/api/src/plugins/generic-webhook/events.ts`: `export` de `sendEvent`, para mandar `intelia.routine_skipped` con el sobre y la firma de upstream.
   - `Dockerfile.kaneo` y `apps/api/Dockerfile`: `COPY` de `drizzle-intelia`. `vite.config.ts`: ignora `drizzle-intelia/meta/**`.
   - `apps/web/src/components/activity/comment-card.tsx` e `index.tsx`, y `apps/web/src/components/task/task-details-content.tsx`: las fichas de reacciones.
   - `apps/web/src/components/project/views/project-views.ts`, `layout-switch.tsx`, `store/user-preferences.ts` y `hooks/use-project-websocket.ts`: el registro y el tiempo real de la vista «Dependencias».
@@ -207,6 +208,58 @@ Reacciones con emoji en los comentarios y en la propia tarea (la tarjeta), con a
 - **Guardas:** las de upstream: 403 si el proveedor OAuth/OIDC gestiona la foto, 413/408 por tamaño o tiempo del cuerpo, 400 si el fichero no es válido (sin tocar `user.image`).
 - **Solo tablas de upstream** (`user_avatar` y `user.image`): sin tablas ni migraciones propias.
 - **Test:** `tests/api-integration/intelia-user-avatar.test.ts`.
+
+## Rutinas programadas
+
+Una rutina es una tarea que se **reabre a In progress** según una expresión cron, siempre la misma tarea (no crea copias, a diferencia de la recurrencia de upstream). Qué hace quien la recibe está en la descripción de la tarea. Código en `apps/api/src/intelia/routines/`.
+
+- **Tablas** (migración `drizzle-intelia/0002_routine.sql`):
+  - `intelia.routine`, una por tarea (`task_id` único, `ON DELETE CASCADE`: borrar la tarea borra su rutina y su historial): `cron` (cinco campos: minuto, hora, día del mes, mes, día de la semana), `timezone` (IANA, por defecto `Europe/Madrid`), `active` (`false` = en pausa), `owner_id` (quien la programó o cambió por última vez), `next_run_at`, `last_run_at` y `last_result`.
+  - `intelia.routine_run`, el historial: `scheduled_at` (hora prevista), `result` (`reabierta`, `saltada_abierta` o `error`, con `error` el mensaje) y `closed_at`, la hora en que la tarea llegó después a una columna final (Done, Cancelled).
+- **API** (OpenAPI, etiqueta `Routines`). Leer pide `task:read`; programar, cambiar y quitar, los permisos de editar la tarea (`task:update`). A quién se puede encargar trabajo no lo mira Kaneo: lo comprueba quien recibe el aviso, con el dueño de la rutina.
+  - `GET /api/intelia/workspace/{workspaceId}/routines`: las rutinas de los proyectos que quien llama ve, con su tarea (`number`, `title`, `status`, proyecto) y su asignado, la próxima primero.
+  - `GET|PUT|DELETE /api/intelia/task/{taskId}/routine`: `PUT` recibe `{ cron, timezone?, active? }`, crea o sustituye la rutina, hace dueño a quien llama y calcula la próxima ejecución desde ahora; con `active: false` la pausa. Responde 409 si la tarea tiene la recurrencia de upstream (`recurrence`): una tarea no puede tener las dos. Cron o zona horaria inválidos: 400.
+  - `GET /api/intelia/task/{taskId}/routine/runs?limit=50`: el historial, lo más reciente primero (máximo 200).
+- **Programador:** job de `croner` cada minuto (`intelia-routines` en `apps/api/src/scheduler/index.ts`, con `protect`). Para cada rutina activa con `next_run_at <= ahora`:
+  1. Reclama el tick moviendo `next_run_at` a la siguiente ejecución contada desde ahora, solo si nadie lo ha movido antes: con varias instancias de la API, el tick corre una sola vez. Los ticks perdidos (Kaneo parado) no se recuperan en tanda: se ejecuta una vez.
+  2. Si la tarea está en una columna final (`is_final`: Done, Cancelled), la pasa a `in-progress` con `updateTaskStatus` firmando como `svc-rutinas`: fila `reabierta`, y upstream publica `task.status_changed` (webhooks, actividad y avisos) con ese actor.
+  3. Si sigue abierta (cualquier otra columna, Blocked incluida), salta el tick: fila `saltada_abierta` y evento `intelia.routine_skipped`.
+  4. Si la reapertura falla (por ejemplo, el proyecto no tiene columna `in-progress`), fila `error` con el mensaje; la rutina sigue activa. Si la expresión ya no tiene próxima ejecución, fila `error` y la rutina queda en pausa.
+- **Cierre del historial:** un suscriptor de `task.status_changed`, `task.moved` y `task.updated` pone `closed_at` a las filas abiertas (salvo las `error`) cuando la tarea está en una columna final.
+- **Cuenta `svc-rutinas`:** la crea el propio programador en cada tick si no existe, así que está a más tardar un minuto después de arrancar, sin pasos manuales: id `svc-rutinas`, nombre `svc-rutinas`, email `svc-rutinas@inteliatech.internal`. **No puede iniciar sesión:** no tiene cuenta con contraseña ni con proveedor (y el dominio `.internal` no recibe enlaces mágicos), y está marcada `banned`, con lo que Kaneo no le da permisos en ningún espacio de trabajo ni le acepta claves de API. No es miembro de ningún espacio de trabajo: firma los cambios de estado desde el servidor. Si ya existe un usuario con ese email, se usa tal cual. Quien recibe los webhooks la reconoce por `actor.id` (`svc-rutinas`).
+- **Evento `intelia.routine_skipped`:** va a cada webhook genérico activo del proyecto de la tarea que tenga activado `task.status_changed` (no hay casilla propia en la configuración de upstream), con el mismo sobre que los eventos de upstream y la misma firma: cabecera `X-Kaneo-Signature`, HMAC-SHA256 en hexadecimal del cuerpo con el `secret` del webhook. Cuerpo:
+
+  ```json
+  {
+    "event": "intelia.routine_skipped",
+    "timestamp": "2026-10-30T10:00:01.234Z",
+    "integration": { "type": "generic-webhook" },
+    "project": { "id": "…", "name": "…", "workspaceId": "…" },
+    "task": {
+      "id": "…",
+      "number": 12,
+      "title": "…",
+      "status": "in-progress",
+      "statusName": "In Progress",
+      "priority": "medium",
+      "url": "…/dashboard/workspace/…/project/…/task/…"
+    },
+    "actor": { "id": "svc-rutinas", "name": "svc-rutinas" },
+    "data": {
+      "routineId": "…",
+      "runId": "…",
+      "result": "saltada_abierta",
+      "scheduledAt": "2026-10-30T10:00:00.000Z",
+      "nextRunAt": "2026-10-30T12:00:00.000Z",
+      "cron": "0 */2 * * *",
+      "timezone": "Europe/Madrid",
+      "owner": { "id": "…", "name": "…" }
+    }
+  }
+  ```
+
+  `task` es la tarea en el momento del aviso (sigue abierta; `status` es su columna). `data.owner` es el dueño de la rutina (usuario de Kaneo), a quien hay que avisar; `data.runId` es la fila del historial.
+- **Test:** `tests/api-integration/intelia-routines.test.ts`, con un receptor HTTP real que comprueba la firma.
 
 ## Vista «Dependencias»
 

@@ -200,7 +200,7 @@ async function deliverWebhookEvent(
   }
 }
 
-async function sendEvent(
+export async function sendEvent(
   config: GenericWebhookConfig,
   eventName: string,
   taskId: string,

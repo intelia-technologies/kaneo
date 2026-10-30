@@ -58,10 +58,8 @@ import importRoutes from "./import";
 import { stopActiveImports } from "./import/runs/stop-active-imports";
 import getInstanceStatus from "./instance/controllers/get-instance-status";
 import invitation from "./invitation";
+import intelia from "./intelia";
 import { migrateInteliaSchema } from "./intelia/migrate";
-import inteliaReactions from "./intelia/reactions";
-import inteliaRelations from "./intelia/relations";
-import inteliaUserAvatar from "./intelia/user-avatar";
 import label from "./label";
 import mattermostIntegration from "./mattermost-integration";
 import mcpRoutes, { mcpWellKnownRoutes } from "./mcp";
@@ -860,9 +858,7 @@ export function createApp() {
   const importApi = api.route("/import", importRoutes);
   const userApi = api.route("/user", user);
   const adminApi = api.route("/admin", admin);
-  const inteliaApi = api.route("/intelia", inteliaReactions);
-  const inteliaRelationsApi = api.route("/intelia", inteliaRelations);
-  api.route("/intelia", inteliaUserAvatar);
+  const inteliaApi = api.route("/intelia", intelia);
 
   app.route(
     "/",
@@ -999,7 +995,6 @@ export function createApp() {
     userApi,
     adminApi,
     inteliaApi,
-    inteliaRelationsApi,
     workflowRuleApi,
     workspaceApi,
     customFieldApi,
@@ -1141,7 +1136,6 @@ const {
   userApi,
   adminApi,
   inteliaApi,
-  inteliaRelationsApi,
   workflowRuleApi,
   workspaceApi,
   customFieldApi,
@@ -1194,7 +1188,6 @@ export type AppType =
   | typeof publicProjectApi
   | typeof invitationPublicApi
   | typeof oauthApi
-  | typeof inteliaApi
-  | typeof inteliaRelationsApi;
+  | typeof inteliaApi;
 
 export default app;
