@@ -1,10 +1,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
-import { checkForkCi, forkCi } from "./intelia-fork-ci.mjs";
-
 const UPSTREAM_REPO_URL = "https://github.com/usekaneo/kaneo.git";
-const CI_YML = ".github/workflows/ci.yml";
 const FORK_REPOSITORY =
   process.env.KANEO_FORK_REPOSITORY || "intelia-technologies/kaneo";
 
@@ -84,7 +81,6 @@ export function buildReportData({
   changedFiles = [],
   workflowsChanged = false,
   drizzleChanged = false,
-  autoResolvedFiles = [],
   addedWorkflows = [],
   conflictedFiles = [],
   activeOutsideAllowlist = [],
@@ -98,25 +94,11 @@ export function buildReportData({
     changedFiles,
     workflowsChanged,
     drizzleChanged,
-    autoResolvedFiles,
     addedWorkflows,
     conflictedFiles,
     activeOutsideAllowlist,
     pullRequestTargetWorkflows,
   };
-}
-
-/**
- * Resolves a conflict in ci.yml only when it is the known one: the fork's ci.yml must be
- * exactly forkCi(upstream base), i.e. carry no change of ours besides the runner adaptation.
- * Then the right merge is upstream's new file with the same adaptation. Otherwise (an
- * adaptation of ours would be lost, or forkCi cannot adapt the new file) returns null.
- */
-export function resolveForkCi({ base, ours, theirs }) {
-  if (base == null || ours == null || theirs == null) return null;
-  if (ours !== forkCi(base)) return null;
-  const resolved = forkCi(theirs);
-  return checkForkCi(resolved).length === 0 ? resolved : null;
 }
 
 function renderWorkflowWarnings({
@@ -169,7 +151,6 @@ export function renderReport(data) {
     branch,
     sha = "",
     changedFiles = [],
-    autoResolvedFiles = [],
     addedWorkflows = [],
     drizzleChanged = false,
     conflictedFiles = [],
@@ -186,11 +167,6 @@ export function renderReport(data) {
       md += changedFiles.map((f) => `- \`${f}\``).join("\n") + "\n";
       md += `</details>\n\n`;
     }
-    md += `- **Ficheros autoresueltos:** ${
-      autoResolvedFiles.length > 0
-        ? autoResolvedFiles.map((f) => `\`${f}\``).join(", ")
-        : "Ninguno"
-    }\n`;
     md += `- **Nuevos workflows de upstream (a desactivar):** ${
       addedWorkflows.length > 0
         ? addedWorkflows.map((w) => `\`${w}\``).join(", ")
@@ -202,7 +178,7 @@ export function renderReport(data) {
   } else if (status === "open") {
     md += `\nYa existe la rama \`${branch}\` en el fork (con o sin pull request). No se sobreescribe el trabajo humano: abre la PR desde esa rama o bórrala para regenerarla.\n`;
   } else if (status === "conflicts") {
-    md += `\n### Conflictos no resolubles automáticamente\n`;
+    md += `\n### Conflictos\n`;
     md += `Se ha abortado el merge (y borrado la rama local) por conflictos en:\n`;
     md += conflictedFiles.map((f) => `- \`${f}\``).join("\n") + "\n";
   }
@@ -265,21 +241,12 @@ function gitLines(args) {
   return execGit(args).trim().split("\n").filter(Boolean);
 }
 
-function showFile(rev, path) {
-  try {
-    return execGit(["show", `${rev}:${path}`]);
-  } catch {
-    return null;
-  }
-}
-
-// Workflows the fork runs: ours (`intelia-*`), upstream's CI adapted to GitHub runners and
-// GitHub's default CodeQL setup. Every other workflow (upstream's today and any it adds
-// later) must stay disabled; GitHub only registers a workflow, and lets us disable it,
-// after its first event, so the weekly job keeps enforcing this.
+// Workflows the fork runs: ours (`intelia-*`) and GitHub's default CodeQL setup. Every
+// other workflow (upstream's, ci.yml included, today and any it adds later) must stay
+// disabled; GitHub only registers a workflow, and lets us disable it, after its first
+// event, so the weekly job keeps enforcing this.
 export function isAllowedWorkflow(path) {
   return (
-    path === CI_YML ||
     /^\.github\/workflows\/intelia-[\w.-]+\.ya?ml$/.test(path) ||
     path === "dynamic/github-code-scanning/codeql"
   );
@@ -446,7 +413,6 @@ export async function prepare(opts = {}) {
     currentBranch === "HEAD"
       ? execGit(["rev-parse", "HEAD"]).trim()
       : currentBranch;
-  const mergeBase = execGit(["merge-base", "HEAD", targetCommit]).trim();
 
   // `checkout -b` refuses to reuse an existing local branch.
   execGit(["checkout", "-b", branch, "HEAD"]);
@@ -458,54 +424,20 @@ export async function prepare(opts = {}) {
     mergeError = err;
   }
 
-  const unmerged = gitLines(["diff", "--name-only", "--diff-filter=U"]);
+  // The fork never edits upstream files, so any conflict is unexpected: hand it to a human.
+  const conflictedFiles = gitLines(["diff", "--name-only", "--diff-filter=U"]);
   // A merge that stops without unmerged paths failed for another reason: surface it.
-  if (mergeError && unmerged.length === 0) throw mergeError;
-
-  const autoResolvedFiles = [];
-  let conflictedFiles = unmerged.filter((f) => f !== CI_YML);
-  if (unmerged.includes(CI_YML)) {
-    const resolved = resolveForkCi({
-      base: showFile(mergeBase, CI_YML),
-      ours: showFile("HEAD", CI_YML),
-      theirs: showFile(targetCommit, CI_YML),
-    });
-    if (resolved === null) {
-      conflictedFiles = unmerged;
-    } else if (conflictedFiles.length === 0) {
-      fs.writeFileSync(CI_YML, resolved, "utf8");
-      execGit(["add", CI_YML]);
-      autoResolvedFiles.push(CI_YML);
-    }
-  } else if (fs.existsSync(CI_YML)) {
-    // A clean merge can still bring new Blacksmith jobs: adapt them. forkCi only rewrites
-    // what it recognises with certainty and keeps every other line (ours included); if
-    // something is left that it cannot adapt, the file goes to a human like a conflict.
-    const merged = fs.readFileSync(CI_YML, "utf8");
-    const adapted = forkCi(merged);
-    if (checkForkCi(adapted).length > 0) {
-      conflictedFiles = [...conflictedFiles, CI_YML];
-    } else if (adapted !== merged) {
-      fs.writeFileSync(CI_YML, adapted, "utf8");
-      execGit(["add", CI_YML]);
-    }
-  }
+  if (mergeError && conflictedFiles.length === 0) throw mergeError;
 
   if (conflictedFiles.length > 0) {
-    const reported = [...new Set([...unmerged, ...conflictedFiles])];
     // Leave the checkout as it was, so the manual procedure can start from scratch.
     execGit(["merge", "--abort"]);
     execGit(["checkout", startRef]);
     execGit(["branch", "-D", branch]);
-    for (const f of reported) {
+    for (const f of conflictedFiles) {
       console.error(`::error file=${f}::Merge conflict in ${f}`);
     }
-    finish(reportPath, {
-      status: "conflicts",
-      ref,
-      branch,
-      conflictedFiles: reported,
-    });
+    finish(reportPath, { status: "conflicts", ref, branch, conflictedFiles });
     process.exit(1);
   }
 
@@ -522,7 +454,6 @@ export async function prepare(opts = {}) {
       f.startsWith(".github/workflows/"),
     ),
     drizzleChanged: changedFiles.some((f) => f.startsWith("apps/api/drizzle/")),
-    autoResolvedFiles,
     addedWorkflows: gitLines([
       "diff",
       "--name-only",

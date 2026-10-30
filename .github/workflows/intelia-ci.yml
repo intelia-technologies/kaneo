@@ -1,0 +1,195 @@
+name: Intelia CI
+
+# Intelia fork (README-INTELIA.md): the CI the fork runs on every PR and on main.
+# Upstream's ci.yml stays intact and disabled in Actions; integration tests run
+# in intelia-integration.yml (release and on demand).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: intelia-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.22.1
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm i18n:check
+      - run: pnpm openapi:check
+      - run: pnpm typecheck
+
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.22.1
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Test release security controls
+        run: |
+          docker pull nginx:1.30.6-alpine
+          node --test scripts/security/*.test.mjs scripts/ci/*.test.mjs scripts/contribution-eligibility/*.test.mjs
+      - name: Run unit tests
+        env:
+          # Let jsdom supply browser storage instead of Node's native storage.
+          NODE_OPTIONS: --no-experimental-webstorage
+        run: pnpm test
+
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.22.1
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  docker-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Build bundled image for runtime tests
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: ./Dockerfile.kaneo
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: kaneo:ci
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 10.32.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.22.1
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts --filter @kaneo/api...
+      - run: npm ci --ignore-scripts
+        working-directory: scripts/ui-review-bot
+      - run: scripts/ui-review-bot/node_modules/.bin/playwright install --with-deps chromium
+      - name: Start bundled image without Redis
+        run: docker compose --env-file /dev/null -p kaneo-ci -f scripts/ci/compose.yml up -d --wait --wait-timeout 120 postgres minio app
+      - name: Browser regression and workspace isolation
+        run: node scripts/ci/browser.mjs http://127.0.0.1:55173
+      - name: Verify realtime without Redis
+        run: node scripts/ci/realtime.mjs http://127.0.0.1:55173
+      - name: Start two API instances with Redis
+        env:
+          KANEO_CI_REDIS_URL: redis://redis:6379
+        run: docker compose --env-file /dev/null -p kaneo-ci -f scripts/ci/compose.yml --profile realtime up -d --wait --wait-timeout 120 app second redis
+      - name: Verify Redis fan-out
+        run: node scripts/ci/realtime.mjs http://127.0.0.1:55173 http://127.0.0.1:55174
+      - name: Upgrade from the upstream release this fork is built on
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KANEO_UPGRADE_REPOSITORY: usekaneo/kaneo
+        run: KANEO_UPGRADE_TAG="v$(node -p 'require("./package.json").version')" bash scripts/ci/upgrade.sh
+      - name: Save container logs
+        if: always()
+        run: |
+          mkdir -p .cache/ci-results
+          docker compose --env-file /dev/null -p kaneo-ci -f scripts/ci/compose.yml --profile realtime --profile upgrade logs --no-color > .cache/ci-results/containers.log
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: failure()
+        with:
+          name: runtime-failures
+          path: .cache/ci-results/
+          include-hidden-files: true
+          retention-days: 7
+      - name: Remove disposable test services and data
+        if: always()
+        run: docker compose --env-file /dev/null -p kaneo-ci -f scripts/ci/compose.yml --profile realtime --profile upgrade down -v
+
+  workflows:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install verified actionlint and zizmor
+        run: |
+          curl --fail --silent --show-error --location --max-time 60 \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            -o "$RUNNER_TEMP/actionlint.tar.gz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          curl --fail --silent --show-error --location --max-time 120 \
+            https://github.com/zizmorcore/zizmor/releases/download/v1.30.1/zizmor-x86_64-unknown-linux-gnu.tar.gz \
+            -o "$RUNNER_TEMP/zizmor.tar.gz"
+          echo "e65324f4430c2717591937edcec90ccbefaf14c174f8ec9415e03ca875b46e1a  $RUNNER_TEMP/zizmor.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/zizmor.tar.gz" -C "$RUNNER_TEMP" zizmor
+      - name: Lint workflows and shell scripts
+        run: |
+          "$RUNNER_TEMP/actionlint" -color
+          shellcheck scripts/ci/*.sh
+      - name: Audit the fork's workflows with zizmor
+        run: '"$RUNNER_TEMP/zizmor" --no-online-audits .github/workflows/intelia-*.yml'
+
+  secret-scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # TruffleHog resolves the diff base locally, so the base commit must exist.
+          fetch-depth: 0
+      - name: Scan the change for leaked credentials
+        env:
+          # Pull requests: since the PR base. Pushes to main: since the previous head; if that
+          # commit is gone (force-push) the whole history is scanned, never an empty range.
+          # Anything else (manual runs, the release): since the merge base with main.
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if ! git rev-parse --verify --quiet "${BASE:-none}^{commit}" >/dev/null; then
+            if [ "$EVENT" = push ]; then
+              echo "::notice::Push base ${BASE:-none} not found; scanning the whole history"
+              BASE=""
+            else
+              BASE="$(git merge-base origin/main HEAD)"
+            fi
+          fi
+          bash scripts/ci/intelia-secret-scan.sh "$(git rev-parse HEAD)" ${BASE:+"$BASE"}

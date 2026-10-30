@@ -1,34 +1,15 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import test from "node:test";
-import { checkForkCi, forkCi } from "./intelia-fork-ci.mjs";
 import {
   classifyPullRequestTarget,
   pullRequestTargetAtRisk,
   buildReportData,
   parsePrepareArgs,
   renderReport,
-  resolveForkCi,
   usesPullRequestTarget,
   validateRef,
   workflowsToDisable,
 } from "./intelia-upstream-sync.mjs";
-
-const UPSTREAM_CI = `name: CI
-jobs:
-  docker-build:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    steps:
-      - uses: useblacksmith/checkout@25227e61ff9dafe400e22fa487b673eac4e4409a # v1
-      - name: Upgrade from the latest stable release
-        env:
-          GH_TOKEN: \${{ github.token }}
-        run: bash scripts/ci/upgrade.sh
-      - run: pnpm test
-`;
 
 test("validateRef: the latest release must be a stable vX.Y.Z tag", () => {
   assert.equal(validateRef("v2.48.0", false), "v2.48.0");
@@ -134,7 +115,6 @@ test("buildReportData: creates contract-compliant report payload", () => {
     changedFiles: [],
     workflowsChanged: false,
     drizzleChanged: false,
-    autoResolvedFiles: [],
     addedWorkflows: [],
     conflictedFiles: [],
     activeOutsideAllowlist: [],
@@ -149,7 +129,6 @@ test("buildReportData: creates contract-compliant report payload", () => {
     changedFiles: ["apps/api/src/index.ts", ".github/workflows/ci.yml"],
     workflowsChanged: true,
     drizzleChanged: false,
-    autoResolvedFiles: [".github/workflows/ci.yml"],
     addedWorkflows: [],
   });
 
@@ -163,14 +142,13 @@ test("buildReportData: creates contract-compliant report payload", () => {
   ]);
 });
 
-test("renderReport: ready status includes details, touched count, auto-resolved, added workflows and drizzle", () => {
+test("renderReport: ready status includes details, touched count, added workflows and drizzle", () => {
   const report = renderReport({
     status: "ready",
     ref: "v2.49.0",
     branch: "intelia/upstream-v2.49.0",
     sha: "0123456789abcdef",
     changedFiles: ["apps/api/src/index.ts", ".github/workflows/ci.yml"],
-    autoResolvedFiles: [".github/workflows/ci.yml"],
     addedWorkflows: [".github/workflows/new.yml"],
     drizzleChanged: true,
   });
@@ -182,14 +160,6 @@ test("renderReport: ready status includes details, touched count, auto-resolved,
   assert.ok(report.includes("- `apps/api/src/index.ts`"));
   assert.ok(report.includes("- `.github/workflows/ci.yml`".replace(/\\/g, "")));
   assert.ok(report.includes("</details>"));
-  assert.ok(
-    report.includes(
-      "- **Ficheros autoresueltos:** `.github/workflows/ci.yml`".replace(
-        /\\/g,
-        "",
-      ),
-    ),
-  );
   assert.ok(
     report.includes(
       "- **Nuevos workflows de upstream (a desactivar):** `.github/workflows/new.yml`".replace(
@@ -231,7 +201,7 @@ test("renderReport: uptodate and open reports have descriptive explanations", ()
   );
 });
 
-test("workflowsToDisable: every active workflow outside the allowlist, whatever its name", () => {
+test("workflowsToDisable: every active workflow outside intelia-* and CodeQL, ci.yml included", () => {
   const workflows = [
     { id: 1, path: ".github/workflows/ci.yml", state: "active" },
     { id: 2, path: ".github/workflows/intelia-release.yml", state: "active" },
@@ -254,36 +224,7 @@ test("workflowsToDisable: every active workflow outside the allowlist, whatever 
   ];
   assert.deepEqual(
     workflowsToDisable(workflows).map((w) => w.id),
-    [6, 7, 9, 10],
-  );
-});
-
-test("resolveForkCi: takes upstream's new ci.yml with the runner adaptation reapplied", () => {
-  const theirs = UPSTREAM_CI.replace("pnpm test", "pnpm test --coverage");
-  const resolved = resolveForkCi({
-    base: UPSTREAM_CI,
-    ours: forkCi(UPSTREAM_CI),
-    theirs,
-  });
-  assert.equal(resolved, forkCi(theirs));
-  assert.ok(resolved.includes("pnpm test --coverage"));
-  assert.ok(!resolved.includes("blacksmith"));
-});
-
-test("resolveForkCi: refuses when the fork's ci.yml carries a change of its own", () => {
-  const ours = forkCi(UPSTREAM_CI) + "      - run: echo intelia-only step\n";
-  const theirs = UPSTREAM_CI.replace("pnpm test", "pnpm test --coverage");
-  assert.equal(resolveForkCi({ base: UPSTREAM_CI, ours, theirs }), null);
-});
-
-test("resolveForkCi: refuses when upstream's new ci.yml cannot be adapted", () => {
-  const theirs = UPSTREAM_CI.replace(
-    "      - run: pnpm test\n",
-    "      - uses: useblacksmith/cache@v1\n      - run: pnpm test\n",
-  );
-  assert.equal(
-    resolveForkCi({ base: UPSTREAM_CI, ours: forkCi(UPSTREAM_CI), theirs }),
-    null,
+    [1, 6, 7, 9, 10],
   );
 });
 
@@ -297,60 +238,6 @@ test("usesPullRequestTarget: detects the trigger in any form, ignoring comments"
       "on:\n  pull_request:\n# pull_request_target is unsafe\n",
     ),
   );
-});
-
-test("forkCi after a clean git merge keeps the fork's own ci.yml customisations", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "intelia-clean-merge-"));
-  const git = (...args) =>
-    execFileSync(
-      "git",
-      ["-c", "user.name=t", "-c", "user.email=t@t", ...args],
-      {
-        cwd: dir,
-        encoding: "utf8",
-      },
-    );
-  const ci = path.join(dir, "ci.yml");
-  try {
-    git("init", "-q", "-b", "upstream");
-    fs.writeFileSync(ci, UPSTREAM_CI);
-    git("add", "ci.yml");
-    git("commit", "-qm", "upstream base");
-
-    git("checkout", "-qb", "fork");
-    const custom = forkCi(UPSTREAM_CI)
-      .replace(
-        "KANEO_UPGRADE_REPOSITORY: usekaneo/kaneo",
-        "KANEO_UPGRADE_REPOSITORY: usekaneo/kaneo\n          INTELIA_CUSTOM_FLAG: '1'",
-      )
-      .replace(
-        "bash scripts/ci/upgrade.sh",
-        "bash scripts/ci/upgrade.sh --intelia-option",
-      );
-    fs.writeFileSync(ci, custom);
-    git("commit", "-qam", "fork adaptation and customisation");
-
-    git("checkout", "-q", "upstream");
-    fs.writeFileSync(
-      ci,
-      UPSTREAM_CI.replace(
-        "      - run: pnpm test\n",
-        "      - run: pnpm test\n      - run: pnpm e2e\n",
-      ),
-    );
-    git("commit", "-qam", "upstream change elsewhere");
-
-    git("checkout", "-q", "fork");
-    git("merge", "-q", "--no-ff", "--no-commit", "upstream");
-    const adapted = forkCi(fs.readFileSync(ci, "utf8"));
-
-    assert.ok(adapted.includes("INTELIA_CUSTOM_FLAG: '1'"));
-    assert.ok(adapted.includes("upgrade.sh --intelia-option"));
-    assert.ok(adapted.includes("- run: pnpm e2e"));
-    assert.deepEqual(checkForkCi(adapted), []);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
 });
 
 test("pull_request_target: only disabled workflows are safe; unregistered ones run on first event", () => {
