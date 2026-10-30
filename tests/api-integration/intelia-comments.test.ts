@@ -1,6 +1,6 @@
-import { createHash, randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
+import { auth } from "../../apps/api/src/auth";
 import db, { schema } from "../../apps/api/src/database";
 import { createApp } from "../../apps/api/src/index";
 import { mockAnonymousSession, mockAuthenticatedSession } from "./helpers/auth";
@@ -419,16 +419,8 @@ describe("GET /api/intelia/workspace/{workspaceId}/comments (DIS-10)", () => {
 
     // 2. Verificación con clave API real (x-api-key) del usuario restringido
     mockAnonymousSession();
-    const apiKey = `test_key_${randomUUID()}`;
-    await db.insert(schema.apikeyTable).values({
-      referenceId: member.id,
-      userId: member.id,
-      key: createHash("sha256").update(apiKey).digest("base64url"),
-      permissions: null,
-      enabled: true,
-      rateLimitEnabled: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    const { key: apiKey } = await auth.api.createApiKey({
+      body: { userId: member.id, name: "Restricted comments reader" },
     });
 
     const apiKeyRes = await getWorkspaceComments(
