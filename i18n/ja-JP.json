@@ -2717,7 +2717,11 @@
 			"importedBy": "Imported by {{name}}",
 			"commentedOnForge": "{{forge}} でコメント"
 		},
-		"movedFromOtherProject": "moved task from another project to \"{{to}}\""
+		"movedFromOtherProject": "moved task from another project to \"{{to}}\"",
+		"reactions": {
+			"add": "Add reaction",
+			"error": "Failed to update reaction"
+		}
 	},
 	"tasks": {
 		"title": "タスク",

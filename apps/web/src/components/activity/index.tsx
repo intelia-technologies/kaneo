@@ -14,6 +14,7 @@ import {
 import { TimelineContent, TimelineItem } from "../ui/timeline";
 import CommentCard from "./comment-card";
 import { isCommentActivity } from "./utils";
+import { ReactionBar } from "../intelia/reaction-bar";
 
 type ActivityItem = {
   type: string;
@@ -463,6 +464,9 @@ function Activity({
             }
             externalSource={activity.externalSource}
             externalUrl={activity.externalUrl}
+            reactions={
+              <ReactionBar taskId={activity.taskId} commentId={activity.id} />
+            }
           />
         </TimelineContent>
       </TimelineItem>

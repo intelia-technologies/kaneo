@@ -2764,7 +2764,11 @@
 			"importedBy": "Imported by {{name}}",
 			"commentedOnForge": "{{forge}} पर टिप्पणी की"
 		},
-		"movedFromOtherProject": "moved task from another project to \"{{to}}\""
+		"movedFromOtherProject": "moved task from another project to \"{{to}}\"",
+		"reactions": {
+			"add": "Add reaction",
+			"error": "Failed to update reaction"
+		}
 	},
 	"tasks": {
 		"title": "कार्य",

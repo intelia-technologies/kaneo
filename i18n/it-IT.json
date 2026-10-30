@@ -2811,7 +2811,11 @@
 			"importedBy": "Imported by {{name}}",
 			"commentedOnForge": "ha commentato su {{forge}}"
 		},
-		"movedFromOtherProject": "moved task from another project to \"{{to}}\""
+		"movedFromOtherProject": "moved task from another project to \"{{to}}\"",
+		"reactions": {
+			"add": "Add reaction",
+			"error": "Failed to update reaction"
+		}
 	},
 	"tasks": {
 		"title": "Attività",

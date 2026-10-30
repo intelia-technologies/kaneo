@@ -6,7 +6,7 @@ import {
   Trash2,
   MessageSquareIcon,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import CommentEditor from "@/components/activity/comment-editor";
 import { GithubIcon } from "@/components/icons/github-icon";
@@ -58,6 +58,7 @@ type CommentCardProps = {
   importedBy?: string;
   externalSource?: string | null;
   externalUrl?: string | null;
+  reactions?: ReactNode;
 };
 
 export default function CommentCard({
@@ -69,6 +70,7 @@ export default function CommentCard({
   externalSource,
   externalUrl,
   importedBy,
+  reactions,
 }: CommentCardProps) {
   const { t } = useTranslation();
   const { user: currentUser } = useAuth();
@@ -302,6 +304,9 @@ export default function CommentCard({
             onCancelShortcut={isEditing ? handleCancel : undefined}
           />
         </div>
+        {!isEditing && reactions && (
+          <div className="px-3 pb-2.5 pl-10">{reactions}</div>
+        )}
 
         {isEditing && (
           <div className="flex items-center justify-end gap-2 border-border/70 border-t bg-card/60 px-3 py-2">

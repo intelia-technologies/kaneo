@@ -2,7 +2,7 @@
 
 Este repositorio es el fork de [Kaneo](https://github.com/usekaneo/kaneo) que mantiene Intelia (`intelia-technologies/kaneo`). Desplegamos Kaneo desde nuestras imágenes, no desde las públicas. Diseño de referencia: [diseño 11: fork de Kaneo](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-fork-kaneo.md) en `intelia-technologies/software-factory`.
 
-Además de este fichero, el fork añade sus funciones propias (ver «Relaciones por proyecto»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
+Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas» y «Relaciones por proyecto»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
 
 **Este repositorio es público.** Aquí no va nada interno de Intelia: ni secretos, ni hostnames o IPs, ni configuración de despliegue, ni datos de clientes o de la factory. Todo eso vive en `software-factory`, que es privado. Código propietario dentro de Kaneo, solo tras hablarlo antes. Secret scanning y push protection están activados.
 
@@ -38,13 +38,20 @@ Kaneo se distribuye bajo licencia MIT. Se conservan [`LICENSE`](LICENSE) y el av
 - **Versiones:** `vX.Y.Z-intelia.N` (por ejemplo `v2.48.0-intelia.1`), sobre la versión de upstream que llevan dentro.
 - **Imagen:** la «todo en uno» de upstream (`Dockerfile.kaneo`: API en Node más Nginx con la SPA), publicada como `ghcr.io/intelia-technologies/kaneo:X.Y.Z-intelia.N`.
 - **CI y versión:** ver «CI y versiones».
+- **Ficheros de upstream que toca el fork:** pocos, cada uno con menos de 20 líneas cambiadas. Son ganchos para lo nuestro:
+  - `apps/api/src/index.ts`: migrador `intelia` al arrancar, montaje de `/api/intelia` y `AppType`.
+  - `Dockerfile.kaneo` y `apps/api/Dockerfile`: `COPY` de `drizzle-intelia`. `vite.config.ts`: ignora `drizzle-intelia/meta/**`.
+  - `apps/web/src/components/activity/comment-card.tsx` e `index.tsx`, y `apps/web/src/components/task/task-details-content.tsx`: las fichas de reacciones.
+  - `tests/api-integration/helpers/database.ts`: migrador `intelia` en los tests de integración.
+  - `scripts/ci/upgrade.sh`: versión de partida configurable para la prueba de actualización.
+  - Generados o de datos: `apps/docs/openapi.json` (regenerado) y las claves `activity.reactions.*` en `i18n/*.json`.
 
 ## Puesta al día con upstream
 
 El proceso de puesta al día está automatizado mediante `.github/workflows/intelia-upstream-sync.yml` y `scripts/ci/intelia-upstream-sync.mjs`:
 
 - **Automatización semanal:** se ejecuta cada lunes a las 05:00 UTC (`0 5 * * 1`) y bajo demanda (`workflow_dispatch`). Funciona exclusivamente con `GITHUB_TOKEN` (sin credenciales ni GitHub App).
-- **Preparación del merge:** detecta la última release de upstream (o la referencia del input `upstream_ref`) y prepara el merge en el runner. No abre PR: la factory lee el mismo resultado, avisa y se abre la tarea de adopción. No resuelve ningún conflicto por su cuenta: como el fork no toca ficheros de upstream (`ci.yml` incluido, que está desactivado), el merge de un tag de upstream normalmente es limpio.
+- **Preparación del merge:** detecta la última release de upstream (o la referencia del input `upstream_ref`) y prepara el merge en el runner. No abre PR: la factory lee el mismo resultado, avisa y se abre la tarea de adopción. No resuelve ningún conflicto por su cuenta: como el fork toca pocas líneas de upstream (ver «Ficheros de upstream que toca el fork»; `ci.yml` no, que está desactivado), el merge de un tag de upstream normalmente es limpio.
 - **Estados de sincronización:**
   - `uptodate`: la última versión de upstream ya es ancestro de `main`. No requiere acción.
   - `open`: ya existe la rama `intelia/upstream-<ref>` en el fork (con o sin pull request). No se sobreescribe el trabajo humano; para regenerarla, cerrar la PR, borrar la rama y relanzar.
@@ -91,7 +98,7 @@ Pasos de adopción:
 3. **Comprobaciones antes de mergear:**
    - **CI del fork en verde:** `Intelia CI` (`intelia-ci.yml`) pasa en la PR. En cada push a la PR, `.github/workflows/intelia-candidate.yml` compila `Dockerfile.kaneo` y publica `ghcr.io/intelia-technologies/kaneo:candidate-<sha12>`.
    - **Tests live de la factory en verde:** verificar que la suite de tests de la factory (`Kaneo candidate`) pasa contra la imagen candidata `candidate-<sha12>` (ejecutados en el repositorio privado de la factory).
-   - **Revisión de cambios propios:** inspeccionar `git diff vX.Y.Z HEAD` para confirmar que solo quedan ficheros nuestros (`README-INTELIA.md` y los `intelia-*`) y que siguen intactos.
+   - **Revisión de cambios propios:** inspeccionar `git diff vX.Y.Z HEAD` para confirmar que solo quedan ficheros nuestros (`README-INTELIA.md`, los `intelia-*` y los de `intelia/`) y los ganchos listados en «Ficheros de upstream que toca el fork», sin cambios de upstream perdidos en el merge.
    - **Drizzle:** verificar que no existan migraciones propias en `apps/api/drizzle/` ni conflictos de secuencia en `meta/_journal.json`.
    - **Workflows nuevos de upstream:** revisar los workflows nuevos listados en el resumen del merge; el job semanal los desactiva de todos modos si llegan a registrarse activos.
 4. **Merge de la PR:** Forja mergea la PR hacia `main` usando siempre **merge commit** (nunca squash ni rebase).
@@ -168,6 +175,19 @@ pnpm exec drizzle-kit generate --config drizzle-intelia.config.ts --name <nombre
 Nunca con `pnpm db:generate` ni con `drizzle.config.ts`: esos escriben en el diario de upstream. La primera migración (`0000_intelia_schema`) es `CREATE SCHEMA IF NOT EXISTS`, porque el migrador crea el esquema antes para guardar su registro.
 
 El test `tests/api-integration/intelia-schema-migrations.test.ts` reproduce el arranque en una base de datos aparte y simula el merge de una versión de upstream con una migración nueva: se aplican las de los dos.
+
+## Reacciones en comentarios y tarjetas
+
+Reacciones con emoji en los comentarios y en la propia tarea (la tarjeta), con actores externos: una cuenta con `workspace:manage_settings` puede reaccionar con un nombre propio (`externalUserName`), el mismo criterio que `externalUserName` en `POST /api/comment`. Así varios agentes que comparten una cuenta de rol reaccionan cada uno con su nombre.
+
+- **Tabla** `intelia.comment_reaction`: `task_id` (siempre), `comment_id` (`NULL` = reacción en la tarjeta; apunta a `public.activity`), `emoji`, `user_id` (la cuenta que llama) y `external_user_name`. Claves ajenas con `ON DELETE CASCADE`. Una reacción por destino, emoji y actor (índice único).
+- **API** (OpenAPI, etiqueta `Reactions`), con los permisos de comentar en la tarea (`task:update`; leer, `task:read`):
+  - `GET|POST|DELETE /api/intelia/comment/{id}/reactions`
+  - `GET|POST|DELETE /api/intelia/task/{id}/reactions`: `POST` y `DELETE` actúan sobre la tarjeta; `GET` devuelve todas las de la tarea, las de la tarjeta y las de sus comentarios.
+  - `POST` recibe `{ emoji, externalUserName? }` y es idempotente; `DELETE` recibe lo mismo por query y solo quita reacciones propias (404 si no hay).
+- **Límite aceptado, cuentas compartidas:** el actor de una reacción es la cuenta más el nombre externo, así que con una cuenta de rol compartida un agente puede quitar la reacción de otro agente de la misma cuenta indicando su nombre. Es el mismo límite que la firma de comentarios con `externalUserName`: el riesgo queda dentro de la propia cuenta, que ya puede firmar con cualquier nombre.
+- **Web:** fichas de emoji con contador y, al pasar el ratón, los nombres; debajo de cada comentario y bajo el título de la tarea (`apps/web/src/components/intelia/`).
+- **Test:** `tests/api-integration/intelia-reactions.test.ts`.
 
 ## Relaciones por proyecto
 
