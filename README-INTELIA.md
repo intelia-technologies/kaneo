@@ -2,7 +2,7 @@
 
 Este repositorio es el fork de [Kaneo](https://github.com/usekaneo/kaneo) que mantiene Intelia (`intelia-technologies/kaneo`). Desplegamos Kaneo desde nuestras imágenes, no desde las públicas. Diseño de referencia: [diseño 11: fork de Kaneo](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-fork-kaneo.md) en `intelia-technologies/software-factory`.
 
-Además de este fichero, el fork solo añade sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
+Además de este fichero, el fork añade sus funciones propias (ver «Relaciones por proyecto»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
 
 **Este repositorio es público.** Aquí no va nada interno de Intelia: ni secretos, ni hostnames o IPs, ni configuración de despliegue, ni datos de clientes o de la factory. Todo eso vive en `software-factory`, que es privado. Código propietario dentro de Kaneo, solo tras hablarlo antes. Secret scanning y push protection están activados.
 
@@ -168,3 +168,12 @@ pnpm exec drizzle-kit generate --config drizzle-intelia.config.ts --name <nombre
 Nunca con `pnpm db:generate` ni con `drizzle.config.ts`: esos escriben en el diario de upstream. La primera migración (`0000_intelia_schema`) es `CREATE SCHEMA IF NOT EXISTS`, porque el migrador crea el esquema antes para guardar su registro.
 
 El test `tests/api-integration/intelia-schema-migrations.test.ts` reproduce el arranque en una base de datos aparte y simula el merge de una versión de upstream con una migración nueva: se aplican las de los dos.
+
+## Relaciones por proyecto
+
+`GET /api/intelia/project/{projectId}/relations` (OpenAPI, etiqueta `Task Relations`; código en `apps/api/src/intelia/relations/`) devuelve de una vez las relaciones entre tareas con algún extremo en el proyecto, para dibujar sus dependencias. Upstream solo las da tarea a tarea (`GET /api/task-relation/{taskId}`).
+
+- **Respuesta:** `relations` (`id`, `sourceTaskId`, `targetTaskId`, `relationType`) y `externalTasks`, los extremos de otros proyectos con `number`, `title`, `status`, `isCompleted`, `projectId`, `projectSlug` y `projectName`.
+- **Permisos:** los de listar las tareas del proyecto (`project:read` y `task:read`). Se omiten, como en upstream, las relaciones con tareas de proyectos que quien llama no ve.
+- **Solo lee** tablas de upstream: sin tablas ni migraciones propias.
+- **Test:** `tests/api-integration/intelia-relations.test.ts`.
