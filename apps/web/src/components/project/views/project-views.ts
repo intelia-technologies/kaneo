@@ -7,16 +7,18 @@ import {
   SquircleDashed,
 } from "lucide-react";
 import type { TaskLayout } from "@/store/user-preferences";
+import { INTELIA_PATHS, INTELIA_VIEWS } from "@/intelia/dependencies/view";
 
-export type ProjectView = "board" | "list" | "backlog" | "calendar" | "gantt";
+export type ProjectView = TaskLayout | "backlog";
 
-export type ProjectRoute = "board" | "backlog" | "calendar" | "gantt";
+export type ProjectRoute = Exclude<ProjectView, "list">;
 
 export const PROJECT_ROUTE_PATHS = {
   board: "/dashboard/workspace/$workspaceId/project/$projectId/board",
   backlog: "/dashboard/workspace/$workspaceId/project/$projectId/backlog",
   calendar: "/dashboard/workspace/$workspaceId/project/$projectId/calendar",
   gantt: "/dashboard/workspace/$workspaceId/project/$projectId/gantt",
+  ...INTELIA_PATHS,
 } as const;
 
 export const PROJECT_VIEWS: ReadonlyArray<{
@@ -49,6 +51,7 @@ export const PROJECT_VIEWS: ReadonlyArray<{
     labelKey: "tasks:view.gantt",
     icon: ChartGantt,
   },
+  ...INTELIA_VIEWS,
 ];
 
 export function routeForView(view: ProjectView): ProjectRoute {
@@ -70,7 +73,7 @@ export function tasksViewFor(
   taskLayout: TaskLayout,
   viewMode: "board" | "list",
 ): ProjectView {
-  return taskLayout === "calendar" || taskLayout === "gantt"
+  return taskLayout !== "board" && taskLayout !== "list"
     ? taskLayout
     : viewMode;
 }

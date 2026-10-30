@@ -177,3 +177,14 @@ El test `tests/api-integration/intelia-schema-migrations.test.ts` reproduce el a
 - **Permisos:** los de listar las tareas del proyecto (`project:read` y `task:read`). Se omiten, como en upstream, las relaciones con tareas de proyectos que quien llama no ve.
 - **Solo lee** tablas de upstream: sin tablas ni migraciones propias.
 - **Test:** `tests/api-integration/intelia-relations.test.ts`.
+
+## Vista «Dependencias»
+
+Vista más del proyecto (junto a Board, List, Calendar y Gantt) que dibuja las dependencias `blocks` de izquierda a derecha con `@xyflow/react` y `@dagrejs/dagre`, a partir de `GET /api/intelia/project/{projectId}/relations`. Código en `apps/web/src/intelia/dependencies/` y la ruta `routes/.../project/$projectId/dependencies.tsx`.
+
+- **Nodos:** las tareas del proyecto que pasan los filtros de la barra (también los campos personalizados). Hechas en gris; canceladas (columna final con slug `cancelled` o `canceled`) en gris con borde discontinuo. **Bloqueada:** columna `blocked` o alguna tarea que la bloquea sin terminar, aunque esté oculta por el filtro o sea de otro proyecto. Las tareas de otros proyectos salen como nodo pequeño con enlace.
+- **Aristas:** solo `blocks`, si sus dos extremos están visibles. Las tareas sin aristas se ocultan; el interruptor «Loose tasks» del menú Display las enseña.
+- **Camino crítico** (`critical-path.ts`): la cadena más larga de tareas no terminadas (columna no final) entre las visibles, peso 1 por tarea; en empate, la de mayor suma de prioridades (`urgent` 4 … `no-priority` 0) y, después, la de ids menores. Si hay un ciclo entre las visibles, se avisa y no se calcula.
+- **Clic** en un nodo: abre la tarea en el panel lateral (`?taskId=`), como en Gantt.
+- **Registro en ficheros de upstream:** `project-views.ts`, `store/user-preferences.ts` y `layout-switch.tsx`; `routeTree.gen.ts` lo regenera el plugin de TanStack Router. Las traducciones (en y es) van en `intelia/dependencies/i18n.ts`, fuera de `i18n/*.json`.
+- **Tests:** `critical-path.test.ts` y `graph-model.test.ts`.
