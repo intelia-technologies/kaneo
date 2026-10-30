@@ -18,7 +18,7 @@ De Jaime (29-oct-2026, no se reabren):
 
 Del Diseñador, recogidas al lanzar:
 
-6. **«Primero arriba».** Lo genérico (reacciones, eventos de webhook que faltan, arreglos) se propone también como PR a `usekaneo/kaneo`. El fork guarda pocos cambios: los pendientes de aceptar y los que solo tienen sentido para Intelia.
+6. **Sin contribuciones a upstream** (decisión de Jaime, 30-oct). No preparamos ni abrimos PR en `usekaneo/kaneo`: nuestras funciones viven solo en este fork. Para que las puestas al día sigan siendo baratas, los cambios son **aditivos**: tablas en el esquema `intelia`, código en ficheros nuestros (`apps/*/src/intelia/`) y el mínimo de líneas en ficheros de upstream.
 7. **Base de datos: nuestras tablas en un esquema propio, nunca en el diario de migraciones de upstream** (ver «Base de datos»).
 8. **Puesta al día:** comprobación semanal automática y adopción mensual, o antes si sale un arreglo de seguridad.
 
@@ -153,7 +153,6 @@ Reglas:
 - Nuestras tablas viven en un **esquema de PostgreSQL propio, `intelia`**, con **su propio diario y su propio migrador**, que corre al arrancar la API después del de upstream.
 - **Nunca se añaden migraciones a `apps/api/drizzle/` ni a su `meta/_journal.json`.**
 - **Nunca alteramos tablas de upstream.** Las nuestras pueden referenciarlas (por ejemplo, con `ON DELETE CASCADE` hacia el id de un comentario).
-- Si upstream acepta una función nuestra, se migra de nuestras tablas a las suyas con una migración propia que mueve los datos.
 
 ### Migrador del esquema `intelia`
 
