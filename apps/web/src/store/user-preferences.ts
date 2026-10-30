@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import type { InteliaView } from "@/intelia/dependencies/view";
 
 export const WEEK_START_DAYS = [0, 1, 6] as const;
 export type WeekStartDay = (typeof WEEK_START_DAYS)[number];
@@ -8,7 +9,7 @@ export function isWeekStartDay(value: number): value is WeekStartDay {
   return WEEK_START_DAYS.some((day) => day === value);
 }
 
-export type TaskLayout = "board" | "list" | "calendar" | "gantt";
+export type TaskLayout = "board" | "list" | "calendar" | "gantt" | InteliaView;
 
 export type PriorityIconStyle = "marks" | "classic";
 
