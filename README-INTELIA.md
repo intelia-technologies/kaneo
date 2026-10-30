@@ -42,6 +42,7 @@ Kaneo se distribuye bajo licencia MIT. Se conservan [`LICENSE`](LICENSE) y el av
   - `apps/api/src/index.ts`: migrador `intelia` al arrancar, montaje de `/api/intelia` y `AppType`.
   - `Dockerfile.kaneo` y `apps/api/Dockerfile`: `COPY` de `drizzle-intelia`. `vite.config.ts`: ignora `drizzle-intelia/meta/**`.
   - `apps/web/src/components/activity/comment-card.tsx` e `index.tsx`, y `apps/web/src/components/task/task-details-content.tsx`: las fichas de reacciones.
+  - `apps/web/src/components/project/views/project-views.ts`, `layout-switch.tsx`, `store/user-preferences.ts` y `hooks/use-project-websocket.ts`: el registro y el tiempo real de la vista «Dependencias».
   - `tests/api-integration/helpers/database.ts`: migrador `intelia` en los tests de integración.
   - `scripts/ci/upgrade.sh`: versión de partida configurable para la prueba de actualización.
   - Generados o de datos: `apps/docs/openapi.json` (regenerado) y las claves `activity.reactions.*` en `i18n/*.json`.
@@ -216,5 +217,6 @@ Vista más del proyecto (junto a Board, List, Calendar y Gantt) que dibuja las d
 - **Camino crítico** (`critical-path.ts`): la cadena más larga de tareas no terminadas (columna no final) entre las visibles, peso 1 por tarea; en empate, la de mayor suma de prioridades (`urgent` 4 … `no-priority` 0) y, después, la de ids menores. Orden topológico iterativo (Kahn) y programación dinámica con enlace al mejor sucesor: sin recursión, para miles de tareas. Si hay un ciclo entre los nodos visibles, también los de otros proyectos, se avisa y no se calcula.
 - **Clic** en un nodo: abre la tarea en el panel lateral (`?taskId=`), como en Gantt. En un nodo de otro proyecto (también con Intro o Espacio) abre el tablero de ese proyecto con la ficha de la tarea.
 - **Carga:** si fallan las relaciones, la vista lo dice y ofrece reintentar; no dibuja un grafo vacío.
-- **Registro en ficheros de upstream:** `project-views.ts`, `store/user-preferences.ts` y `layout-switch.tsx`; `routeTree.gen.ts` lo regenera el plugin de TanStack Router. Las traducciones (en y es) van en `intelia/dependencies/i18n.ts`, fuera de `i18n/*.json`.
-- **Tests:** `critical-path.test.ts`, `graph-model.test.ts`, `components/external-node.test.tsx` y `components/dependencies-view.test.tsx`.
+- **Tiempo real** (`realtime.ts`): sin socket propio. El WebSocket del proyecto (`useProjectWebSocket`) ya mantiene las tareas en la caché del tablero; con `TASK_CREATED`, `TASK_UPDATED`, `TASK_DELETED`, `TASK_MOVED` y `TASK_RELATION_UPDATED` además invalida las relaciones del proyecto, una vez por ráfaga (250 ms desde el primer evento). La página agrupa igual los cambios de tareas y relaciones, así que el layout de `dagre` se recalcula una vez por ráfaga; los filtros y el interruptor se aplican al momento. Tras una reconexión, las relaciones se releen al volver el foco o la red (React Query).
+- **Registro en ficheros de upstream:** `project-views.ts`, `store/user-preferences.ts` y `layout-switch.tsx`, y dos líneas en `hooks/use-project-websocket.ts` para el tiempo real; `routeTree.gen.ts` lo regenera el plugin de TanStack Router. Las traducciones (en y es) van en `intelia/dependencies/i18n.ts`, fuera de `i18n/*.json`.
+- **Tests:** `critical-path.test.ts`, `graph-model.test.ts`, `realtime.test.ts`, `components/external-node.test.tsx` y `components/dependencies-view.test.tsx`.

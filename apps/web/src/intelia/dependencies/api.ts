@@ -14,9 +14,12 @@ export async function getProjectRelations(projectId: string) {
   return response.json();
 }
 
+export const projectRelationsKey = (projectId: string) =>
+  ["project-relations", projectId] as const;
+
 export function useGetProjectRelations(projectId: string) {
   return useQuery({
-    queryKey: ["project-relations", projectId],
+    queryKey: projectRelationsKey(projectId),
     queryFn: () => getProjectRelations(projectId),
     enabled: !!projectId,
   });
