@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 import db, { schema } from "../../apps/api/src/database";
@@ -361,7 +362,7 @@ describe("GET /api/intelia/workspace/{workspaceId}/comments (DIS-10)", () => {
     expect(data.comments[0].id).toBe("act_active");
   });
 
-  it("excludes comments from projects the caller cannot access", async () => {
+  it("excludes comments from projects the caller cannot access (with session and with x-api-key)", async () => {
     const { workspace } = await createWorkspaceMember({
       role: "owner",
     });
@@ -404,17 +405,42 @@ describe("GET /api/intelia/workspace/{workspaceId}/comments (DIS-10)", () => {
     // Restricted member has access only to Alpha
     const member = await addWorkspaceMember(workspace.id);
     await restrictToProjects(workspace.id, member.id, [alpha.id]);
-    mockAuthenticatedSession(member);
 
-    const res = await getWorkspaceComments(workspace.id, {
+    // 1. Verificación con sesión autenticada
+    mockAuthenticatedSession(member);
+    const sessionRes = await getWorkspaceComments(workspace.id, {
       since: now.toISOString(),
     });
-    expect(res.status).toBe(200);
+    expect(sessionRes.status).toBe(200);
+    const sessionData = await sessionRes.json();
+    expect(sessionData.comments).toHaveLength(1);
+    expect(sessionData.comments[0].id).toBe("comment_alpha");
+    expect(sessionData.comments[0].projectId).toBe(alpha.id);
 
-    const data = await res.json();
-    expect(data.comments).toHaveLength(1);
-    expect(data.comments[0].id).toBe("comment_alpha");
-    expect(data.comments[0].projectId).toBe(alpha.id);
+    // 2. Verificación con clave API real (x-api-key) del usuario restringido
+    mockAnonymousSession();
+    const apiKey = `test_key_${randomUUID()}`;
+    await db.insert(schema.apikeyTable).values({
+      referenceId: member.id,
+      userId: member.id,
+      key: createHash("sha256").update(apiKey).digest("base64url"),
+      permissions: null,
+      enabled: true,
+      rateLimitEnabled: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const apiKeyRes = await getWorkspaceComments(
+      workspace.id,
+      { since: now.toISOString() },
+      { "x-api-key": apiKey },
+    );
+    expect(apiKeyRes.status).toBe(200);
+    const apiKeyData = await apiKeyRes.json();
+    expect(apiKeyData.comments).toHaveLength(1);
+    expect(apiKeyData.comments[0].id).toBe("comment_alpha");
+    expect(apiKeyData.comments[0].projectId).toBe(alpha.id);
   });
 
   it("excludes non-comment activities and null content", async () => {
