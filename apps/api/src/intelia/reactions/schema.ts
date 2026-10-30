@@ -8,7 +8,12 @@ export const idParam = z.object({ id: z.string() });
 
 // Body of POST and query of DELETE.
 export const reactionInput = z.object({
-  emoji: z.string().regex(EMOJI_REGEX, "Must be a single emoji"),
+  // refine, not regex: the OpenAPI generator would publish the RegExp with
+  // its flag inside the pattern, which no client can use.
+  emoji: z
+    .string()
+    .refine((value) => EMOJI_REGEX.test(value), "Must be a single emoji")
+    .openapi({ description: "A single RGI emoji.", example: "👍" }),
   externalUserName: z.string().trim().min(1).max(120).optional().openapi({
     description:
       "React as a named external actor. Requires workspace:manage_settings.",

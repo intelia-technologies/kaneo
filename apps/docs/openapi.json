@@ -24871,7 +24871,8 @@
                 "properties": {
                   "emoji": {
                     "type": "string",
-                    "pattern": "^\\p{RGI_Emoji}$/v"
+                    "description": "A single RGI emoji.",
+                    "example": "👍"
                   },
                   "externalUserName": {
                     "type": "string",
@@ -24962,9 +24963,11 @@
           {
             "schema": {
               "type": "string",
-              "pattern": "^\\p{RGI_Emoji}$/v"
+              "description": "A single RGI emoji.",
+              "example": "👍"
             },
             "required": true,
+            "description": "A single RGI emoji.",
             "name": "emoji",
             "in": "query"
           },
@@ -25131,7 +25134,8 @@
                 "properties": {
                   "emoji": {
                     "type": "string",
-                    "pattern": "^\\p{RGI_Emoji}$/v"
+                    "description": "A single RGI emoji.",
+                    "example": "👍"
                   },
                   "externalUserName": {
                     "type": "string",
@@ -25222,9 +25226,11 @@
           {
             "schema": {
               "type": "string",
-              "pattern": "^\\p{RGI_Emoji}$/v"
+              "description": "A single RGI emoji.",
+              "example": "👍"
             },
             "required": true,
+            "description": "A single RGI emoji.",
             "name": "emoji",
             "in": "query"
           },

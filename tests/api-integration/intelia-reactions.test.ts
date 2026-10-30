@@ -476,7 +476,7 @@ describe("API integration: Intelia reactions", () => {
     }
   });
 
-  it("returns 404 outside the workspace and 403 to a viewer that reacts", async () => {
+  it("returns 404 outside the workspace and 403 to a viewer that reacts or removes", async () => {
     const { adminMember, outsider, comment, task } = await setupFixture();
     const { app } = createApp();
     const post = (path: string) =>
@@ -485,14 +485,19 @@ describe("API integration: Intelia reactions", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ emoji: "👍" }),
       });
+    const remove = (path: string) =>
+      app.request(`${path}?emoji=${encodeURIComponent("👍")}`, {
+        method: "DELETE",
+      });
     const commentPath = `/api/intelia/comment/${comment.id}/reactions`;
     const taskPath = `/api/intelia/task/${task.id}/reactions`;
 
     mockAuthenticatedSession(outsider.user);
-    expect((await app.request(commentPath)).status).toBe(404);
-    expect((await post(commentPath)).status).toBe(404);
-    expect((await app.request(taskPath)).status).toBe(404);
-    expect((await post(taskPath)).status).toBe(404);
+    for (const path of [commentPath, taskPath]) {
+      expect((await app.request(path)).status, path).toBe(404);
+      expect((await post(path)).status, path).toBe(404);
+      expect((await remove(path)).status, path).toBe(404);
+    }
 
     const viewer = await createWorkspaceMember({ role: "viewer" });
     await db.insert(schema.workspaceUserTable).values({
@@ -502,10 +507,11 @@ describe("API integration: Intelia reactions", () => {
       joinedAt: new Date(),
     });
     mockAuthenticatedSession(viewer.user);
-    expect((await app.request(commentPath)).status).toBe(200);
-    expect((await post(commentPath)).status).toBe(403);
-    expect((await app.request(taskPath)).status).toBe(200);
-    expect((await post(taskPath)).status).toBe(403);
+    for (const path of [commentPath, taskPath]) {
+      expect((await app.request(path)).status, path).toBe(200);
+      expect((await post(path)).status, path).toBe(403);
+      expect((await remove(path)).status, path).toBe(403);
+    }
   });
 
   it("returns exactly one 200 and one 404 for concurrent DELETEs of the same reaction", async () => {
