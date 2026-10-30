@@ -89,6 +89,7 @@ COPY --from=prod-deps --chown=appuser:appuser /app ./
 # Built application and workspace packages
 COPY --from=builder --chown=appuser:appuser /app/apps/api/dist ./apps/api/dist
 COPY --from=builder --chown=appuser:appuser /app/apps/api/drizzle ./apps/api/drizzle
+COPY --from=builder --chown=appuser:appuser /app/apps/api/drizzle-intelia ./apps/api/drizzle-intelia
 COPY --from=builder --chown=appuser:appuser /app/packages/email ./packages/email
 COPY --from=builder --chown=appuser:appuser /app/packages/permissions ./packages/permissions
 COPY --from=builder --chown=appuser:appuser /app/packages/importers/dist ./packages/importers/dist

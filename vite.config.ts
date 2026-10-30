@@ -19,6 +19,7 @@ const ignorePatterns = [
   "**/routeTree.gen.ts",
   "**/openapi.json",
   "**/drizzle/meta/**",
+  "**/drizzle-intelia/meta/**",
 ];
 
 export default defineConfig({
