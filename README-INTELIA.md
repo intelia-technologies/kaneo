@@ -2,7 +2,7 @@
 
 Este repositorio es el fork de [Kaneo](https://github.com/usekaneo/kaneo) que mantiene Intelia (`intelia-technologies/kaneo`). Desplegamos Kaneo desde nuestras imágenes, no desde las públicas. Diseño de referencia: [diseño 11: fork de Kaneo](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-fork-kaneo.md) en `intelia-technologies/software-factory`.
 
-Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas» y «Relaciones por proyecto»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
+Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas», «Relaciones por proyecto» y «Foto de perfil con API key»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
 
 **Este repositorio es público.** Aquí no va nada interno de Intelia: ni secretos, ni hostnames o IPs, ni configuración de despliegue, ni datos de clientes o de la factory. Todo eso vive en `software-factory`, que es privado. Código propietario dentro de Kaneo, solo tras hablarlo antes. Secret scanning y push protection están activados.
 
@@ -196,6 +196,16 @@ Reacciones con emoji en los comentarios y en la propia tarea (la tarjeta), con a
 - **Permisos:** los de listar las tareas del proyecto (`project:read` y `task:read`). Se omiten, como en upstream, las relaciones con tareas de proyectos que quien llama no ve.
 - **Solo lee** tablas de upstream: sin tablas ni migraciones propias.
 - **Test:** `tests/api-integration/intelia-relations.test.ts`.
+
+## Foto de perfil con API key
+
+`PUT /api/intelia/user/avatar` (OpenAPI, etiqueta `User`; código en `apps/api/src/intelia/user-avatar/`) guarda el avatar de quien llama y fija `user.image` a su URL en la misma petición. Sirve con sesión o con API key, para que cada agente ponga su foto con su propia clave. En upstream no se puede con una API key: `PUT /api/user/avatar` guarda la imagen pero no toca `user.image`, y `POST /api/auth/update-user` exige sesión.
+
+- **Cuerpo y límites:** los de `PUT /api/user/avatar` (`{ contentType, data }` en base64; PNG, JPEG o WebP de hasta 512 KiB). Usa el `saveAvatar` de upstream, así que sustituye el avatar anterior y su URL deja de servirse.
+- **Respuesta:** `{ id, url, size }`, con `url` = `/api/user/avatar/<id>`, la misma que devuelve después `GET /api/user/me` en `image`.
+- **Guardas:** las de upstream: 403 si el proveedor OAuth/OIDC gestiona la foto, 413/408 por tamaño o tiempo del cuerpo, 400 si el fichero no es válido (sin tocar `user.image`).
+- **Solo tablas de upstream** (`user_avatar` y `user.image`): sin tablas ni migraciones propias.
+- **Test:** `tests/api-integration/intelia-user-avatar.test.ts`.
 
 ## Vista «Dependencias»
 
