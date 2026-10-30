@@ -105,7 +105,7 @@ Each POST has `Content-Type: application/json`. Top-level fields:
 - `project`: `id`, `name`, `workspaceId`
 - `task`: `id`, `number`, `title`, `status`, `statusName`, `priority`, `url` (link to the task in the web UI)
 - `actor`: `id` and `name` of the user when available, or nulls for automated actions
-- `data`: event-specific fields (for example `oldStatus` / `newStatus` for status changes, `comment` text for comments)
+- `data`: event-specific fields (for example `oldStatus` / `newStatus` for status changes; for comments, the `comment` text, the comment's `commentId`, and `externalUserName` when the comment was posted on behalf of an external author, otherwise `null`)
 
 For `task.deleted`, the `task` object contains only `id` and `title`, and `data` is empty. Do not require the usual task URL or status fields when handling deletion. Move events include source and destination project IDs; reminders include `dueDate` and `leadTimeMinutes`.
 

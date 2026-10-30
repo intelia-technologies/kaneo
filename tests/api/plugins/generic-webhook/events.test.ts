@@ -8,6 +8,7 @@ import {
 } from "vite-plus/test";
 import { postToGenericWebhook } from "../../../../apps/api/src/plugins/generic-webhook/client";
 import {
+  handleTaskCommentCreated,
   handleTaskDeleted,
   handleTaskUnassigned,
 } from "../../../../apps/api/src/plugins/generic-webhook/events";
@@ -150,5 +151,57 @@ describe("generic webhook event handlers", () => {
     await handleTaskDeleted(deletedEvent, enabledContext);
 
     expect(postToGenericWebhook).not.toHaveBeenCalled();
+  });
+
+  it("posts task.comment_created with the comment id and external author", async () => {
+    const taskQuery = {
+      from: () => taskQuery,
+      innerJoin: () => taskQuery,
+      leftJoin: () => taskQuery,
+      where: () => taskQuery,
+      limit: () =>
+        Promise.resolve([
+          {
+            id: "task-1",
+            title: "Ship the release",
+            number: 7,
+            status: "to-do",
+            priority: null,
+            columnName: "To Do",
+            projectId: "project-1",
+            projectName: "Roadmap",
+            workspaceId: "workspace-1",
+          },
+        ]),
+    };
+    selectMock
+      .mockImplementationOnce(() => taskQuery)
+      .mockImplementationOnce(() =>
+        selectChain([{ id: "user-1", name: "Andrej" }]),
+      );
+
+    await handleTaskCommentCreated(
+      {
+        taskId: "task-1",
+        projectId: "project-1",
+        userId: "user-1",
+        comment: "Looks good",
+        commentId: "comment-1",
+        externalUserName: "Release Bot",
+      },
+      context,
+    );
+
+    const [, payload] = vi.mocked(postToGenericWebhook).mock.calls[0] ?? [];
+    expect(payload).toMatchObject({
+      event: "task.comment_created",
+      task: { id: "task-1" },
+      actor: { id: "user-1", name: "Andrej" },
+      data: {
+        comment: "Looks good",
+        commentId: "comment-1",
+        externalUserName: "Release Bot",
+      },
+    });
   });
 });
