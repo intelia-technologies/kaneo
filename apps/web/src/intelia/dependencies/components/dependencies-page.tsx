@@ -145,7 +145,6 @@ export function DependenciesPage({
           model={graphModel}
           showLoose={showLoose}
           onToggleShowLoose={() => setShowLoose(true)}
-          onOpenTask={onOpenTask}
         />
 
         <TaskDetailsSheet

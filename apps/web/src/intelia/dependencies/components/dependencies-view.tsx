@@ -1,5 +1,5 @@
 import "@xyflow/react/dist/style.css";
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -7,7 +7,6 @@ import {
   ReactFlow,
   useEdgesState,
   useNodesState,
-  type NodeMouseHandler,
   type NodeTypes,
 } from "@xyflow/react";
 import type { GraphModelResult } from "../graph-model";
@@ -20,7 +19,6 @@ type DependenciesViewProps = {
   model: GraphModelResult;
   showLoose: boolean;
   onToggleShowLoose: () => void;
-  onOpenTask: (taskId: string) => void;
 };
 
 const nodeTypes: NodeTypes = {
@@ -32,7 +30,6 @@ export function DependenciesView({
   model,
   showLoose,
   onToggleShowLoose,
-  onOpenTask,
 }: DependenciesViewProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(model.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(model.edges);
@@ -41,15 +38,6 @@ export function DependenciesView({
     setNodes(model.nodes);
     setEdges(model.edges);
   }, [model.nodes, model.edges, setNodes, setEdges]);
-
-  const handleNodeClick: NodeMouseHandler = useCallback(
-    (_, node) => {
-      if (node.type === "projectTask") {
-        onOpenTask(node.id);
-      }
-    },
-    [onOpenTask],
-  );
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-background">
@@ -70,7 +58,6 @@ export function DependenciesView({
             nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
-            onNodeClick={handleNodeClick}
             fitView
             fitViewOptions={{ padding: 0.1, maxZoom: 1 }}
             minZoom={0.2}
@@ -78,7 +65,6 @@ export function DependenciesView({
             nodesDraggable
             nodesConnectable={false}
             elementsSelectable
-            proOptions={{ hideAttribution: true }}
           >
             <Background
               variant={BackgroundVariant.Dots}
