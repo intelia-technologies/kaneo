@@ -130,9 +130,36 @@ function renderWorkflowWarnings({
   }
   if (pullRequestTargetWorkflows.length > 0) {
     md += `\n### Workflows con \`pull_request_target\`\n`;
-    md += pullRequestTargetWorkflows.map((w) => `- \`${w}\``).join("\n") + "\n";
+    md +=
+      pullRequestTargetWorkflows
+        .map(
+          ({ path, state }) =>
+            `- \`${path}\`: ${isDisabledState(state) ? state : `**${state}**`}`,
+        )
+        .join("\n") + "\n";
   }
   return md;
+}
+
+function isDisabledState(state) {
+  return state.startsWith("disabled");
+}
+
+/**
+ * Pairs each workflow file that uses pull_request_target with its Actions state. A file
+ * GitHub has not registered yet is "unregistered": it is enabled and will run on its first
+ * event, so it counts as a risk just like "active". Only disabled_* states are safe.
+ */
+export function classifyPullRequestTarget(files, workflows) {
+  const stateByPath = new Map(workflows.map((w) => [w.path, w.state]));
+  return files.map((path) => ({
+    path,
+    state: stateByPath.get(path) ?? "unregistered",
+  }));
+}
+
+export function pullRequestTargetAtRisk(entries) {
+  return entries.filter(({ state }) => !isDisabledState(state));
 }
 
 export function renderReport(data) {
@@ -296,17 +323,25 @@ function pullRequestTargetFiles() {
 }
 
 function workflowWarnings() {
-  const activeOutsideAllowlist = workflowsToDisable(
-    listWorkflows(FORK_REPOSITORY),
-  ).map((w) => w.path);
-  const pullRequestTargetWorkflows = pullRequestTargetFiles();
+  const workflows = listWorkflows(FORK_REPOSITORY);
+  const activeOutsideAllowlist = workflowsToDisable(workflows).map(
+    (w) => w.path,
+  );
+  const pullRequestTargetWorkflows = classifyPullRequestTarget(
+    pullRequestTargetFiles(),
+    workflows,
+  );
   for (const w of activeOutsideAllowlist) {
     console.error(
       `::warning file=${w}::Workflow activo fuera de la lista blanca del fork`,
     );
   }
-  for (const w of pullRequestTargetWorkflows) {
-    console.error(`::warning file=${w}::Workflow con pull_request_target`);
+  for (const { path, state } of pullRequestTargetAtRisk(
+    pullRequestTargetWorkflows,
+  )) {
+    console.error(
+      `::warning file=${path}::Workflow con pull_request_target sin desactivar (${state})`,
+    );
   }
   return { activeOutsideAllowlist, pullRequestTargetWorkflows };
 }
@@ -512,19 +547,20 @@ export function disableWorkflows() {
       },
     );
   }
-  const stillActive = workflowsToDisable(listWorkflows(repo)).map(
-    (w) => w.path,
+  const after = listWorkflows(repo);
+  const stillActive = workflowsToDisable(after).map((w) => w.path);
+  const pullRequestTarget = classifyPullRequestTarget(
+    pullRequestTargetFiles(),
+    after,
   );
-  const pullRequestTarget = pullRequestTargetFiles();
 
   let md = "## Workflows fuera de la lista blanca\n\n";
   md += targets.length
     ? `Desactivados ahora:\n${targets.map((w) => `- \`${w.path}\``).join("\n")}\n`
     : "No había ninguno activo.\n";
-  if (pullRequestTarget.length > 0) {
-    md += `\nCon \`pull_request_target\` en el repo (desactivados salvo que estén abajo):\n`;
-    md += pullRequestTarget.map((w) => `- \`${w}\``).join("\n") + "\n";
-  }
+  md += renderWorkflowWarnings({
+    pullRequestTargetWorkflows: pullRequestTarget,
+  });
   if (stillActive.length > 0) {
     md += `\n**Siguen activos fuera de la lista blanca:**\n`;
     md += stillActive.map((w) => `- \`${w}\``).join("\n") + "\n";

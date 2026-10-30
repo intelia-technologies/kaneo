@@ -99,9 +99,11 @@ Pasos de adopción:
 5. **Etiquetar release en main:** tras el merge, traer `main` y comprobar que ya contiene la versión de upstream antes de etiquetar (si no, el tag iría a un commit anterior al merge y `intelia-release.yml` lo rechazaría):
    ```sh
    git fetch origin main
-   git merge-base --is-ancestor vX.Y.Z origin/main && echo "origin/main ya incluye vX.Y.Z"
-   git tag -a vX.Y.Z-intelia.1 -m vX.Y.Z-intelia.1 origin/main
-   git push origin vX.Y.Z-intelia.1
+   if git merge-base --is-ancestor vX.Y.Z origin/main; then
+     git tag -a vX.Y.Z-intelia.1 -m vX.Y.Z-intelia.1 origin/main && git push origin vX.Y.Z-intelia.1
+   else
+     echo "origin/main no incluye vX.Y.Z: no se etiqueta" >&2
+   fi
    ```
 6. **Despliegue:** el despliegue efectivo a los entornos se gestiona desde `software-factory`.
 

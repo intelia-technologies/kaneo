@@ -6,6 +6,8 @@ import path from "node:path";
 import test from "node:test";
 import { checkForkCi, forkCi } from "./intelia-fork-ci.mjs";
 import {
+  classifyPullRequestTarget,
+  pullRequestTargetAtRisk,
   buildReportData,
   parsePrepareArgs,
   renderReport,
@@ -349,4 +351,27 @@ test("forkCi after a clean git merge keeps the fork's own ci.yml customisations"
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("pull_request_target: only disabled workflows are safe; unregistered ones run on first event", () => {
+  const entries = classifyPullRequestTarget(
+    [
+      ".github/workflows/agentscan.yml",
+      ".github/workflows/auto-assign.yml",
+      ".github/workflows/mellon.yml",
+      ".github/workflows/slop-labeler.yml",
+    ],
+    [
+      { path: ".github/workflows/agentscan.yml", state: "active" },
+      { path: ".github/workflows/auto-assign.yml", state: "disabled_manually" },
+      {
+        path: ".github/workflows/slop-labeler.yml",
+        state: "disabled_inactivity",
+      },
+    ],
+  );
+  assert.deepEqual(pullRequestTargetAtRisk(entries), [
+    { path: ".github/workflows/agentscan.yml", state: "active" },
+    { path: ".github/workflows/mellon.yml", state: "unregistered" },
+  ]);
 });
