@@ -2764,6 +2764,10 @@
 			},
 			"importedFrom": "Imported from {{source}}",
 			"importedBy": "Imported by {{name}}"
+		},
+		"reactions": {
+			"add": "Add reaction",
+			"error": "Failed to update reaction"
 		}
 	},
 	"tasks": {

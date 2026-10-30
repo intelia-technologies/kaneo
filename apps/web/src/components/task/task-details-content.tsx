@@ -14,6 +14,7 @@ import TaskDescription from "./task-description";
 import TaskRelations from "./task-relations";
 import TaskSubtasks from "./task-subtasks";
 import TaskTitle from "./task-title";
+import { ReactionBar } from "../intelia/reaction-bar";
 
 type TaskDetailsContentProps = {
   taskId: string | undefined;
@@ -73,6 +74,7 @@ export default function TaskDetailsContent({
           </button>
         )}
         <TaskTitle taskId={taskId} size={variant === "page" ? "lg" : "md"} />
+        <ReactionBar taskId={taskId} commentId={null} />
       </div>
 
       {properties}

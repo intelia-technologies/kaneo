@@ -2717,7 +2717,11 @@
 			"importedBy": "由 {{name}} 导入",
 			"commentedOnForge": "在 {{forge}} 上评论"
 		},
-		"movedFromOtherProject": "将任务从其它项目移动到「{{to}}」"
+		"movedFromOtherProject": "将任务从其它项目移动到「{{to}}」",
+		"reactions": {
+			"add": "Add reaction",
+			"error": "Failed to update reaction"
+		}
 	},
 	"tasks": {
 		"title": "任务",

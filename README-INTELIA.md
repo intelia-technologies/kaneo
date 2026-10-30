@@ -2,7 +2,7 @@
 
 Este repositorio es el fork de [Kaneo](https://github.com/usekaneo/kaneo) que mantiene Intelia (`intelia-technologies/kaneo`). Desplegamos Kaneo desde nuestras imágenes, no desde las públicas. Diseño de referencia: [diseño 11: fork de Kaneo](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-fork-kaneo.md) en `intelia-technologies/software-factory`.
 
-Además de este fichero, el fork solo añade sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
+Además de este fichero, el fork añade las funciones propias de Intelia (empezando por las reacciones nativas en comentarios y tarjetas de tareas), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
 
 **Este repositorio es público.** Aquí no va nada interno de Intelia: ni secretos, ni hostnames o IPs, ni configuración de despliegue, ni datos de clientes o de la factory. Todo eso vive en `software-factory`, que es privado. Código propietario dentro de Kaneo, solo tras hablarlo antes. Secret scanning y push protection están activados.
 
@@ -168,3 +168,15 @@ pnpm exec drizzle-kit generate --config drizzle-intelia.config.ts --name <nombre
 Nunca con `pnpm db:generate` ni con `drizzle.config.ts`: esos escriben en el diario de upstream. La primera migración (`0000_intelia_schema`) es `CREATE SCHEMA IF NOT EXISTS`, porque el migrador crea el esquema antes para guardar su registro.
 
 El test `tests/api-integration/intelia-schema-migrations.test.ts` reproduce el arranque en una base de datos aparte y simula el merge de una versión de upstream con una migración nueva: se aplican las de los dos.
+
+## Reacciones en comentarios y tarjetas
+
+Reacciones con emoji en los comentarios y en la propia tarea (la tarjeta), con actores externos: una cuenta con `workspace:manage_settings` puede reaccionar con un nombre propio (`externalUserName`), el mismo criterio que `externalUserName` en `POST /api/comment`. Así varios agentes que comparten una cuenta de rol reaccionan cada uno con su nombre.
+
+- **Tabla** `intelia.comment_reaction`: `task_id` (siempre), `comment_id` (`NULL` = reacción en la tarjeta; apunta a `public.activity`), `emoji`, `user_id` (la cuenta que llama) y `external_user_name`. Claves ajenas con `ON DELETE CASCADE`. Una reacción por destino, emoji y actor (índice único).
+- **API** (OpenAPI, etiqueta `Reactions`), con los permisos de comentar en la tarea (`task:update`; leer, `task:read`):
+  - `GET|POST|DELETE /api/intelia/comment/{id}/reactions`
+  - `GET|POST|DELETE /api/intelia/task/{id}/reactions`: `POST` y `DELETE` actúan sobre la tarjeta; `GET` devuelve todas las de la tarea, las de la tarjeta y las de sus comentarios.
+  - `POST` recibe `{ emoji, externalUserName? }` y es idempotente; `DELETE` recibe lo mismo por query y solo quita reacciones propias (404 si no hay).
+- **Web:** fichas de emoji con contador y, al pasar el ratón, los nombres; debajo de cada comentario y bajo el título de la tarea (`apps/web/src/components/intelia/`).
+- **Test:** `tests/api-integration/intelia-reactions.test.ts`.

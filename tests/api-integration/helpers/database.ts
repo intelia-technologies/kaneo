@@ -4,9 +4,14 @@ import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client } from "pg";
 import db from "../../../apps/api/src/database";
+import { migrateInteliaSchema } from "../../../apps/api/src/intelia/migrate";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = resolve(currentDir, "../../../apps/api/drizzle");
+const inteliaMigrationsFolder = resolve(
+  currentDir,
+  "../../../apps/api/drizzle-intelia",
+);
 
 let migrationPromise: Promise<void> | null = null;
 
@@ -68,6 +73,7 @@ export async function ensureTestDatabaseMigrated() {
       await migrate(db, {
         migrationsFolder,
       });
+      await migrateInteliaSchema(db, inteliaMigrationsFolder);
     })();
   }
 

@@ -2811,7 +2811,11 @@
 			"importedBy": "Importé par {{name}}",
 			"commentedOnForge": "a commenté sur {{forge}}"
 		},
-		"movedFromOtherProject": "a déplacé la tâche depuis un autre projet vers « {{to}} »"
+		"movedFromOtherProject": "a déplacé la tâche depuis un autre projet vers « {{to}} »",
+		"reactions": {
+			"add": "Add reaction",
+			"error": "Failed to update reaction"
+		}
 	},
 	"tasks": {
 		"title": "Tâches",
