@@ -2,7 +2,7 @@
 
 Este repositorio es el fork de [Kaneo](https://github.com/usekaneo/kaneo) que mantiene Intelia (`intelia-technologies/kaneo`). Desplegamos Kaneo desde nuestras imágenes, no desde las públicas. Diseño de referencia: [diseño 11: fork de Kaneo](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-fork-kaneo.md) en `intelia-technologies/software-factory`.
 
-Además de este fichero, el fork añade las funciones propias de Intelia (empezando por las reacciones nativas en comentarios y tarjetas de tareas), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
+Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas» y «Relaciones por proyecto»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
 
 **Este repositorio es público.** Aquí no va nada interno de Intelia: ni secretos, ni hostnames o IPs, ni configuración de despliegue, ni datos de clientes o de la factory. Todo eso vive en `software-factory`, que es privado. Código propietario dentro de Kaneo, solo tras hablarlo antes. Secret scanning y push protection están activados.
 
@@ -188,3 +188,12 @@ Reacciones con emoji en los comentarios y en la propia tarea (la tarjeta), con a
 - **Límite aceptado, cuentas compartidas:** el actor de una reacción es la cuenta más el nombre externo, así que con una cuenta de rol compartida un agente puede quitar la reacción de otro agente de la misma cuenta indicando su nombre. Es el mismo límite que la firma de comentarios con `externalUserName`: el riesgo queda dentro de la propia cuenta, que ya puede firmar con cualquier nombre.
 - **Web:** fichas de emoji con contador y, al pasar el ratón, los nombres; debajo de cada comentario y bajo el título de la tarea (`apps/web/src/components/intelia/`).
 - **Test:** `tests/api-integration/intelia-reactions.test.ts`.
+
+## Relaciones por proyecto
+
+`GET /api/intelia/project/{projectId}/relations` (OpenAPI, etiqueta `Task Relations`; código en `apps/api/src/intelia/relations/`) devuelve de una vez las relaciones entre tareas con algún extremo en el proyecto, para dibujar sus dependencias. Upstream solo las da tarea a tarea (`GET /api/task-relation/{taskId}`).
+
+- **Respuesta:** `relations` (`id`, `sourceTaskId`, `targetTaskId`, `relationType`) y `externalTasks`, los extremos de otros proyectos con `number`, `title`, `status`, `isCompleted`, `projectId`, `projectSlug` y `projectName`.
+- **Permisos:** los de listar las tareas del proyecto (`project:read` y `task:read`). Se omiten, como en upstream, las relaciones con tareas de proyectos que quien llama no ve.
+- **Solo lee** tablas de upstream: sin tablas ni migraciones propias.
+- **Test:** `tests/api-integration/intelia-relations.test.ts`.
