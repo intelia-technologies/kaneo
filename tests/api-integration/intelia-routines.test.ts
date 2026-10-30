@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { eq } from "drizzle-orm";
@@ -20,7 +20,8 @@ import {
 import { runDueRoutines } from "../../apps/api/src/intelia/routines/scheduler";
 import {
   ROUTINE_SERVICE_EMAIL,
-  ensureRoutineServiceAccount,
+  ROUTINE_SERVICE_ID,
+  routineServiceAccountProblem,
 } from "../../apps/api/src/intelia/routines/service-account";
 import { genericWebhookPlugin } from "../../apps/api/src/plugins/generic-webhook";
 import {
@@ -409,20 +410,233 @@ describe("API integration: Intelia routines", () => {
     expect(await db.select().from(routineTable)).toHaveLength(0);
   });
 
-  it("ensures a banned, credential-less svc-rutinas account", async () => {
-    const id = await ensureRoutineServiceAccount();
-    expect(await ensureRoutineServiceAccount()).toBe(id);
+  describe("svc-rutinas fails closed", () => {
+    const PASSWORD = "a long enough test password";
 
-    const [user] = await db
-      .select()
-      .from(schema.userTable)
-      .where(eq(schema.userTable.email, ROUTINE_SERVICE_EMAIL));
-    expect(user).toMatchObject({ id, name: "svc-rutinas", banned: true });
-    expect(
-      await db
+    function post(app: App, path: string, body: Record<string, unknown>) {
+      return app.request(`/api/auth${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    }
+
+    async function serviceUser() {
+      const [user] = await db
         .select()
-        .from(schema.accountTable)
-        .where(eq(schema.accountTable.userId, id)),
-    ).toHaveLength(0);
+        .from(schema.userTable)
+        .where(eq(schema.userTable.id, ROUTINE_SERVICE_ID));
+      return user;
+    }
+
+    // Schedules a routine on the closed task, runs its tick and checks that
+    // nothing was reopened.
+    async function expectBlockedTick(app: App, taskId: string, reason: RegExp) {
+      const routine = await scheduleEveryMinute(app, taskId);
+      expect(await runDueRoutines(afterNextRun(routine))).toEqual({
+        degraded: true,
+      });
+      expect(await taskStatus(taskId)).toBe("done");
+      const [run] = await runs(routine.id);
+      expect(run).toMatchObject({ result: "error" });
+      expect(run!.error).toMatch(reason);
+    }
+
+    it("the account is banned, credential-less, and can neither sign in nor use an API key of its own", async () => {
+      const { task, app, user } = await setup();
+      expect(await routineServiceAccountProblem()).toBeNull();
+      expect(await serviceUser()).toMatchObject({
+        email: ROUTINE_SERVICE_EMAIL,
+        banned: true,
+        banExpires: null,
+      });
+      vi.restoreAllMocks();
+
+      const signIn = await post(app, "/sign-in/email", {
+        email: ROUTINE_SERVICE_EMAIL,
+        password: PASSWORD,
+      });
+      expect(signIn.status).not.toBe(200);
+      expect(signIn.headers.getSetCookie()).toEqual([]);
+      expect(
+        await db
+          .select()
+          .from(schema.sessionTable)
+          .where(eq(schema.sessionTable.userId, ROUTINE_SERVICE_ID)),
+      ).toHaveLength(0);
+
+      const key = "svc_rutinas_planted_key";
+      await db.insert(schema.apikeyTable).values({
+        referenceId: ROUTINE_SERVICE_ID,
+        userId: ROUTINE_SERVICE_ID,
+        key: createHash("sha256").update(key).digest("base64url"),
+        enabled: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      const me = await app.request("/api/user/me", {
+        headers: { "x-api-key": key },
+      });
+      expect(me.status).toBe(401);
+
+      // The planted key alone stops the scheduler.
+      mockAuthenticatedSession(user);
+      await expectBlockedTick(app, task.id, /API key/);
+    });
+
+    it("a user registered with the reserved email blocks every tick and stays untouched", async () => {
+      const { task, app, user } = await setup();
+      vi.restoreAllMocks();
+      const signUp = await post(app, "/sign-up/email", {
+        name: "Intruder",
+        email: ROUTINE_SERVICE_EMAIL,
+        password: PASSWORD,
+      });
+      expect(signUp.status).toBe(200);
+      const intruderId = ((await signUp.json()) as { user: { id: string } })
+        .user.id;
+      const snapshot = async () => ({
+        user: await db
+          .select()
+          .from(schema.userTable)
+          .where(eq(schema.userTable.id, intruderId)),
+        accounts: await db
+          .select()
+          .from(schema.accountTable)
+          .where(eq(schema.accountTable.userId, intruderId)),
+      });
+      const before = await snapshot();
+
+      mockAuthenticatedSession(user);
+      await expectBlockedTick(app, task.id, /belongs to another user/);
+      await runDueRoutines(new Date(Date.now() + 3 * 60_000));
+
+      expect(await taskStatus(task.id)).toBe("done");
+      expect(await snapshot()).toEqual(before);
+      expect(await serviceUser()).toBeUndefined();
+      vi.restoreAllMocks();
+      expect(
+        (
+          await post(app, "/sign-in/email", {
+            email: ROUTINE_SERVICE_EMAIL,
+            password: PASSWORD,
+          })
+        ).status,
+      ).toBe(200);
+    });
+
+    it("an empty instance keeps the first person as instance administrator", async () => {
+      expect(await routineServiceAccountProblem()).toMatch(
+        /only created once a person has signed up/,
+      );
+      expect(await db.select().from(schema.userTable)).toHaveLength(0);
+
+      const { app } = createApp();
+      const signUp = await post(app, "/sign-up/email", {
+        name: "First Person",
+        email: "first@example.com",
+        password: PASSWORD,
+      });
+      expect(signUp.status).toBe(200);
+      const firstId = ((await signUp.json()) as { user: { id: string } }).user
+        .id;
+      expect(await routineServiceAccountProblem()).toBeNull();
+
+      const roles = await db
+        .select({ id: schema.userTable.id, role: schema.userTable.role })
+        .from(schema.userTable);
+      expect(roles).toHaveLength(2);
+      expect(roles.find((u) => u.id === firstId)?.role).toBe("admin");
+      expect(roles.find((u) => u.id === ROUTINE_SERVICE_ID)?.role).toBeNull();
+    });
+
+    it.each([
+      {
+        broken: "unbanned",
+        reason: /not permanently banned/,
+        breakIt: () =>
+          db
+            .update(schema.userTable)
+            .set({ banned: false })
+            .where(eq(schema.userTable.id, ROUTINE_SERVICE_ID)),
+        check: async () => expect((await serviceUser())?.banned).toBe(false),
+      },
+      {
+        broken: "ban that expires",
+        reason: /not permanently banned/,
+        breakIt: () =>
+          db
+            .update(schema.userTable)
+            .set({ banExpires: new Date(Date.now() + 60_000) })
+            .where(eq(schema.userTable.id, ROUTINE_SERVICE_ID)),
+        check: async () =>
+          expect((await serviceUser())?.banExpires).toBeInstanceOf(Date),
+      },
+      {
+        broken: "password account",
+        reason: /sign-in account/,
+        breakIt: () =>
+          db.insert(schema.accountTable).values({
+            accountId: ROUTINE_SERVICE_ID,
+            providerId: "credential",
+            userId: ROUTINE_SERVICE_ID,
+            password: "hash",
+            updatedAt: new Date(),
+          }),
+        check: async () => expect((await serviceUser())?.banned).toBe(true),
+      },
+      {
+        broken: "session",
+        reason: /a session/,
+        breakIt: () =>
+          db.insert(schema.sessionTable).values({
+            id: "svc-session",
+            token: "svc-session-token",
+            userId: ROUTINE_SERVICE_ID,
+            expiresAt: new Date(Date.now() + 60_000),
+            updatedAt: new Date(),
+          }),
+        check: async () => expect((await serviceUser())?.banned).toBe(true),
+      },
+    ])(
+      "a $broken blocks the tick and is left as found",
+      async ({ reason, breakIt, check }) => {
+        const { task, app } = await setup();
+        expect(await routineServiceAccountProblem()).toBeNull();
+        await breakIt();
+
+        await expectBlockedTick(app, task.id, reason);
+        await check();
+      },
+    );
+
+    it("a workspace membership blocks the tick", async () => {
+      const { task, app, workspace } = await setup();
+      expect(await routineServiceAccountProblem()).toBeNull();
+      await db.insert(schema.workspaceUserTable).values({
+        workspaceId: workspace.id,
+        userId: ROUTINE_SERVICE_ID,
+        role: "member",
+        joinedAt: new Date(),
+      });
+
+      await expectBlockedTick(app, task.id, /workspace membership/);
+    });
+  });
+
+  it("a recurrence added after scheduling turns the tick into an error", async () => {
+    const { task, app } = await setup();
+    const routine = await scheduleEveryMinute(app, task.id);
+    await db
+      .update(schema.taskTable)
+      .set({ recurrence: { frequency: "daily", interval: 1, timeZone: "UTC" } })
+      .where(eq(schema.taskTable.id, task.id));
+
+    await runDueRoutines(afterNextRun(routine));
+
+    expect(await taskStatus(task.id)).toBe("done");
+    const [run] = await runs(routine.id);
+    expect(run).toMatchObject({ result: "error" });
+    expect(run!.error).toMatch(/recurrence/);
   });
 });

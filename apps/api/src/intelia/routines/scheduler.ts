@@ -10,7 +10,10 @@ import updateTaskStatus from "../../task/controllers/update-task-status";
 import { taskIsCompleted } from "../../task/task-is-completed";
 import { type RoutineResult, routineRunTable, routineTable } from "../schema";
 import { nextRunAt } from "./schedule";
-import { ensureRoutineServiceAccount } from "./service-account";
+import {
+  ROUTINE_SERVICE_ID,
+  routineServiceAccountProblem,
+} from "./service-account";
 
 export const REOPEN_STATUS = "in-progress";
 export const ROUTINE_SKIPPED_EVENT = "intelia.routine_skipped";
@@ -27,11 +30,10 @@ type DueRoutine = {
 
 // Runs every minute (registered in apps/api/src/scheduler/index.ts). Each due
 // routine runs once, however many ticks were missed, and is rescheduled from
-// `now`.
+// `now`. If the service account fails its checks, the tick reopens nothing.
 export async function runDueRoutines(
   now = new Date(),
 ): Promise<{ degraded: boolean }> {
-  const serviceUserId = await ensureRoutineServiceAccount();
   const due = await db
     .select({
       id: routineTable.id,
@@ -47,10 +49,16 @@ export async function runDueRoutines(
     .where(and(eq(routineTable.active, true), lte(routineTable.nextRunAt, now)))
     .orderBy(asc(routineTable.nextRunAt));
 
-  let degraded = false;
+  if (due.length === 0) return { degraded: false };
+
+  const accountProblem = await routineServiceAccountProblem();
+  if (accountProblem) {
+    console.error(`Routines blocked: ${accountProblem}`);
+  }
+  let degraded = accountProblem !== null;
   for (const routine of due) {
     try {
-      if ((await runRoutine(routine, serviceUserId, now)) === "error") {
+      if ((await runRoutine(routine, accountProblem, now)) === "error") {
         degraded = true;
       }
     } catch (error) {
@@ -63,7 +71,7 @@ export async function runDueRoutines(
 
 async function runRoutine(
   routine: DueRoutine,
-  serviceUserId: string,
+  accountProblem: string | null,
   now: Date,
 ): Promise<RoutineResult | null> {
   let next: Date | null = null;
@@ -95,14 +103,24 @@ async function runRoutine(
   if (!claimed) return null;
 
   const [task] = await db
-    .select({ projectId: taskTable.projectId, completed: taskIsCompleted })
+    .select({
+      projectId: taskTable.projectId,
+      completed: taskIsCompleted,
+      recurrence: taskTable.recurrence,
+    })
     .from(taskTable)
     .where(eq(taskTable.id, routine.taskId))
     .limit(1);
   if (!task) return null;
 
+  // Anything doubtful is an error and nothing is reopened.
+  let error =
+    scheduleFailure ??
+    accountProblem ??
+    (task.recurrence
+      ? "The task repeats with Kaneo's recurrence; a routine cannot reopen it"
+      : null);
   let result: RoutineResult;
-  let error = scheduleFailure;
   if (error) {
     result = "error";
   } else if (!task.completed) {
@@ -112,7 +130,7 @@ async function runRoutine(
       await updateTaskStatus({
         id: routine.taskId,
         status: REOPEN_STATUS,
-        currentUserId: serviceUserId,
+        currentUserId: ROUTINE_SERVICE_ID,
       });
       result = "reabierta";
     } catch (reopenError) {
@@ -139,13 +157,7 @@ async function runRoutine(
     .where(eq(routineTable.id, routine.id));
 
   if (result === "saltada_abierta" && run && next) {
-    await notifyRoutineSkipped(
-      routine,
-      task.projectId,
-      run.id,
-      next,
-      serviceUserId,
-    );
+    await notifyRoutineSkipped(routine, task.projectId, run.id, next);
   }
   return result;
 }
@@ -158,7 +170,6 @@ async function notifyRoutineSkipped(
   projectId: string,
   runId: string,
   next: Date,
-  serviceUserId: string,
 ) {
   const integrations = await db
     .select({ config: integrationTable.config })
@@ -180,7 +191,7 @@ async function notifyRoutineSkipped(
       ROUTINE_SKIPPED_EVENT,
       routine.taskId,
       projectId,
-      serviceUserId,
+      ROUTINE_SERVICE_ID,
       {
         routineId: routine.id,
         runId,
