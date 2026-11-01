@@ -2,6 +2,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   index,
   pgSchema,
   text,
@@ -127,5 +128,95 @@ export const routineRunTable = inteliaSchema.table(
   },
   (table) => [
     index("routine_run_routine_id_idx").on(table.routineId, table.scheduledAt),
+  ],
+);
+
+// Automation level of each task (README-INTELIA.md, «Nivel de
+// automatización»): who starts it and who merges it (design 18 §3).
+export const AUTOMATION_LEVELS = ["manual", "arranque", "completa"] as const;
+export type AutomationLevel = (typeof AUTOMATION_LEVELS)[number];
+
+// How the level was written: a person's session, an API key at task creation,
+// the gateway's service token, or the one-off backfill migration.
+export const AUTOMATION_SOURCES = [
+  "session",
+  "api_key",
+  "gateway",
+  "migration",
+] as const;
+export type AutomationSource = (typeof AUTOMATION_SOURCES)[number];
+
+// Unqualified column names: the checks read the row being written.
+const levelCheck = (column: string) =>
+  sql.raw(`"${column}" in ('manual', 'arranque', 'completa')`);
+const sourceCheck = (column: string) =>
+  sql.raw(`"${column}" in ('session', 'api_key', 'gateway', 'migration')`);
+
+export const taskAutomationTable = inteliaSchema.table(
+  "task_automation",
+  {
+    taskId: text("task_id")
+      .primaryKey()
+      .references(() => taskTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    level: text("level").$type<AutomationLevel>().notNull(),
+    verification: boolean("verification").notNull(),
+    // A Kaneo user (session or API key); null for the gateway and the backfill.
+    setByUserId: text("set_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    // The graph actor the gateway acted for (agent:…, person:…).
+    setByActor: text("set_by_actor"),
+    source: text("source").$type<AutomationSource>().notNull(),
+    setAt: timestamp("set_at", { mode: "date" }).default(utcNow).notNull(),
+  },
+  () => [
+    check("task_automation_level_check", levelCheck("level")),
+    check("task_automation_source_check", sourceCheck("source")),
+    check(
+      "task_automation_completa_verification_check",
+      sql.raw(`"level" <> 'completa' or "verification"`),
+    ),
+  ],
+);
+
+// Change log: one row per creation, change or backfill of a task's level.
+export const taskAutomationChangeTable = inteliaSchema.table(
+  "task_automation_change",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => taskTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    // null when the change set the first level.
+    previousLevel: text("previous_level").$type<AutomationLevel>(),
+    previousVerification: boolean("previous_verification"),
+    level: text("level").$type<AutomationLevel>().notNull(),
+    verification: boolean("verification").notNull(),
+    changedByUserId: text("changed_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    changedByActor: text("changed_by_actor"),
+    source: text("source").$type<AutomationSource>().notNull(),
+    changedAt: timestamp("changed_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+  },
+  (table) => [
+    index("task_automation_change_task_id_idx").on(
+      table.taskId,
+      table.changedAt,
+    ),
+    check("task_automation_change_level_check", levelCheck("level")),
+    check("task_automation_change_source_check", sourceCheck("source")),
   ],
 );

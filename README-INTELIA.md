@@ -2,7 +2,7 @@
 
 Este repositorio es el fork de [Kaneo](https://github.com/usekaneo/kaneo) que mantiene Intelia (`intelia-technologies/kaneo`). Desplegamos Kaneo desde nuestras imágenes, no desde las públicas. Diseño de referencia: [diseño 11: fork de Kaneo](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-fork-kaneo.md) en `intelia-technologies/software-factory`.
 
-Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas», «Relaciones por proyecto», «Foto de perfil con API key» y «Rutinas programadas»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
+Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas», «Relaciones por proyecto», «Foto de perfil con API key», «Rutinas programadas» y «Nivel de automatización de las tareas»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
 
 **Este repositorio es público.** Aquí no va nada interno de Intelia: ni secretos, ni hostnames o IPs, ni configuración de despliegue, ni datos de clientes o de la factory. Todo eso vive en `software-factory`, que es privado. Código propietario dentro de Kaneo, solo tras hablarlo antes. Secret scanning y push protection están activados.
 
@@ -39,13 +39,14 @@ Kaneo se distribuye bajo licencia MIT. Se conservan [`LICENSE`](LICENSE) y el av
 - **Imagen:** la «todo en uno» de upstream (`Dockerfile.kaneo`: API en Node más Nginx con la SPA), publicada como `ghcr.io/intelia-technologies/kaneo:X.Y.Z-intelia.N`.
 - **CI y versión:** ver «CI y versiones».
 - **Ficheros de upstream que toca el fork:** pocos, cada uno con menos de 20 líneas cambiadas. Son ganchos para lo nuestro:
-  - `apps/api/src/index.ts`: migrador `intelia` al arrancar, montaje de `/api/intelia` (un solo router, `apps/api/src/intelia/index.ts`, que reúne los nuestros) y `AppType`.
+  - `apps/api/src/index.ts`: migrador `intelia` al arrancar, montaje de `/api/intelia` (un solo router, `apps/api/src/intelia/index.ts`, que reúne los nuestros), `AppType` y el paso sin sesión del token de servicio del gateway en las rutas del nivel de automatización.
+  - `apps/api/src/task/index.ts`: el middleware que exige el nivel de automatización al crear una tarea.
   - `apps/api/src/scheduler/index.ts`: el job de las rutinas programadas. `apps/api/src/plugins/generic-webhook/events.ts`: `export` de `sendEvent`, para mandar `intelia.routine_skipped` con el sobre y la firma de upstream.
   - `Dockerfile.kaneo` y `apps/api/Dockerfile`: `COPY` de `drizzle-intelia`. `vite.config.ts`: ignora `drizzle-intelia/meta/**`.
   - `apps/web/src/components/activity/comment-card.tsx` e `index.tsx`, y `apps/web/src/components/task/task-details-content.tsx`: las fichas de reacciones y el panel «Programación» de las rutinas.
   - `apps/web/src/components/nav-main.tsx`: el enlace a la pantalla «Rutinas».
   - `apps/web/src/components/project/views/project-views.ts`, `layout-switch.tsx`, `store/user-preferences.ts` y `hooks/use-project-websocket.ts`: el registro y el tiempo real de la vista «Dependencias».
-  - `tests/api-integration/helpers/database.ts`: migrador `intelia` en los tests de integración.
+  - `tests/api-integration/helpers/database.ts`: migrador `intelia` en los tests de integración. `tests/api-integration/setup.ts` y `scripts/ci/compose.yml`: `INTELIA_TASK_AUTOMATION_OPTIONAL=true`, para que los tests y las pruebas de humo de upstream creen tareas sin nivel.
   - `scripts/ci/upgrade.sh`: versión de partida configurable para la prueba de actualización.
   - Generados o de datos: `apps/docs/openapi.json` (regenerado) y las claves `activity.reactions.*` en `i18n/*.json`.
 
@@ -274,6 +275,26 @@ Una rutina es una tarea que se **reabre a In progress** según una expresión cr
   - **Ficheros de upstream:** dos líneas en `task-details-content.tsx` (el panel) y dos en `nav-main.tsx` (el enlace); `routeTree.gen.ts` lo regenera el plugin de TanStack Router. Las traducciones (en y es) van en `intelia/routines/i18n.ts`, con el registro común de `intelia/i18n.ts`.
   - **Tests:** `schedule.test.ts`, `components/routine-panel.test.tsx` y `components/routines-page.test.tsx`.
 - **Test:** `tests/api-integration/intelia-routines.test.ts`, con un receptor HTTP real que comprueba la firma, y los casos de fallo cerrado: inicio de sesión y clave de API de la cuenta rechazados, email reservado ocupado por un usuario registrado (ningún tick reabre y ese usuario queda intacto), instancia vacía (la primera persona sigue siendo administradora), invariantes rotos y recurrencia añadida después.
+
+## Nivel de automatización de las tareas
+
+Cada tarea lleva un **nivel** (`manual`, `arranque` o `completa`) y una **verificación** (sí o no), que leen el motor de flujo de la factory y su interfaz ([diseño 18](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/18-motor-de-flujo.md) §3 y §5). Kaneo solo los guarda y valida: **quién puede cambiarlos no lo mira Kaneo** (decisión 9 del diseño 18), sino el gateway de la factory antes de escribir con su token de servicio. Código en `apps/api/src/intelia/task-automation/`.
+
+- **Tablas** (migración `drizzle-intelia/0003_task_automation.sql`):
+  - `intelia.task_automation`, una fila por tarea (`task_id` es la clave, `ON DELETE CASCADE`): `level`, `verification`, quién lo fijó (`set_by_user_id`, el usuario de Kaneo, o `set_by_actor`, el id del grafo para el que actuó el gateway), `source` (`session`, `api_key`, `gateway` o `migration`) y `set_at`. Un `CHECK` impide `completa` sin verificación.
+  - `intelia.task_automation_change`, el diario: una fila por cada vez que se fija o cambia, con el valor anterior (`previous_level`, `previous_verification`; nulos la primera vez), el nuevo, quién, `source` y `changed_at`. Escribir el mismo valor que ya tiene no es un cambio: no deja fila ni cambia el autor.
+- **Obligatorio al crear:** `POST /api/task/{projectId}` exige `automation: { level, verification }` en el cuerpo, sin valor por defecto; sin él, con un nivel desconocido o con `completa` sin verificación responde 400 (`VALIDATION_ERROR`, campo `body.automation…`) y no crea nada. La primera fila la firma quien crea la tarea, también con una API key (`source: api_key`): quien crea una tarea puede fijar su primer nivel.
+  - **Vías que no pasan por esa ruta** (duplicar, importar, la recurrencia de upstream, el MCP de Kaneo y las integraciones) crean tareas sin nivel. El motor trata una tarea sin nivel como `manual` (diseño 18 §3).
+  - **Residual aceptado:** el nivel se guarda después de que upstream cree la tarea, fuera de su transacción. Si esa escritura falla, la respuesta es 500 y la tarea queda sin nivel.
+  - `INTELIA_TASK_AUTOMATION_OPTIONAL=true` quita la exigencia (si llega `automation`, se valida y se guarda igual). Solo para los tests y las pruebas de humo de upstream, que no conocen el campo; en producción no se pone.
+- **API** (OpenAPI, etiqueta `Task Automation`):
+  - `GET /api/intelia/task/{taskId}/automation`: el nivel, con quién y cuándo (404 si no tiene). Con `task:read`, por sesión o API key, o con el token del gateway.
+  - `PUT /api/intelia/task/{taskId}/automation`: recibe `{ level, verification, actor? }`, fija o cambia el nivel y lo anota en el diario. **Solo** con la sesión de una persona (y `task:update`) o con el token del gateway; **cualquier API key recibe 403** (`AUTOMATION_WRITE_FORBIDDEN`), aunque su cuenta tenga permisos: las cuentas de rol y de agente solo tienen API keys, las guarda el gateway, y así nadie se salta su comprobación en el grafo. Con el token, `actor` es obligatorio (el id del grafo por el que actúa, por ejemplo `agent:orq-jaime`); con sesión no se admite.
+  - `GET /api/intelia/task/{taskId}/automation/history?limit=50`: el diario, lo más reciente primero (máximo 200).
+  - `GET /api/intelia/project/{projectId}/automation`: los niveles de las tareas del proyecto que lo tienen, por número (`project:read` y `task:read`, o el token).
+- **Token de servicio del gateway:** `INTELIA_GATEWAY_TOKEN` (mínimo 32 caracteres), en la cabecera `X-Service-Token`. Solo abre las cuatro rutas de arriba, sin sesión ni permisos de Kaneo; en cualquier otra ruta se ignora. Un token que no coincide, o cualquier token sin `INTELIA_GATEWAY_TOKEN` configurado, recibe 401. El valor vive en la configuración de despliegue de la factory, nunca en este repo.
+- **Relleno único:** la migración `0003` pone `manual` con verificación a todas las tareas abiertas que existan al aplicarla (las que no están en una columna final de su proyecto, el mismo criterio que `taskIsCompleted` de upstream) y deja una fila `migration` por tarea en el diario. Las cerradas quedan sin nivel.
+- **Tests:** `tests/api-integration/intelia-task-automation.test.ts` (creación, cambios y diario, 403 a las API keys, el token del gateway) e `intelia-task-automation-backfill.test.ts` (el relleno sobre tareas que ya existían).
 
 ## Vista «Dependencias»
 

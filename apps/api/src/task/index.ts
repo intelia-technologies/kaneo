@@ -25,6 +25,7 @@ import {
   validateTaskAssetUploadInput,
   verifyTaskAssetUpload,
 } from "../storage/s3";
+import { requireAutomationOnCreate } from "../intelia/task-automation/require-on-create";
 import { normalizeApiServerUrl } from "../utils/openapi-spec";
 import {
   hasWorkspacePermission,
@@ -294,6 +295,7 @@ const createTaskRoute = createRoute({
     workspaceAccess.fromProject("projectId"),
     requireWorkspacePermission({ task: ["create"] }),
     requireEntitlement,
+    requireAutomationOnCreate,
   ] as const,
   request: {
     params: projectIdParam,
