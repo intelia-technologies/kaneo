@@ -37,6 +37,7 @@ import { useUserPreferencesStore } from "@/store/user-preferences";
 import type Task from "@/types/task";
 import TaskCardContextMenuContent from "../task-card-context-menu/task-card-context-menu-content";
 import { TaskCardAutomation } from "@/intelia/automation/components/task-card-automation";
+import { StatusAgeChip } from "@/intelia/status-age/components/status-age-chip";
 import { useTaskCardClick } from "./use-task-card-click";
 import { useTouchDragMenu } from "./use-touch-drag-menu";
 
@@ -198,6 +199,7 @@ function TaskCardContent({
               <div className="mt-2.5 flex flex-wrap items-center gap-1 empty:hidden">
                 {showPriority && hasPriority && <PriorityChip task={task} />}
                 {showDueDates && <DueDateChip task={task} />}
+                <StatusAgeChip task={task} />
                 <TaskRecurrenceBadge task={task} />
                 <SubtasksChip task={task} workspaceId={workspaceId} />
                 {showTaskItemCounts && <ChecklistChip task={task} />}

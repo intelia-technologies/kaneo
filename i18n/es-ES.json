@@ -3373,8 +3373,22 @@
 			"showOnCards": "Mostrar en tarjetas",
 			"showOnRows": "Mostrar en filas",
 			"checklistProgress": "Progreso de la lista",
+			"statusAge": "Tiempo en estado",
 			"projectBackground": "Fondo del proyecto",
 			"layout": "Diseño"
+		},
+		"statusAge": {
+			"minutes": "{{value}} min",
+			"hours": "{{value}} h",
+			"days": "{{value}} d",
+			"label": "{{duration}} en {{column}}",
+			"aboveP75": "Por encima de lo habitual en esta columna",
+			"aboveP90": "Muy por encima de lo habitual en esta columna",
+			"since": "En {{column}} desde el {{date}}.",
+			"usual": "3 de cada 4 tareas salen de esta columna en menos de {{duration}} (últimos 90 días, {{cases}} casos).",
+			"noBase_one": "Sin base para comparar: {{count}} caso en los últimos 90 días.",
+			"noBase_many": "Sin base para comparar: {{count}} casos en los últimos 90 días.",
+			"noBase_other": "Sin base para comparar: {{count}} casos en los últimos 90 días."
 		},
 		"filterBar": {
 			"label": "Filtros activos",

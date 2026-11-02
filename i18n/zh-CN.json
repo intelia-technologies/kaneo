@@ -3250,7 +3250,8 @@
 			"showOnRows": "在行中显示",
 			"checklistProgress": "清单进度",
 			"projectBackground": "项目背景",
-			"layout": "布局"
+			"layout": "布局",
+			"statusAge": "Time in status"
 		},
 		"filterBar": {
 			"label": "已应用的筛选",
@@ -3291,6 +3292,17 @@
 			"startsOn": "开始于 {{date}}",
 			"beforeStart": "{{date}} 早于开始日期",
 			"afterDue": "{{date}} 晚于截止日期"
+		},
+		"statusAge": {
+			"aboveP75": "Above usual for this column",
+			"aboveP90": "Well above usual for this column",
+			"days": "{{value}} d",
+			"hours": "{{value}} h",
+			"label": "{{duration}} in {{column}}",
+			"minutes": "{{value}} min",
+			"noBase_other": "No baseline to compare: {{count}} cases in the last 90 days.",
+			"since": "In {{column}} since {{date}}.",
+			"usual": "3 out of 4 tasks leave this column in under {{duration}} (last 90 days, {{cases}} cases)."
 		}
 	},
 	"invitations": {

@@ -3312,7 +3312,8 @@
 			"showOnRows": "Sətirlərdə göstər",
 			"checklistProgress": "Yoxlama siyahısının gedişatı",
 			"projectBackground": "Layihə fonu",
-			"layout": "Düzən"
+			"layout": "Düzən",
+			"statusAge": "Time in status"
 		},
 		"filterBar": {
 			"label": "Aktiv süzgəclər",
@@ -3356,6 +3357,18 @@
 			"startsOn": "Başlayır: {{date}}",
 			"beforeStart": "{{date}} başlama tarixindən əvvəldir",
 			"afterDue": "{{date}} son tarixdən sonradır"
+		},
+		"statusAge": {
+			"aboveP75": "Above usual for this column",
+			"aboveP90": "Well above usual for this column",
+			"days": "{{value}} d",
+			"hours": "{{value}} h",
+			"label": "{{duration}} in {{column}}",
+			"minutes": "{{value}} min",
+			"noBase_one": "No baseline to compare: {{count}} case in the last 90 days.",
+			"noBase_other": "No baseline to compare: {{count}} cases in the last 90 days.",
+			"since": "In {{column}} since {{date}}.",
+			"usual": "3 out of 4 tasks leave this column in under {{duration}} (last 90 days, {{cases}} cases)."
 		}
 	},
 	"invitations": {

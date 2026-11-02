@@ -3311,8 +3311,21 @@
 			"showOnCards": "Show on cards",
 			"showOnRows": "Show on rows",
 			"checklistProgress": "Checklist progress",
+			"statusAge": "Time in status",
 			"projectBackground": "Project background",
 			"layout": "Layout"
+		},
+		"statusAge": {
+			"minutes": "{{value}} min",
+			"hours": "{{value}} h",
+			"days": "{{value}} d",
+			"label": "{{duration}} in {{column}}",
+			"aboveP75": "Above usual for this column",
+			"aboveP90": "Well above usual for this column",
+			"since": "In {{column}} since {{date}}.",
+			"usual": "3 out of 4 tasks leave this column in under {{duration}} (last 90 days, {{cases}} cases).",
+			"noBase_one": "No baseline to compare: {{count}} case in the last 90 days.",
+			"noBase_other": "No baseline to compare: {{count}} cases in the last 90 days."
 		},
 		"filterBar": {
 			"label": "Active filters",
