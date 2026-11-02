@@ -30,7 +30,6 @@ import {
   setTaskInitiative,
   updateInitiative,
 } from "./service";
-import "./subscribe";
 
 const tags = ["Initiatives"];
 

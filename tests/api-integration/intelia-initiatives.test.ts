@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import {
   afterEach,
   beforeEach,
@@ -10,6 +10,7 @@ import {
 import { auth } from "../../apps/api/src/auth";
 import db, { schema } from "../../apps/api/src/database";
 import { createApp } from "../../apps/api/src/index";
+import { dropTaskInitiativeOnProjectMove } from "../../apps/api/src/intelia/initiatives/service";
 import {
   initiativeChangeTable,
   initiativeTable,
@@ -272,6 +273,42 @@ async function taskCount() {
   return (await db.select().from(schema.taskTable)).length;
 }
 
+// A transaction that does `work` and then stays open, holding its locks,
+// until the returned function commits it: one side of a deterministic
+// interleaving.
+async function holdTransaction(
+  work: (
+    tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  ) => Promise<unknown>,
+) {
+  const gate = Promise.withResolvers<void>();
+  const ready = Promise.withResolvers<void>();
+  const done = db.transaction(async (tx) => {
+    await work(tx);
+    ready.resolve();
+    await gate.promise;
+  });
+  await Promise.race([ready.promise, done]);
+  return async () => {
+    gate.resolve();
+    await done;
+  };
+}
+
+// Until some backend of this database waits on a lock: the request under test
+// reached the lock the held transaction owns.
+async function waitForLockWait() {
+  await vi.waitFor(
+    async () => {
+      const result = await db.execute(
+        sql`select count(*)::int as n from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'`,
+      );
+      expect(Number(result.rows[0]?.n)).toBeGreaterThan(0);
+    },
+    { timeout: 5000, interval: 20 },
+  );
+}
+
 describe("API integration: Intelia initiatives", () => {
   it("rejects task creation without initiative, with unknown initiative, or with initiative of another project, creating nothing", async () => {
     const { app, project, workspace } = await setup();
@@ -490,7 +527,7 @@ describe("API integration: Intelia initiatives", () => {
   });
 
   it("inherits parent initiative for subtasks via parentTaskId, and validates parent presence and initiative", async () => {
-    const { app, project } = await setup();
+    const { app, project, workspace } = await setup();
 
     const initRes = await createInitiative(app, project.id, {
       name: "Iniciativa Subtareas",
@@ -542,6 +579,176 @@ describe("API integration: Intelia initiatives", () => {
     expect(await readErrorBody(missingParentRes)).toMatchObject({
       code: "PARENT_TASK_NOT_FOUND",
     });
+
+    // A parent in another project answers like one that does not exist, even
+    // when it has an initiative: no oracle on tasks of other projects.
+    const otherProject = await createProjectFixture({
+      workspaceId: workspace.id,
+      name: "Otro proyecto",
+      slug: "OTRO",
+    });
+    const otherInitRes = await createInitiative(app, otherProject.project.id, {
+      name: "Iniciativa ajena",
+    });
+    const otherInit = (await otherInitRes.json()) as { id: string };
+    const foreignParentRes = await createTask(app, otherProject.project.id, {
+      title: "Padre ajeno",
+      initiative: { id: otherInit.id },
+    });
+    expect(foreignParentRes.status).toBe(200);
+    const foreignParent = (await foreignParentRes.json()) as { id: string };
+    const foreignChildRes = await createTask(app, project.id, {
+      title: "Subtarea de padre ajeno",
+      initiative: { parentTaskId: foreignParent.id },
+    });
+    expect(foreignChildRes.status).toBe(400);
+    expect(await readErrorBody(foreignChildRes)).toMatchObject({
+      code: "PARENT_TASK_NOT_FOUND",
+    });
+  });
+
+  it("closes the plan in the transition's own transaction, even if the task leaves In progress at once", async () => {
+    const { app, project } = await setup();
+    const init = (await (
+      await createInitiative(app, project.id, { name: "Transición rápida" })
+    ).json()) as { id: string };
+    const task = (await (
+      await createTask(app, project.id, { initiative: { id: init.id } })
+    ).json()) as { id: string };
+
+    // In progress and straight out again, each committed on its own and with
+    // no event at all: the way any path (bulk, reorder, an integration, a
+    // routine) may write the status before anyone looks at it.
+    for (const status of ["in-progress", "done"]) {
+      await db
+        .update(schema.taskTable)
+        .set({ status })
+        .where(eq(schema.taskTable.id, task.id));
+    }
+
+    // No waiting: the close committed with the status change.
+    const [stored] = await storedInitiative(init.id);
+    expect(stored?.planClosedAt).not.toBeNull();
+    expect(await initiativeChanges(init.id)).toContainEqual(
+      expect.objectContaining({
+        kind: "plan_closed",
+        source: "auto",
+        taskId: task.id,
+        changedByUserId: null,
+      }),
+    );
+    const later = (await (
+      await createTask(app, project.id, { initiative: { id: init.id } })
+    ).json()) as { id: string };
+    const [membership] = await storedTaskInitiative(later.id);
+    expect(membership?.origin).toBe("añadido");
+  });
+
+  it("orders an assignment after a transition that is closing the plan", async () => {
+    const { app, project } = await setup();
+    const init = (await (
+      await createInitiative(app, project.id, { name: "Carrera con el cierre" })
+    ).json()) as { id: string };
+    const started = (await (
+      await createTask(app, project.id, { initiative: { id: init.id } })
+    ).json()) as { id: string };
+
+    // The transition writes the status and holds the initiative's lock.
+    const commit = await holdTransaction((tx) =>
+      tx
+        .update(schema.taskTable)
+        .set({ status: "in-progress" })
+        .where(eq(schema.taskTable.id, started.id)),
+    );
+    const pending = createTask(app, project.id, {
+      title: "Creada durante la transición",
+      initiative: { id: init.id },
+    });
+    try {
+      await waitForLockWait();
+    } finally {
+      await commit();
+    }
+
+    const res = await pending;
+    expect(res.status).toBe(200);
+    const created = (await res.json()) as { id: string };
+    const [membership] = await storedTaskInitiative(created.id);
+    expect(membership?.origin).toBe("añadido");
+    const closes = (await initiativeChanges(init.id)).filter(
+      (change) => change.kind === "plan_closed",
+    );
+    expect(closes).toEqual([
+      expect.objectContaining({ source: "auto", taskId: started.id }),
+    ]);
+  });
+
+  it("does not close the plan of the project a task leaves for In progress elsewhere", async () => {
+    const { app, project, workspace } = await setup();
+    const init = (await (
+      await createInitiative(app, project.id, { name: "Origen del traslado" })
+    ).json()) as { id: string };
+    const task = (await (
+      await createTask(app, project.id, { initiative: { id: init.id } })
+    ).json()) as { id: string };
+    const destination = await createProjectFixture({
+      workspaceId: workspace.id,
+      name: "Destino",
+      slug: "DEST",
+    });
+
+    const res = await moveTask(app, task.id, {
+      destinationProjectId: destination.project.id,
+      destinationStatus: "in-progress",
+    });
+    expect(res.status).toBe(200);
+    const [stored] = await storedInitiative(init.id);
+    expect(stored?.planClosedAt).toBeNull();
+  });
+
+  it("validates an assignment against the project a concurrent move leaves the task in", async () => {
+    const { app, project, workspace, user } = await setup();
+    const source = (await (
+      await createInitiative(app, project.id, { name: "Antes del traslado" })
+    ).json()) as { id: string };
+    const target = (await (
+      await createInitiative(app, project.id, { name: "Destino de la carrera" })
+    ).json()) as { id: string };
+    const task = (await (
+      await createTask(app, project.id, { initiative: { id: source.id } })
+    ).json()) as { id: string };
+    const destination = await createProjectFixture({
+      workspaceId: workspace.id,
+      name: "Proyecto destino",
+      slug: "PDEST",
+    });
+
+    // What the move does in its transaction: update the task's row (its row
+    // lock) and drop the initiative of the project it leaves.
+    const commit = await holdTransaction(async (tx) => {
+      await tx
+        .update(schema.taskTable)
+        .set({ projectId: destination.project.id })
+        .where(eq(schema.taskTable.id, task.id));
+      await dropTaskInitiativeOnProjectMove(tx, task.id, user.id);
+    });
+    const pending = putTaskInitiative(app, task.id, {
+      initiativeId: target.id,
+    });
+    try {
+      await waitForLockWait();
+    } finally {
+      await commit();
+    }
+
+    const res = await pending;
+    expect(res.status).toBe(400);
+    expect(await readErrorBody(res)).toMatchObject({
+      code: "INITIATIVE_NOT_IN_PROJECT",
+    });
+    expect(await storedTaskInitiative(task.id)).toEqual([]);
+    const [last] = (await taskInitiativeChanges(task.id)).slice(-1);
+    expect(last).toMatchObject({ source: "project_move", initiativeId: null });
   });
 
   it("moves a task between initiatives recomputing origin (open plan -> plan, closed plan -> añadido) with journal rows, and is idempotent on same initiative", async () => {

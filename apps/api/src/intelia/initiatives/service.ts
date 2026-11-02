@@ -1,4 +1,4 @@
-import { and, desc, eq, getTableColumns, isNull, max, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, max } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
@@ -325,57 +325,11 @@ export async function closePlan(
 
 const NO_AUTHOR: Author = { userId: null, actor: null };
 
-// With the initiative locked and its plan open: if one of its tasks is in
-// In progress, the plan closes now (design 19 §4), in its name.
-async function closeIfStarted(
-  tx: Transaction,
-  initiative: { id: string; planClosedAt: Date | null },
-): Promise<Date | null> {
-  if (initiative.planClosedAt) return initiative.planClosedAt;
-  const [started] = await tx
-    .select({ id: taskTable.id })
-    .from(taskInitiativeTable)
-    .innerJoin(taskTable, eq(taskInitiativeTable.taskId, taskTable.id))
-    .where(
-      and(
-        eq(taskInitiativeTable.initiativeId, initiative.id),
-        eq(taskTable.status, START_STATUS),
-      ),
-    )
-    .orderBy(taskTable.id)
-    .limit(1);
-  if (!started) return null;
-  return closeLockedPlan(tx, initiative.id, "auto", NO_AUTHOR, started.id);
-}
-
-/**
- * The automatic close: when a task reaches In progress, its initiative's plan
- * closes if still open. Idempotent; it listens to every event that can carry
- * a status change, after the change committed.
- */
-export async function closePlanOnStart({ taskId }: { taskId: string }) {
-  const [membership] = await db
-    .select({ initiativeId: taskInitiativeTable.initiativeId })
-    .from(taskInitiativeTable)
-    .innerJoin(taskTable, eq(taskInitiativeTable.taskId, taskTable.id))
-    .innerJoin(
-      initiativeTable,
-      eq(taskInitiativeTable.initiativeId, initiativeTable.id),
-    )
-    .where(
-      and(
-        eq(taskInitiativeTable.taskId, taskId),
-        eq(taskTable.status, START_STATUS),
-        isNull(initiativeTable.planClosedAt),
-      ),
-    )
-    .limit(1);
-  if (!membership) return;
-  await db.transaction(async (tx) => {
-    const initiative = await lockInitiative(tx, membership.initiativeId);
-    if (initiative) await closeIfStarted(tx, initiative);
-  });
-}
+// The automatic close when a task reaches In progress runs in the database,
+// inside the transaction that changes the task's status: the trigger
+// `intelia.close_plan_on_start` (migration 0004), for every path that writes
+// `task.status` (API, bulk, reorder, integrations, routines). It takes the
+// initiative's row lock like the code here, so an assignment never races it.
 
 type MembershipWrite = {
   source: TaskInitiativeChangeSource & ("session" | "api_key" | "migration");
@@ -418,8 +372,7 @@ export async function assignTaskInitiative(
     .limit(1);
   if (current?.initiativeId === initiativeId) return null;
 
-  const closedAt = await closeIfStarted(tx, initiative);
-  const origin: TaskOrigin = closedAt ? "añadido" : "plan";
+  const origin: TaskOrigin = initiative.planClosedAt ? "añadido" : "plan";
   const since = await nextTaskChangeAt(tx, task.id);
   const row = {
     initiativeId,
@@ -444,15 +397,21 @@ export async function assignTaskInitiative(
     source: write.source,
     changedAt: since,
   });
-  // A task that is itself in In progress closes the plan it joins.
-  if (!closedAt && task.status === START_STATUS) {
+  // A task that is itself in In progress closes the plan it joins (the
+  // trigger cannot: the task had no initiative when its status was written).
+  if (!initiative.planClosedAt && task.status === START_STATUS) {
     await closeLockedPlan(tx, initiativeId, "auto", NO_AUTHOR, task.id);
   }
   return { origin };
 }
 
-/** The initiative a task being created asks for: its own, or its parent's. */
+/**
+ * The initiative a task being created asks for: its own, or its parent's. The
+ * parent is looked up in the new task's project only, so a task of another
+ * project answers the same as one that does not exist.
+ */
 export async function resolveInitiativeOnCreate(
+  projectId: string,
   input: InitiativeOnCreate,
 ): Promise<string> {
   if ("id" in input) return input.id;
@@ -463,11 +422,16 @@ export async function resolveInitiativeOnCreate(
     })
     .from(taskTable)
     .leftJoin(taskInitiativeTable, eq(taskInitiativeTable.taskId, taskTable.id))
-    .where(eq(taskTable.id, input.parentTaskId))
+    .where(
+      and(
+        eq(taskTable.id, input.parentTaskId),
+        eq(taskTable.projectId, projectId),
+      ),
+    )
     .limit(1);
   if (!parent) {
     throw new ApiError(400, {
-      message: "Parent task not found",
+      message: "Parent task not found in this project",
       code: "PARENT_TASK_NOT_FOUND",
     });
   }
@@ -527,10 +491,8 @@ export async function setTaskInitiative(
   writer: InitiativeWriter,
 ) {
   await db.transaction(async (tx) => {
-    // One writer per task at a time, without locking upstream's task row.
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${`intelia.task_initiative:${taskId}`}))`,
-    );
+    // The task's row lock, the one a move to another project takes when it
+    // updates the row: the project read here cannot go stale before commit.
     const [task] = await tx
       .select({
         id: taskTable.id,
@@ -539,7 +501,8 @@ export async function setTaskInitiative(
       })
       .from(taskTable)
       .where(eq(taskTable.id, taskId))
-      .limit(1);
+      .limit(1)
+      .for("update");
     if (!task) throw new HTTPException(404, { message: "Task not found" });
     await assignTaskInitiative(tx, task, initiativeId, membershipWrite(writer));
   });

@@ -177,7 +177,7 @@ async function createTask({
     });
 
   const initiativeId = initiative
-    ? await resolveInitiativeOnCreate(initiative.input)
+    ? await resolveInitiativeOnCreate(projectId, initiative.input)
     : null;
 
   const createdTask = await db.transaction(async (tx) => {
