@@ -458,14 +458,15 @@ describe("API integration: Intelia level of copied and imported tasks", () => {
       ]);
     });
 
-    it("keeps the gateway's actor when the template's level came from the gateway", async () => {
-      const { project, columns } = await setup();
+    it("keeps the declared actor when the template's level came from an API key", async () => {
+      const { project, columns, roleAccount } = await setup();
       const template = await seedTask(project.id, columns.done.id, {
         status: "done",
         recurrence: weekly,
       });
       await seedLevel(template.id, "completa", true, {
-        source: "gateway",
+        source: "api_key",
+        userId: roleAccount.user.id,
         actor: "agent:orq-jaime",
       });
 
@@ -475,15 +476,15 @@ describe("API integration: Intelia level of copied and imported tasks", () => {
         expect.objectContaining({
           level: "completa",
           verification: true,
-          source: "gateway",
-          setByUserId: null,
+          source: "api_key",
+          setByUserId: roleAccount.user.id,
           setByActor: "agent:orq-jaime",
         }),
       ]);
       expect(await changes(next?.id ?? "")).toEqual([
         expect.objectContaining({
-          source: "gateway",
-          changedByUserId: null,
+          source: "api_key",
+          changedByUserId: roleAccount.user.id,
           changedByActor: "agent:orq-jaime",
         }),
       ]);

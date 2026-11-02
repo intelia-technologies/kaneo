@@ -136,8 +136,9 @@ export const routineRunTable = inteliaSchema.table(
 export const AUTOMATION_LEVELS = ["manual", "arranque", "completa"] as const;
 export type AutomationLevel = (typeof AUTOMATION_LEVELS)[number];
 
-// How the level was written: a person's session, an API key at task creation,
-// the gateway's service token, or the one-off backfill migration.
+// How the level was written: a person's session, an account's API key, or the
+// one-off backfill migration. Nothing writes `gateway` any more (the gateway
+// now calls with its account's API key); it stays so the table keeps its check.
 export const AUTOMATION_SOURCES = [
   "session",
   "api_key",

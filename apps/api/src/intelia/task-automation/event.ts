@@ -5,9 +5,9 @@ export const AUTOMATION_CHANGED_EVENT = "task.automation_changed";
 
 /**
  * `task.automation_changed` for a committed change of the level, from a
- * person's session or the gateway. The envelope's `actor` is the Kaneo user
- * (null for the gateway); `data.changedByActor` is the graph id the gateway
- * acted for. Body documented in README-INTELIA.md.
+ * person's session or an account's API key. The envelope's `actor` is the
+ * Kaneo user that wrote it; `data.changedByActor` is the graph id an API key's
+ * caller declared (informative). Body documented in README-INTELIA.md.
  */
 export function notifyAutomationChanged(
   taskId: string,
@@ -32,7 +32,7 @@ export function notifyAutomationChanged(
       level: value.level,
       verification: value.verification,
       source: writer.source,
-      changedByActor: writer.source === "gateway" ? writer.actor : null,
+      changedByActor: writer.source === "api_key" ? writer.actor : null,
       changedAt: changedAt.toISOString(),
     },
   );

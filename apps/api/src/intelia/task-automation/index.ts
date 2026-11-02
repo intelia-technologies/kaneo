@@ -1,4 +1,4 @@
-import type { Context, Next } from "hono";
+import type { Context } from "hono";
 import { ApiError } from "../../errors/api-error";
 import {
   apiRouter,
@@ -6,10 +6,8 @@ import {
   errorResponse,
   jsonResponse,
 } from "../../openapi";
-import type { PermissionMap } from "../../utils/role-permissions";
 import { requireWorkspacePermission } from "../../utils/require-workspace-permission";
 import { workspaceAccess } from "../../utils/workspace-access-middleware";
-import { isGatewayRequest } from "./gateway";
 import {
   taskAutomationChangeListSchema,
   taskAutomationListSchema,
@@ -29,35 +27,6 @@ import {
   setAutomation,
 } from "./service";
 
-// The gateway already checked the agent's permission in the graph; anyone else
-// goes through Kaneo's workspace access and permissions.
-function gatewayOr(
-  access: (c: Context, next: Next) => Promise<Response | void>,
-  permissions: PermissionMap,
-) {
-  return async (c: Context, next: Next) => {
-    if (isGatewayRequest(c)) return next();
-    return access(c, async () => {
-      await requireWorkspacePermission(permissions)(c, next);
-    });
-  };
-}
-
-// Writing the level: a person's session or the gateway, never an API key
-// (design 18 §5). Role and agent accounts only hold API keys, and the gateway
-// keeps them, so this stops anyone from skipping the gateway's graph check.
-async function requireSessionOrGateway(c: Context, next: Next) {
-  if (isGatewayRequest(c)) return next();
-  if (c.get("apiKey") || !c.get("session")) {
-    throw new ApiError(403, {
-      message:
-        "Changing the automation level needs a person's session or the gateway's service token; API keys are rejected",
-      code: "AUTOMATION_WRITE_FORBIDDEN",
-    });
-  }
-  return next();
-}
-
 const getAutomationRoute = createRoute({
   method: "get",
   operationId: "getTaskAutomation",
@@ -65,9 +34,10 @@ const getAutomationRoute = createRoute({
   tags: ["Task Automation"],
   summary: "Get task automation level",
   description:
-    "The task's automation level and verification, with who set them and when. Also with the gateway's service token (`X-Service-Token`).",
+    "The task's automation level and verification, with who set them and when.",
   middleware: [
-    gatewayOr(workspaceAccess.fromTaskId("taskId"), { task: ["read"] }),
+    workspaceAccess.fromTaskId("taskId"),
+    requireWorkspacePermission({ task: ["read"] }),
   ] as const,
   request: { params: taskIdParam },
   responses: {
@@ -84,10 +54,10 @@ const putAutomationRoute = createRoute({
   tags: ["Task Automation"],
   summary: "Set task automation level",
   description:
-    "Set or change the task's level and verification; each change goes to the change log. Only a person's session (with task:update) or the gateway's service token (`X-Service-Token`, with `actor`); API keys get 403. `completa` requires verification.",
+    "Set or change the task's level and verification; each change goes to the change log. A person's session or an account's API key, with task:update. Kaneo does not check who may change the level beyond that: the factory's gateway does, before calling (design 18 §5). With an API key, `actor` names who the caller acts for (informative, logged as given). `completa` requires verification.",
   middleware: [
-    requireSessionOrGateway,
-    gatewayOr(workspaceAccess.fromTaskId("taskId"), { task: ["update"] }),
+    workspaceAccess.fromTaskId("taskId"),
+    requireWorkspacePermission({ task: ["update"] }),
   ] as const,
   request: {
     params: taskIdParam,
@@ -99,11 +69,9 @@ const putAutomationRoute = createRoute({
   responses: {
     200: jsonResponse("The task's automation level", taskAutomationSchema),
     400: errorResponse(
-      "Invalid level, `completa` without verification, or `actor` missing (gateway) or present (session)",
+      "Invalid level, `completa` without verification, or `actor` from a session",
     ),
-    403: errorResponse(
-      "An API key, no access to the project, or missing task:update",
-    ),
+    403: errorResponse("No access to the project or missing task:update"),
     404: errorResponse("Task not found"),
   },
 });
@@ -116,7 +84,8 @@ const listChangesRoute = createRoute({
   summary: "Get task automation change log",
   description: "Every setting and change of the level, newest first.",
   middleware: [
-    gatewayOr(workspaceAccess.fromTaskId("taskId"), { task: ["read"] }),
+    workspaceAccess.fromTaskId("taskId"),
+    requireWorkspacePermission({ task: ["read"] }),
   ] as const,
   request: { params: taskIdParam, query: automationHistoryQuery },
   responses: {
@@ -135,10 +104,8 @@ const listProjectRoute = createRoute({
   description:
     "The level of every task in the project that has one, by task number. Tasks without a level are absent.",
   middleware: [
-    gatewayOr(workspaceAccess.fromProjectId("projectId"), {
-      project: ["read"],
-      task: ["read"],
-    }),
+    workspaceAccess.fromProjectId("projectId"),
+    requireWorkspacePermission({ project: ["read"], task: ["read"] }),
   ] as const,
   request: { params: projectIdParam },
   responses: {
@@ -151,20 +118,16 @@ const listProjectRoute = createRoute({
   },
 });
 
+// An API key writes as its account, with the actor the caller declares (an
+// invalid one is already dropped by the body schema); a session acts as its
+// own user.
 function writer(c: Context, actor: string | undefined): AutomationWriter {
-  if (isGatewayRequest(c)) {
-    if (!actor) {
-      throw new ApiError(400, {
-        message: "`actor` is required with the service token",
-        code: "VALIDATION_ERROR",
-        issues: [{ path: "body.actor", message: "Required" }],
-      });
-    }
-    return { source: "gateway", actor };
+  if (c.get("apiKey")) {
+    return { source: "api_key", userId: c.get("userId"), actor: actor ?? null };
   }
   if (actor) {
     throw new ApiError(400, {
-      message: "`actor` is only for the gateway; a session acts as its user",
+      message: "`actor` is only for API keys; a session acts as its user",
       code: "VALIDATION_ERROR",
       issues: [{ path: "body.actor", message: "Not allowed" }],
     });

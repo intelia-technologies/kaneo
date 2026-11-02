@@ -41,17 +41,30 @@ export const automationInput = z
       "The task's automation level and verification (Intelia fork). Required when creating a task, with no default. `completa` requires verification.",
   });
 
+// Who an API key's caller acts for, logged as given: the gateway has already
+// checked it in the graph; Kaneo does not. An invalid one is dropped, never an
+// error, so it cannot block a write the gateway allowed.
+const DECLARED_ACTOR = /^(agent|person):[a-z0-9-]+$/;
+
 export const putAutomationInput = z.intersection(
   automationInput,
   z.object({
     actor: z
-      .string()
-      .trim()
-      .regex(/^[a-z]+:[A-Za-z0-9._@-]{1,200}$/, "Expected a graph id")
-      .optional()
+      .preprocess(
+        (value) =>
+          typeof value === "string" &&
+          value.length <= 100 &&
+          DECLARED_ACTOR.test(value)
+            ? value
+            : undefined,
+        z.string().max(100).regex(DECLARED_ACTOR).optional(),
+      )
       .openapi({
+        type: "string",
+        maxLength: 100,
+        pattern: DECLARED_ACTOR.source,
         description:
-          "Only with the gateway's service token, and then required: the graph id the gateway acts for (agent:…, person:…). A session always acts as its own user.",
+          "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
         example: "agent:orq-jaime",
       }),
   }),
