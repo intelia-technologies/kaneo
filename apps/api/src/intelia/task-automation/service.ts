@@ -1,4 +1,4 @@
-import { desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { desc, eq, getTableColumns, max, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
@@ -9,6 +9,7 @@ import {
   taskAutomationChangeTable,
   taskAutomationTable,
 } from "../schema";
+import { notifyAutomationChanged } from "./event";
 
 export type AutomationValue = {
   level: AutomationLevel;
@@ -46,6 +47,16 @@ export type AutomationChange = {
   value: AutomationValue;
   writer: AutomationWriter;
 };
+
+/** The value before (null the first time) and after, and when it was logged. */
+export type LoggedWrite = {
+  previous: AutomationValue | null;
+  value: AutomationValue;
+  changedAt: Date;
+};
+
+/** A change written to the log, with who wrote it. */
+export type LoggedChange = LoggedWrite & { writer: AutomationWriter };
 
 export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -85,15 +96,16 @@ export function listProjectAutomation(projectId: string) {
  * Writes the level and its change-log row inside the caller's transaction:
  * upstream's task creation calls it before committing the task, so the task,
  * its level and the first log row commit or roll back together. Writes of the
- * same value are not changes: nothing is logged and the stored row (with its
- * author) stays.
+ * same value are not changes: nothing is logged, the stored row (with its
+ * author) stays and it returns null. Otherwise it returns the logged change.
  */
-export function writeAutomation(
+export async function writeAutomation(
   tx: Transaction,
   taskId: string,
   { value, writer }: AutomationChange,
-) {
-  return writeAutomationAs(tx, taskId, value, authorOf(writer));
+): Promise<LoggedChange | null> {
+  const logged = await writeAutomationAs(tx, taskId, value, authorOf(writer));
+  return logged && { ...logged, writer };
 }
 
 /** `writeAutomation` for an author read back from a stored level. */
@@ -102,7 +114,7 @@ export async function writeAutomationAs(
   taskId: string,
   value: AutomationValue,
   { source, userId, actor }: AutomationAuthor,
-) {
+): Promise<LoggedWrite | null> {
   const [current] = await tx
     .select()
     .from(taskAutomationTable)
@@ -112,10 +124,21 @@ export async function writeAutomationAs(
     current?.level === value.level &&
     current.verification === value.verification
   ) {
-    return;
+    return null;
   }
 
-  const now = new Date();
+  // Strictly increasing per task, so the log and task.automation_changed
+  // order by it even with two changes in the same millisecond or a clock that
+  // goes back: at most a few milliseconds ahead of the clock. Safe because
+  // writers of a task are serialized (the advisory lock in setAutomation; at
+  // creation, the task is not visible to anyone else yet).
+  const [{ last } = { last: null }] = await tx
+    .select({ last: max(taskAutomationChangeTable.changedAt) })
+    .from(taskAutomationChangeTable)
+    .where(eq(taskAutomationChangeTable.taskId, taskId));
+  const now = new Date(
+    Math.max(Date.now(), last ? last.getTime() + 1 : Number.NEGATIVE_INFINITY),
+  );
   const row = {
     level: value.level,
     verification: value.verification,
@@ -139,27 +162,50 @@ export async function writeAutomationAs(
     source,
     changedAt: now,
   });
+  return {
+    previous: current
+      ? { level: current.level, verification: current.verification }
+      : null,
+    value,
+    changedAt: now,
+  };
 }
 
-/** Changes an existing task's level (PUT …/automation). */
+/**
+ * Changes an existing task's level (PUT …/automation). A real change goes out
+ * as `task.automation_changed` once committed; creating a task does not call
+ * this, so it never sends that event.
+ */
 export async function setAutomation(
   taskId: string,
   value: AutomationValue,
   writer: AutomationWriter,
 ) {
-  await db.transaction(async (tx) => {
+  const change = await db.transaction(async (tx) => {
     // One writer per task at a time, without locking upstream's task row.
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtext(${`intelia.task_automation:${taskId}`}))`,
     );
     const [task] = await tx
-      .select({ id: taskTable.id })
+      .select({ id: taskTable.id, projectId: taskTable.projectId })
       .from(taskTable)
       .where(eq(taskTable.id, taskId))
       .limit(1);
     if (!task) throw new HTTPException(404, { message: "Task not found" });
-    await writeAutomation(tx, taskId, { value, writer });
+    const logged = await writeAutomation(tx, taskId, { value, writer });
+    return logged && { ...logged, projectId: task.projectId };
   });
+
+  // Like upstream's events, delivery does not hold the response, and a failed
+  // delivery does not undo the change.
+  if (change) {
+    void notifyAutomationChanged(taskId, change).catch((error) =>
+      console.error("task.automation_changed delivery failed", {
+        error: error instanceof Error ? error.message : String(error),
+        taskId,
+      }),
+    );
+  }
 
   return getAutomation(taskId);
 }

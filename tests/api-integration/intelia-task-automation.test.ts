@@ -1,6 +1,11 @@
+import { createHmac } from "node:crypto";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { eq, sql } from "drizzle-orm";
 import {
+  afterAll,
   afterEach,
+  beforeAll,
   beforeEach,
   describe,
   expect,
@@ -15,6 +20,12 @@ import {
   taskAutomationChangeTable,
   taskAutomationTable,
 } from "../../apps/api/src/intelia/schema";
+import { genericWebhookPlugin } from "../../apps/api/src/plugins/generic-webhook";
+import {
+  initializeEventSubscriptions,
+  registerPlugin,
+} from "../../apps/api/src/plugins/registry";
+import { createNextOccurrence } from "../../apps/api/src/task/recurrence/create-next-occurrence";
 import { mockAnonymousSession, mockAuthenticatedSession } from "./helpers/auth";
 import { resetTestDatabase } from "./helpers/database";
 import { readErrorBody } from "./helpers/error-body";
@@ -533,6 +544,313 @@ describe("API integration: Intelia task automation level", () => {
       );
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe("the task.automation_changed webhook", () => {
+    const SECRET = "automation-webhook-secret";
+    type Delivery = {
+      body: {
+        event: string;
+        task: { id: string };
+        actor: { id: string | null; name: string | null };
+        data: Record<string, unknown>;
+      };
+      raw: string;
+      signatureValid: boolean;
+    };
+    // A real receiver: deliveries go through upstream's generic webhook
+    // client, signature included.
+    let server: Server;
+    let webhookUrl: string;
+    const deliveries: Delivery[] = [];
+    const ofEvent = (event: string) =>
+      deliveries.filter((d) => d.body.event === event);
+
+    beforeAll(async () => {
+      registerPlugin(genericWebhookPlugin);
+      initializeEventSubscriptions();
+      server = createServer((req, res) => {
+        let raw = "";
+        req.on("data", (chunk) => {
+          raw += chunk;
+        });
+        req.on("end", () => {
+          const expected = createHmac("sha256", SECRET)
+            .update(raw)
+            .digest("hex");
+          deliveries.push({
+            body: JSON.parse(raw),
+            raw,
+            signatureValid: req.headers["x-kaneo-signature"] === expected,
+          });
+          res.writeHead(200).end("ok");
+        });
+      });
+      const listening = Promise.withResolvers<void>();
+      server.listen(0, "127.0.0.1", listening.resolve);
+      await listening.promise;
+      webhookUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/kaneo`;
+    });
+
+    afterAll(async () => {
+      const closed = Promise.withResolvers<void>();
+      server.close(() => closed.resolve());
+      await closed.promise;
+    });
+
+    beforeEach(() => {
+      deliveries.length = 0;
+      vi.stubEnv("KANEO_ALLOW_PRIVATE_WEBHOOK_DESTINATIONS", "true");
+    });
+
+    it("goes out once per change, from a session and from the gateway, and not on creation", async () => {
+      const { app, project, user } = await setup();
+      await db.insert(schema.integrationTable).values({
+        projectId: project.id,
+        type: "generic-webhook",
+        isActive: true,
+        config: JSON.stringify({ webhookUrl, secret: SECRET }),
+      });
+
+      const taskId = await createdTaskId(app, project.id);
+      // The webhook is live: creating the task sends task.created, not a change.
+      await vi.waitFor(() => expect(ofEvent("task.created")).toHaveLength(1));
+
+      const session = await putAutomation(app, taskId, {
+        level: "arranque",
+        verification: true,
+      });
+      expect(session.status).toBe(200);
+      await vi.waitFor(() =>
+        expect(ofEvent("task.automation_changed")).toHaveLength(1),
+      );
+      // The same value again is not a change: no event.
+      const repeated = await putAutomation(app, taskId, {
+        level: "arranque",
+        verification: true,
+      });
+      expect(repeated.status).toBe(200);
+
+      mockAnonymousSession();
+      const gateway = await putAutomation(
+        app,
+        taskId,
+        { level: "completa", verification: true, actor: "agent:orq-jaime" },
+        { "x-service-token": GATEWAY_TOKEN },
+      );
+      expect(gateway.status).toBe(200);
+      await vi.waitFor(() =>
+        expect(ofEvent("task.automation_changed")).toHaveLength(2),
+      );
+
+      const [bySession, byGateway] = ofEvent("task.automation_changed");
+      expect(bySession).toMatchObject({
+        signatureValid: true,
+        body: {
+          task: { id: taskId },
+          actor: { id: user.id, name: "Jaime" },
+          data: {
+            previousLevel: "manual",
+            previousVerification: true,
+            level: "arranque",
+            verification: true,
+            source: "session",
+            changedByActor: null,
+            changedAt: expect.any(String),
+          },
+        },
+      });
+      expect(byGateway).toMatchObject({
+        signatureValid: true,
+        body: {
+          task: { id: taskId },
+          actor: { id: null, name: null },
+          data: {
+            previousLevel: "arranque",
+            previousVerification: true,
+            level: "completa",
+            verification: true,
+            source: "gateway",
+            changedByActor: "agent:orq-jaime",
+          },
+        },
+      });
+      // The log and the events tell the same story, with the same times.
+      const logged = await changes(taskId);
+      expect([bySession, byGateway].map((d) => d!.body.data.changedAt)).toEqual(
+        logged.slice(1).map((c) => c.changedAt.toISOString()),
+      );
+      // Nothing sensitive: no emails and no token.
+      for (const d of [bySession, byGateway]) {
+        expect(d!.raw).not.toContain("@example");
+        expect(d!.raw).not.toContain(GATEWAY_TOKEN);
+        expect(d!.raw).not.toMatch(/"email"/);
+      }
+      expect(ofEvent("task.automation_changed")).toHaveLength(2);
+    });
+
+    describe("changedAt", () => {
+      const FROZEN = new Date("2026-11-02T10:00:00.000Z");
+
+      beforeEach(() => {
+        // Only Date: timers, the database and the receiver run for real.
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(FROZEN);
+      });
+
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      async function liveTask() {
+        const { app, project } = await setup();
+        await db.insert(schema.integrationTable).values({
+          projectId: project.id,
+          type: "generic-webhook",
+          isActive: true,
+          config: JSON.stringify({ webhookUrl, secret: SECRET }),
+        });
+        return { app, taskId: await createdTaskId(app, project.id) };
+      }
+
+      // Alternating values, so that every PUT is a change.
+      async function change(app: App, taskId: string, i: number) {
+        const res = await putAutomation(app, taskId, {
+          level: i % 2 === 0 ? "arranque" : "completa",
+          verification: true,
+        });
+        expect(res.status).toBe(200);
+      }
+
+      async function eventTimes(count: number) {
+        await vi.waitFor(() =>
+          expect(ofEvent("task.automation_changed")).toHaveLength(count),
+        );
+        return ofEvent("task.automation_changed")
+          .map((d) => d.body.data.changedAt as string)
+          .sort();
+      }
+
+      it("grows strictly per task with a frozen clock, the same in the log, the row and the event", async () => {
+        const { app, taskId } = await liveTask();
+        for (let i = 0; i < 12; i++) await change(app, taskId, i);
+
+        const logged = (await changes(taskId)).map((c) =>
+          c.changedAt.getTime(),
+        );
+        expect(logged).toHaveLength(13);
+        // Creation at the frozen time, then one millisecond per change.
+        expect(logged).toEqual(
+          Array.from({ length: 13 }, (_, i) => FROZEN.getTime() + i),
+        );
+        expect(await eventTimes(12)).toEqual(
+          logged.slice(1).map((t) => new Date(t).toISOString()),
+        );
+        const [row] = await stored(taskId);
+        expect(row!.setAt.getTime()).toBe(logged.at(-1));
+        // The history keeps the real order: the last change first.
+        const history = await app.request(
+          `/api/intelia/task/${taskId}/automation/history`,
+        );
+        expect(
+          ((await history.json()) as Array<{ changedAt: string }>).map((c) =>
+            new Date(c.changedAt).getTime(),
+          ),
+        ).toEqual([...logged].reverse());
+      });
+
+      it("keeps growing when the clock goes back", async () => {
+        const { app, taskId } = await liveTask();
+        await change(app, taskId, 0);
+        vi.setSystemTime(new Date(FROZEN.getTime() - 60 * 60 * 1000));
+        await change(app, taskId, 1);
+
+        const logged = (await changes(taskId)).map((c) =>
+          c.changedAt.getTime(),
+        );
+        expect(logged).toEqual([
+          FROZEN.getTime(),
+          FROZEN.getTime() + 1,
+          FROZEN.getTime() + 2,
+        ]);
+        expect(await eventTimes(2)).toEqual(
+          logged.slice(1).map((t) => new Date(t).toISOString()),
+        );
+
+        // Once the clock is past the last one, it is the clock again.
+        vi.setSystemTime(new Date(FROZEN.getTime() + 5000));
+        await change(app, taskId, 2);
+        expect((await changes(taskId)).at(-1)!.changedAt.getTime()).toBe(
+          FROZEN.getTime() + 5000,
+        );
+      });
+
+      it("duplicate, recurrence and import log copies under the same rule and send no change event", async () => {
+        const { app, project, columns } = await setup();
+        await db.insert(schema.integrationTable).values({
+          projectId: project.id,
+          type: "generic-webhook",
+          isActive: true,
+          config: JSON.stringify({ webhookUrl, secret: SECRET }),
+        });
+        const sourceId = await createdTaskId(app, project.id);
+
+        const dup = await app.request(`/api/task/duplicate/${sourceId}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        expect(dup.status).toBe(200);
+        const copyId = ((await dup.json()) as { id: string }).id;
+
+        const imported = await app.request(`/api/task/import/${project.id}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            tasks: [{ title: "Importada", status: "to-do" }],
+            automation: { level: "arranque", verification: false },
+          }),
+        });
+        expect(imported.status).toBe(200);
+        const [importedTask] = await db
+          .select({ id: schema.taskTable.id })
+          .from(schema.taskTable)
+          .where(eq(schema.taskTable.title, "Importada"));
+
+        await db
+          .update(schema.taskTable)
+          .set({
+            status: "done",
+            columnId: columns.done.id,
+            recurrence: { frequency: "weekly", interval: 1, timeZone: "UTC" },
+          })
+          .where(eq(schema.taskTable.id, sourceId));
+        const occurrence = await createNextOccurrence(sourceId, null);
+        expect(occurrence).not.toBeNull();
+
+        // Each copy starts its own log at the frozen clock, and a later change
+        // of that copy follows it by one millisecond.
+        const copies = [copyId, importedTask!.id, occurrence!.id];
+        for (const [i, id] of copies.entries()) {
+          await change(app, id, i);
+          expect((await changes(id)).map((c) => c.changedAt.getTime())).toEqual(
+            [FROZEN.getTime(), FROZEN.getTime() + 1],
+          );
+        }
+
+        // Only the three PUTs send task.automation_changed; the copies sent
+        // task.created (duplicate and import) and nothing else.
+        const times = await eventTimes(3);
+        expect(
+          ofEvent("task.automation_changed")
+            .map((d) => d.body.task.id)
+            .sort(),
+        ).toEqual([...copies].sort());
+        expect(times).toEqual(
+          Array(3).fill(new Date(FROZEN.getTime() + 1).toISOString()),
+        );
+      });
     });
   });
 });

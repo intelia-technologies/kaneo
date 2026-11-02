@@ -301,6 +301,34 @@ Cada tarea lleva un **nivel** (`manual`, `arranque` o `completa`) y una **verifi
   - `GET /api/intelia/project/{projectId}/automation`: los niveles de las tareas del proyecto que lo tienen, por número (`project:read` y `task:read`, o el token).
 - **Token de servicio del gateway:** `INTELIA_GATEWAY_TOKEN` (mínimo 32 caracteres), en la cabecera `X-Service-Token`. Solo abre las cuatro rutas de arriba, sin sesión ni permisos de Kaneo; en cualquier otra ruta se ignora. Un token que no coincide, o cualquier token sin `INTELIA_GATEWAY_TOKEN` configurado, recibe 401. El valor vive en la configuración de despliegue de la factory, nunca en este repo.
 - **Relleno único:** la migración `0003` pone `manual` con verificación a todas las tareas abiertas que existan al aplicarla y deja una fila `migration` por tarea en el diario. Las cerradas quedan sin nivel: las que están en una columna final de su proyecto (el criterio de `taskIsCompleted` de upstream) y, en un proyecto antiguo sin columnas, las `done`. Esta migración corre antes de `migrateColumns()` de upstream, que da a esos proyectos las columnas por defecto con `done` como única final.
+- **Evento `task.automation_changed`:** cada cambio real del nivel por `PUT /api/intelia/task/{taskId}/automation`, venga de la sesión de una persona (la interfaz) o del token del gateway, sale por el webhook genérico como `intelia.routine_skipped`: a cada webhook genérico activo del proyecto que tenga activado `task.status_changed`, con el sobre y la firma de upstream (`apps/api/src/intelia/webhooks.ts`). Es lo que arranca la tarea en el despachador al subir el nivel (diseño 18 §4.1). **No sale** al crear la tarea (sale solo `task.created`), ni al duplicarla, en la ocurrencia recurrente o al importarla, ni al escribir el mismo valor que ya tiene, ni con el relleno de la migración. Sale después del commit y sin retener la respuesta, como los eventos de upstream: si la entrega falla, el cambio queda igual y no se reintenta (el reconciliador del despachador es la red de seguridad).
+  - **Orden:** dos cambios muy seguidos pueden llegar en otro orden; se ordenan por `data.changedAt`. Es **estrictamente creciente por tarea**: bajo el cerrojo de la tarea vale `max(ahora, último changedAt de la tarea + 1 ms)`. Dos cambios en el mismo milisegundo quedan a 1 ms; si el reloj retrocede, sigue desde el último valor de la tarea, de milisegundo en milisegundo, hasta que el reloj lo alcanza. Es el mismo valor en la fila del diario, en `set_at` de la tarea y en el evento, y el diario (`…/automation/history`) sale en ese orden.
+  - **Casilla compartida, por diseño:** upstream no tiene casilla para nuestros eventos, así que se reutiliza la de `task.status_changed`, igual que `intelia.routine_skipped`. Un receptor que solo quiere cambios de estado también recibe este evento, con su autor (persona de Kaneo o id del grafo del gateway). El despachador ignora los eventos que no conoce; un receptor externo debe filtrar por `event` antes de actuar.
+  - **Entrega secuencial:** los webhooks del proyecto se avisan uno tras otro, así que un receptor lento retrasa a los siguientes (sin reintento, como el resto).
+
+  Cuerpo:
+
+  ```json
+  {
+    "event": "task.automation_changed",
+    "timestamp": "2026-11-02T10:00:00.123Z",
+    "integration": { "type": "generic-webhook" },
+    "project": { "id": "…", "name": "…", "workspaceId": "…" },
+    "task": { "id": "…", "number": 12, "title": "…", "status": "to-do", "statusName": "To Do", "priority": "medium", "url": "…" },
+    "actor": { "id": null, "name": null },
+    "data": {
+      "previousLevel": "manual",
+      "previousVerification": true,
+      "level": "arranque",
+      "verification": true,
+      "source": "gateway",
+      "changedByActor": "agent:orq-jaime",
+      "changedAt": "2026-11-02T10:00:00.100Z"
+    }
+  }
+  ```
+
+  El autor, como en el diario: con sesión, `actor` es la persona (id y nombre de Kaneo), `source: "session"` y `changedByActor: null`; con el token, `actor` va a nulos, `source: "gateway"` y `changedByActor` es el id del grafo por el que actuó. `previousLevel` y `previousVerification` son nulos si la tarea no tenía nivel. `changedAt` es el de la fila del diario. Sin emails ni tokens.
 - **Web** (código en `apps/web/src/intelia/automation/`; textos en `en` y `es` en `i18n.ts`, espacio `intelia`):
   - **Tarjeta del tablero:** distintivo con el nivel (`Manual`, `Arranque`, `Completa`) y la verificación en palabras («Verification» / «No verification»), cada uno con su icono: el color solo repite lo que dice el texto. Las tareas sin nivel no lo llevan. Una sola petición por proyecto (`GET /api/intelia/project/{projectId}/automation`).
   - **Detalle de la tarea:** bloque «Automation» bajo «Programación» con el nivel, quién lo fijó y cuándo, el selector y el diario (cada cambio con fecha, valor anterior y nuevo, autor y, si no es una sesión, el origen). **El selector está siempre visible** (decisión 9 del diseño 18): al elegir un valor completo y distinto se guarda con `PUT`; si la API lo rechaza, avisa y vuelve al valor guardado.
@@ -312,7 +340,7 @@ Cada tarea lleva un **nivel** (`manual`, `arranque` o `completa`) y una **verifi
   - **Filtro** «Automation» en la barra de filtros, como los demás campos (operador, negación, contador y guardado por proyecto): `Manual`, `Arranque`, `Completa` y «No level». Mientras no han llegado los niveles del proyecto, el filtro no se aplica.
   - **Límite:** el tablero no recibe en tiempo real los cambios de nivel que hacen otros; se ven al recargar o al volver a pedir los niveles del proyecto.
   - **Tests:** `filter.test.ts`, `import-block.test.tsx`, `use-duplicate-with-automation.test.tsx`, `components/automation-panel.test.tsx`, `components/task-card-automation.test.tsx`, `components/create-task-modal-automation.test.tsx`, `components/task-subtasks-automation.test.tsx`, `components/duplicate-automation-dialog.test.tsx` y `components/import-tasks-automation.test.tsx`. `scripts/ci/browser.mjs` (job `docker-build`) elige `arranque` sin verificación en el formulario y comprueba los dos valores.
-- **Tests:** `tests/api-integration/intelia-task-automation.test.ts` (creación, transacción con fallo inyectado y reintento, cambios y diario, 403 a las API keys, el token del gateway), `intelia-task-automation-backfill.test.ts` (el relleno sobre tareas que ya existían, también en un proyecto sin columnas) e `intelia-task-automation-copy.test.ts` (duplicar con y sin nivel de origen, ocurrencias recurrentes, importación con y sin nivel, excepción de tests y vuelta atrás ante fallo). Corren con la suite de integración (`intelia-integration.yml`): en cada versión, a mano o en las PR que cambian ese workflow, no en cada PR. `scripts/ci/upgrade.mjs` (job `docker-build`, en cada PR) comprueba el relleno al actualizar desde la imagen de upstream.
+- **Tests:** `tests/api-integration/intelia-task-automation.test.ts` (creación, transacción con fallo inyectado y reintento, cambios y diario, 403 a las API keys, el token del gateway y `task.automation_changed` con un receptor HTTP real que comprueba la firma: uno por cambio desde la sesión y otro desde el gateway, ninguno al crear ni al repetir el valor, y `changedAt` estrictamente creciente con el reloj congelado y con el reloj que retrocede), `intelia-task-automation-backfill.test.ts` (el relleno sobre tareas que ya existían, también en un proyecto sin columnas) e `intelia-task-automation-copy.test.ts` (duplicar con y sin nivel de origen, ocurrencias recurrentes, importación con y sin nivel, excepción de tests, vuelta atrás ante fallo, y que duplicar, la ocurrencia y la importación no emiten `task.automation_changed` y sus filas siguen la regla de `changedAt`). Corren con la suite de integración (`intelia-integration.yml`): en cada versión, a mano o en las PR que cambian ese workflow, no en cada PR. `scripts/ci/upgrade.mjs` (job `docker-build`, en cada PR) comprueba el relleno al actualizar desde la imagen de upstream.
 
 ## Vista «Dependencias»
 
