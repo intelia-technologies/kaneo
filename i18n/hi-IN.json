@@ -3312,7 +3312,8 @@
 			"showOnRows": "पंक्तियों में दिखाएँ",
 			"checklistProgress": "चेकलिस्ट प्रगति",
 			"projectBackground": "प्रोजेक्ट पृष्ठभूमि",
-			"layout": "लेआउट"
+			"layout": "लेआउट",
+			"statusAge": "Time in status"
 		},
 		"filterBar": {
 			"label": "सक्रिय फ़िल्टर",
@@ -3356,6 +3357,18 @@
 			"startsOn": "शुरुआत: {{date}}",
 			"beforeStart": "{{date}} प्रारंभ तारीख से पहले है",
 			"afterDue": "{{date}} नियत तारीख के बाद है"
+		},
+		"statusAge": {
+			"aboveP75": "Above usual for this column",
+			"aboveP90": "Well above usual for this column",
+			"days": "{{value}} d",
+			"hours": "{{value}} h",
+			"label": "{{duration}} in {{column}}",
+			"minutes": "{{value}} min",
+			"noBase_one": "No baseline to compare: {{count}} case in the last 90 days.",
+			"noBase_other": "No baseline to compare: {{count}} cases in the last 90 days.",
+			"since": "In {{column}} since {{date}}.",
+			"usual": "3 out of 4 tasks leave this column in under {{duration}} (last 90 days, {{cases}} cases)."
 		}
 	},
 	"invitations": {

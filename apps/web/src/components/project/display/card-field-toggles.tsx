@@ -43,6 +43,12 @@ export function CardFieldToggles() {
       pressed: preferences.showTaskItemCounts,
       onPressedChange: preferences.setShowTaskItemCounts,
     },
+    {
+      id: "statusAge",
+      label: t("tasks:display.statusAge"),
+      pressed: preferences.showStatusAge,
+      onPressedChange: preferences.setShowStatusAge,
+    },
   ];
 
   return (

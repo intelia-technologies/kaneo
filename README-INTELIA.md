@@ -49,9 +49,10 @@ Kaneo se distribuye bajo licencia MIT. Se conservan [`LICENSE`](LICENSE) y el av
   - `apps/web/src/components/activity/comment-card.tsx` e `index.tsx`, y `apps/web/src/components/task/task-details-content.tsx`: las fichas de reacciones, el panel «Programación» de las rutinas y el bloque «Automation» del nivel.
   - `apps/web/src/components/nav-main.tsx`: el enlace a la pantalla «Rutinas».
   - `apps/web/src/components/project/views/project-views.ts`, `layout-switch.tsx`, `store/user-preferences.ts` y `hooks/use-project-websocket.ts`: el registro y el tiempo real de la vista «Dependencias».
+  - `apps/web/src/components/list-view/task-row-body.tsx`, `components/kanban-board/task-card/task-card-content.tsx`, `components/project/display/card-field-toggles.tsx` y `store/user-preferences.ts`: el chip de tiempo en estado en la fila y la tarjeta, y su preferencia `showStatusAge` en «Display».
   - `tests/api-integration/helpers/database.ts`: migrador `intelia` en los tests de integración. `tests/api-integration/setup.ts` y `scripts/ci/compose.yml`: `INTELIA_TASK_AUTOMATION_OPTIONAL=true` e `INTELIA_TASK_INITIATIVE_OPTIONAL=true`, para que los tests y las pruebas de humo de upstream creen tareas sin conocer el nivel ni la iniciativa.
   - `scripts/ci/upgrade.sh`: versión de partida configurable para la prueba de actualización. `scripts/ci/upgrade.mjs`: comprueba el relleno del nivel tras actualizar. `scripts/ci/browser.mjs`: elige `arranque` sin verificación en el formulario de creación y comprueba que se guarda. `scripts/ci/http.mjs`: la tarea de la semilla de `realtime.mjs` y `upgrade.mjs` lleva nivel.
-  - Generados o de datos: `apps/docs/openapi.json` (regenerado) y las claves `activity.reactions.*` en `i18n/*.json`.
+  - Generados o de datos: `apps/docs/openapi.json` (regenerado) y las claves `activity.reactions.*`, `tasks.statusAge.*` y `tasks.display.statusAge` en `i18n/*.json` (en es-ES y en-US traducidas; en los demás idiomas, el inglés que pone `pnpm i18n:check:fix`).
 
 ## Puesta al día con upstream
 
@@ -239,6 +240,12 @@ Reacciones con emoji en los comentarios y en la propia tarea (la tarjeta), con a
 - **Caché:** `columnas` se guarda en memoria por proyecto e instancia durante 10 minutos; `calculado_en` dice cuándo se calculó. `tareas` no se guarda.
 - **Permisos:** los de listar las tareas del proyecto (`project:read` y `task:read`), con sesión o con API key; sin acceso, la misma respuesta que `GET /api/task/tasks/{projectId}`.
 - **Solo lee** tablas de upstream: sin tablas ni migraciones propias.
+- **Web** (`apps/web/src/intelia/status-age/`, diseño 23 §5): chip en cada fila de la lista (junto a la fecha límite) y en cada tarjeta del tablero (tras la prioridad y la fecha) con el tiempo redondeado hacia abajo: minutos por debajo de 1 h, horas por debajo de 48 h y días desde ahí («45 min», «5 h», «3 d»). Sin chip si la tarea no está en `tareas` (Done, Cancelled) o si su fila o tarjeta ya la da por terminada (columna final).
+  - **Color:** ámbar por encima del `p75_s` de su columna, rojo por encima del `p90_s`; sin percentiles, sin color. En ámbar y rojo cambia también el icono y el `aria-label` lo dice («Por encima de lo habitual en esta columna» / «Muy por encima…»).
+  - **Explicación** (`title`): fecha de entrada en la zona horaria del navegador y el p75 de la columna con sus casos, o «Sin base para comparar» con los casos que hay.
+  - **Tiempo:** un único intervalo de un minuto para todos los chips (`use-minute-clock.ts`) recalcula desde la fecha de entrada sin pedir nada. Los datos (una petición por proyecto) se piden de nuevo cada vez que cambia la consulta `["tasks", projectId]` del tablero, venga de un refresco, del tiempo real o de un movimiento optimista: lo hace un único oyente de la caché de React Query (`api.ts`), sin tocar los sitios de upstream que refrescan las tareas.
+  - **Preferencia** `showStatusAge` (activa por defecto) en «Display» → «Time in status», como el resto de chips; con ella apagada no se pide nada.
+  - **Tests:** `status-age-chip.test.tsx`, `status-age-placement.test.tsx` y `api.test.tsx`.
 - **Test:** `tests/api-integration/intelia-status-age.test.ts`.
 
 ## Foto de perfil con API key

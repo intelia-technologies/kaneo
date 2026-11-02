@@ -15,6 +15,7 @@ import { getPriorityLabel } from "@/lib/i18n/domain";
 import { getPriorityIcon } from "@/lib/priority";
 import { useUserPreferencesStore } from "@/store/user-preferences";
 import type Task from "@/types/task";
+import { StatusAgeChip } from "@/intelia/status-age/components/status-age-chip";
 
 const inlineMetaClass =
   "h-5 gap-1 border-transparent bg-transparent px-1 font-normal text-muted-foreground hover:border-transparent hover:text-foreground data-popup-open:border-transparent";
@@ -104,6 +105,12 @@ export function TaskRowBody({
           <LabelChips task={task} workspaceId={workspaceId} max={2} />
         )}
       </div>
+
+      <StatusAgeChip
+        task={task}
+        isCompleted={isCompleted}
+        className={inlineMetaClass}
+      />
 
       {showDueDates && (
         <div className="flex w-24 shrink-0 justify-end">
