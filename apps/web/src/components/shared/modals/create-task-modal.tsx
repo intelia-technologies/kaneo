@@ -67,6 +67,8 @@ import useGetProjects from "@/hooks/queries/project/use-get-projects";
 import { AutomationCreateFields } from "@/intelia/automation/components/automation-create-fields";
 import { AutomationRequiredReason } from "@/intelia/automation/components/automation-required-reason";
 import { useAutomationDraft } from "@/intelia/automation/use-automation-draft";
+import { InitiativeCreateField } from "@/intelia/initiatives/components/initiative-create-field";
+import { InitiativeRequiredReason } from "@/intelia/initiatives/components/initiative-required-reason";
 import useActiveWorkspace from "@/hooks/queries/workspace/use-active-workspace";
 import { useGetActiveWorkspaceUsers } from "@/hooks/queries/workspace-users/use-get-active-workspace-users";
 import useGetProjectMembers from "@/hooks/queries/workspace-users/use-get-project-members";
@@ -251,6 +253,7 @@ function CreateTaskModalContent({
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [createMore, setCreateMore] = useState(false);
   const automationDraft = useAutomationDraft();
+  const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const [labels, setLabels] = useState<Label[]>([]);
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
 
@@ -273,6 +276,9 @@ function CreateTaskModalContent({
     (candidate) => candidate.id === (explicitProjectId || selectedProjectId),
   );
   const resolvedProjectId = resolvedProject?.id ?? "";
+  useEffect(() => {
+    setInitiativeId(null);
+  }, [resolvedProjectId, selectedProjectId]);
   const { data: projectMembers } = useGetProjectMembers({
     workspaceId: workspace?.id || "",
     projectId: resolvedProjectId,
@@ -417,6 +423,7 @@ function CreateTaskModalContent({
     labels.length > 0 ||
     stagedAssetsRef.current.length > 0 ||
     automationDraft.isDirty ||
+    initiativeId !== null ||
     hasCustomFieldChanges,
   );
 
@@ -434,6 +441,7 @@ function CreateTaskModalContent({
   };
 
   const closeAndReset = () => {
+    setInitiativeId(null);
     setDiscardConfirmationOpen(false);
     handleClose();
   };
@@ -551,8 +559,7 @@ function CreateTaskModalContent({
         ?.focus();
       return;
     }
-    if (!automation) return;
-
+    if (!automation || !initiativeId) return;
     submittingRef.current = true;
     setIsSubmitting(true);
     try {
@@ -572,6 +579,7 @@ function CreateTaskModalContent({
           userId: selectedUser?.id ?? "",
           priority,
           automation,
+          initiative: { id: initiativeId },
           projectId: resolvedProjectId,
           startDate: startDate ? startDate.toISOString() : undefined,
           dueDate: dueDate ? dueDate.toISOString() : undefined,
@@ -635,6 +643,7 @@ function CreateTaskModalContent({
         setCustomFieldValues(buildDefaultCustomFieldValues());
         setShowMissingRequired(false);
         automationDraft.reset();
+        setInitiativeId(null);
       } else {
         closeAndReset();
       }
@@ -1285,6 +1294,14 @@ function CreateTaskModalContent({
               showReason={false}
               className="w-full"
             />
+            <InitiativeCreateField
+              projectId={resolvedProjectId}
+              value={initiativeId}
+              onChange={setInitiativeId}
+              disabled={isSubmitting}
+              showReason={false}
+              className="w-full"
+            />
           </div>
 
           {awaitingColumns && columnsError && (
@@ -1327,6 +1344,7 @@ function CreateTaskModalContent({
                 })}
               </p>
             )}
+            <InitiativeRequiredReason show={!initiativeId} />
             <AutomationRequiredReason control={automationDraft} />
             <Button
               type="button"
@@ -1346,9 +1364,9 @@ function CreateTaskModalContent({
                 isSubmitting ||
                 awaitingColumns ||
                 !automationDraft.isValid ||
+                !initiativeId ||
                 isPreparingDraft
               }
-              aria-busy={isPreparingDraft || isSubmitting}
               size="sm"
               className="disabled:opacity-50"
             >

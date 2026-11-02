@@ -95,6 +95,24 @@ vi.mock("@/store/project", () => ({
 vi.mock("@/lib/toast", () => ({
   toast: { error: vi.fn(), success: vi.fn() },
 }));
+vi.mock("@/intelia/initiatives/components/initiative-create-field", () => ({
+  InitiativeCreateField: ({
+    value,
+    onChange,
+  }: {
+    value: string | null;
+    onChange: (id: string) => void;
+  }) => (
+    <button
+      type="button"
+      data-testid="mock-initiative-picker"
+      onClick={() => onChange("init-1")}
+    >
+      {value ? `Initiative ${value}` : "Pick initiative"}
+    </button>
+  ),
+}));
+vi.mock("@/intelia/initiatives/i18n", () => ({}));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
@@ -133,6 +151,9 @@ function chooseVerification(verification: "yes" | "no") {
   fireEvent.click(radio(`intelia:automation.${verification}`));
 }
 
+function chooseInitiative() {
+  fireEvent.click(screen.getByTestId("mock-initiative-picker"));
+}
 function submit() {
   fireEvent.submit(document.querySelector("form") as HTMLFormElement);
 }
@@ -163,6 +184,7 @@ describe("CreateTaskModal automation", () => {
     expect(createTask).not.toHaveBeenCalled();
 
     chooseVerification("no");
+    chooseInitiative();
     expect(createButton).toBeEnabled();
     expect(
       screen.queryByText("intelia:automation.required"),
@@ -198,6 +220,7 @@ describe("CreateTaskModal automation", () => {
 
     chooseLevel("completa");
     chooseVerification("yes");
+    chooseInitiative();
     fireEvent.keyDown(document, { key: "Enter", ctrlKey: true });
     await vi.waitFor(() =>
       expect(createTask).toHaveBeenCalledWith(
@@ -232,6 +255,7 @@ describe("CreateTaskModal automation", () => {
     enterTitle("First");
     chooseLevel("manual");
     chooseVerification("yes");
+    chooseInitiative();
     submit();
     await vi.waitFor(() => expect(createTask).toHaveBeenCalledOnce());
     await vi.waitFor(() =>
@@ -245,7 +269,38 @@ describe("CreateTaskModal automation", () => {
       "false",
     );
     enterTitle("Second");
+    chooseInitiative();
     submit();
     expect(createTask).toHaveBeenCalledOnce();
+  });
+  it("keeps Create Task disabled with InitiativeRequiredReason until an initiative is chosen, then sends { id }", async () => {
+    renderModal();
+    enterTitle("Initiative test task");
+    chooseLevel("manual");
+    chooseVerification("yes");
+
+    const createButton = screen.getByText(
+      "common:modals.createTask.createButton",
+    );
+    expect(createButton).toBeDisabled();
+    expect(screen.getByText("intelia:initiative.required")).toBeInTheDocument();
+
+    submit();
+    expect(createTask).not.toHaveBeenCalled();
+
+    chooseInitiative();
+    expect(createButton).toBeEnabled();
+    expect(
+      screen.queryByText("intelia:initiative.required"),
+    ).not.toBeInTheDocument();
+
+    submit();
+    await vi.waitFor(() =>
+      expect(createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          initiative: { id: "init-1" },
+        }),
+      ),
+    );
   });
 });

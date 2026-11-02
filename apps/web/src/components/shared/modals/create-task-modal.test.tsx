@@ -137,10 +137,21 @@ vi.mock("@/hooks/mutations/task/use-update-task", () => ({
   useUpdateTask: () => ({ mutateAsync: updateTask }),
 }));
 
+vi.mock("@/intelia/initiatives/components/initiative-create-field", () => ({
+  InitiativeCreateField: ({ onChange }: { onChange: (id: string) => void }) => (
+    <button
+      type="button"
+      data-testid="mock-initiative-picker"
+      onClick={() => onChange("init-1")}
+    >
+      Pick initiative
+    </button>
+  ),
+}));
+vi.mock("@/intelia/initiatives/i18n", () => ({}));
 vi.mock("@/hooks/queries/label/use-get-labels-by-workspace", () => ({
   default: () => ({ data: [] }),
 }));
-
 vi.mock("@/hooks/queries/workspace/use-active-workspace", () => ({
   default: () => ({ data: { id: workspaceId, name: "WS" } }),
 }));
@@ -602,6 +613,12 @@ function enterTitle(title = "Private task") {
     },
   );
   chooseAutomation();
+  chooseInitiative();
+}
+
+function chooseInitiative() {
+  const btn = screen.queryByTestId("mock-initiative-picker");
+  if (btn) fireEvent.click(btn);
 }
 
 // Level and verification are required to create a task.
@@ -611,8 +628,8 @@ function chooseAutomation() {
       screen.getByRole("radio", { name: `intelia:automation.${name}` }),
     );
   }
+  chooseInitiative();
 }
-
 async function chooseBeta() {
   fireEvent.click(screen.getByText("common:modals.createTask.selectProject"));
   fireEvent.click(await screen.findByText("Beta"));

@@ -129,6 +129,7 @@ export default function TaskCardContextMenuContent({
   const handleDuplicateTask = () => {
     duplicateTask({
       taskId: task.id,
+      projectId: task.projectId,
       title: t("tasks:duplicate.titleSuffix", { title: task.title }),
     });
   };

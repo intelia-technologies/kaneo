@@ -15,6 +15,7 @@ import { useDuplicateWithAutomation } from "./use-duplicate-with-automation";
 
 const mocks = vi.hoisted(() => ({
   getTaskAutomation: vi.fn(),
+  getTaskInitiative: vi.fn(),
   mutate: vi.fn(),
 }));
 
@@ -26,6 +27,11 @@ vi.mock("./api", () => ({
   getTaskAutomation: mocks.getTaskAutomation,
   taskAutomationKey: (taskId: string) => ["intelia-automation", "task", taskId],
 }));
+vi.mock("@/intelia/initiatives/api", () => ({
+  getTaskInitiative: mocks.getTaskInitiative,
+  taskInitiativeKey: (taskId: string) => ["intelia-initiative", "task", taskId],
+}));
+vi.mock("@/intelia/initiatives/i18n", () => ({}));
 vi.mock("@/hooks/mutations/task/use-duplicate-task", () => ({
   useDuplicateTask: () => ({ mutate: mocks.mutate }),
 }));
@@ -51,6 +57,11 @@ async function duplicate() {
 
 beforeEach(() => {
   useDuplicateAutomationStore.getState().close();
+  mocks.getTaskInitiative.mockResolvedValue({
+    taskId: "task-1",
+    initiativeId: "init-1",
+    initiativeName: "Core",
+  });
 });
 
 afterEach(() => {
@@ -58,7 +69,7 @@ afterEach(() => {
 });
 
 describe("useDuplicateWithAutomation", () => {
-  it("duplicates right away, without asking, when the task has a level", async () => {
+  it("duplicates right away, without asking, when the task has a level and initiative", async () => {
     mocks.getTaskAutomation.mockResolvedValue({
       taskId: "task-1",
       level: "arranque",
@@ -71,13 +82,37 @@ describe("useDuplicateWithAutomation", () => {
     expect(useDuplicateAutomationStore.getState().request).toBeNull();
   });
 
-  it("asks for a level instead of duplicating when the task has none", async () => {
+  it("asks for a level instead of duplicating when the task has no level", async () => {
     mocks.getTaskAutomation.mockResolvedValue(null);
 
     await duplicate();
 
     expect(mocks.mutate).not.toHaveBeenCalled();
-    expect(useDuplicateAutomationStore.getState().request).toEqual(request);
+    expect(useDuplicateAutomationStore.getState().request).toEqual(
+      expect.objectContaining({
+        missingAutomation: true,
+        missingInitiative: false,
+      }),
+    );
+  });
+
+  it("asks for an initiative instead of duplicating when the task has no initiative", async () => {
+    mocks.getTaskAutomation.mockResolvedValue({
+      taskId: "task-1",
+      level: "arranque",
+      verification: false,
+    });
+    mocks.getTaskInitiative.mockResolvedValue(null);
+
+    await duplicate();
+
+    expect(mocks.mutate).not.toHaveBeenCalled();
+    expect(useDuplicateAutomationStore.getState().request).toEqual(
+      expect.objectContaining({
+        missingAutomation: false,
+        missingInitiative: true,
+      }),
+    );
   });
 
   it("neither duplicates nor asks when the level cannot be read", async () => {
