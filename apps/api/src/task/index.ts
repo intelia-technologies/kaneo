@@ -27,6 +27,7 @@ import {
 } from "../storage/s3";
 import {
   automationOnCreateBy,
+  callerWriter,
   testAutomationDefault,
 } from "../intelia/task-automation/on-create";
 import { normalizeApiServerUrl } from "../utils/openapi-spec";
@@ -341,7 +342,7 @@ const duplicateTaskRoute = createRoute({
   },
   responses: {
     200: jsonResponse("The duplicated task", taskSchema),
-    400: errorResponse("Invalid task fields or request"),
+    400: errorResponse("Invalid task fields or request, or no level to copy"),
     401: errorResponse("Unauthorized"),
     403: errorResponse(
       "No access to the project, missing task:create, or missing task:update when copying parent links",
@@ -489,6 +490,7 @@ const importTasksRoute = createRoute({
     workspaceAccess.fromProject("projectId"),
     requireWorkspacePermission({ task: ["create"] }),
     requireEntitlement,
+    testAutomationDefault,
   ] as const,
   request: {
     params: projectIdParam,
@@ -499,7 +501,7 @@ const importTasksRoute = createRoute({
   },
   responses: {
     200: jsonResponse("Per-task import outcome", taskImportResultSchema),
-    400: errorResponse("Invalid body"),
+    400: errorResponse("Invalid body, or no `automation`"),
     403: errorResponse(
       "No access to the project, or missing task:create permission",
     ),
@@ -983,13 +985,14 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
   })
   .openapi(duplicateTaskRoute, async (c) => {
     const { id } = c.req.valid("param");
-    const { title } = c.req.valid("json");
+    const { title, automation } = c.req.valid("json");
     return c.json(
       await duplicateTask({
         taskId: id,
         title,
         currentUserId: c.get("userId"),
         canUpdateTasks: await hasWorkspacePermission(c, { task: ["update"] }),
+        automation: { explicit: automation, writer: callerWriter(c) },
       }),
       200,
     );
@@ -1083,10 +1086,11 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
   })
   .openapi(importTasksRoute, async (c) => {
     const { projectId } = c.req.valid("param");
-    const { tasks } = c.req.valid("json");
+    const { tasks, automation } = c.req.valid("json");
     const currentUserId = c.get("userId");
 
-    const result = await importTasks(projectId, tasks, currentUserId);
+    const change = automationOnCreateBy(c, automation);
+    const result = await importTasks(projectId, tasks, currentUserId, change);
 
     return c.json(result, 200);
   })

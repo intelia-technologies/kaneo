@@ -15,6 +15,11 @@ import {
 } from "../../database/schema";
 import { publishEvent } from "../../events";
 import { projectAccessCondition } from "../../project-access/project-access-condition";
+import {
+  assertCopyAutomation,
+  type CopyAutomation,
+  writeCopyAutomation,
+} from "../../intelia/task-automation/on-copy";
 import { contentReferencesAsset } from "../../storage/cleanup-assets";
 import { copyTaskAssetObject, deleteS3Object } from "../../storage/s3";
 import { filterUsersWithProjectAccess } from "../../project-access/filter-users-with-project-access";
@@ -146,7 +151,9 @@ type DuplicatedTask = typeof taskTable.$inferSelect & {
   assigneeName: string | undefined;
 };
 
-function duplicateTask(options: DuplicateTaskOptions): Promise<DuplicatedTask>;
+function duplicateTask(
+  options: DuplicateTaskOptions & { automation: CopyAutomation },
+): Promise<DuplicatedTask>;
 // Resolves to null when the source no longer holds a rule to hand over: it was
 // reopened, or a concurrent completion already created the next occurrence.
 function duplicateTask(
@@ -158,8 +165,11 @@ async function duplicateTask({
   canUpdateTasks,
   title,
   occurrence,
+  automation,
 }: DuplicateTaskOptions & {
   occurrence?: Occurrence;
+  // Intelia: the manual copy's level; an occurrence follows its template.
+  automation?: CopyAutomation;
 }): Promise<DuplicatedTask | null> {
   const sourceTask = await db.query.taskTable.findFirst({
     where: eq(taskTable.id, taskId),
@@ -303,6 +313,8 @@ async function duplicateTask({
     });
   }
 
+  await assertCopyAutomation(sourceTask.id, automation);
+
   // The destination object keys embed the new task id, so it is generated up front
   // instead of being left to the insert.
   const duplicatedTaskId = createId();
@@ -399,6 +411,8 @@ async function duplicateTask({
           message: "Failed to duplicate task",
         });
       }
+
+      await writeCopyAutomation(tx, sourceTask.id, task.id, automation);
 
       if (customFields.length > 0) {
         await tx

@@ -65,6 +65,7 @@ import useGetCustomFieldsByProject from "@/hooks/queries/custom-field/use-get-cu
 import useGetLabelsByWorkspace from "@/hooks/queries/label/use-get-labels-by-workspace";
 import useGetProjects from "@/hooks/queries/project/use-get-projects";
 import { AutomationCreateFields } from "@/intelia/automation/components/automation-create-fields";
+import { AutomationRequiredReason } from "@/intelia/automation/components/automation-required-reason";
 import { useAutomationDraft } from "@/intelia/automation/use-automation-draft";
 import useActiveWorkspace from "@/hooks/queries/workspace/use-active-workspace";
 import { useGetActiveWorkspaceUsers } from "@/hooks/queries/workspace-users/use-get-active-workspace-users";
@@ -1281,6 +1282,7 @@ function CreateTaskModalContent({
             <AutomationCreateFields
               control={automationDraft}
               disabled={isSubmitting}
+              showReason={false}
               className="w-full"
             />
           </div>
@@ -1325,6 +1327,7 @@ function CreateTaskModalContent({
                 })}
               </p>
             )}
+            <AutomationRequiredReason control={automationDraft} />
             <Button
               type="button"
               onClick={() => handleOpenChange(false)}

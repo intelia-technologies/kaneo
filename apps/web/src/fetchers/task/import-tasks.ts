@@ -1,5 +1,6 @@
 import { client } from "@kaneo/libs";
 
+import type { AutomationInput } from "@/intelia/automation/api";
 import { HttpError } from "@/lib/http-error";
 export type TaskToImport = {
   title: string;
@@ -11,10 +12,14 @@ export type TaskToImport = {
   userId?: string | null;
 };
 
-async function importTasks(projectId: string, tasks: TaskToImport[]) {
+async function importTasks(
+  projectId: string,
+  tasks: TaskToImport[],
+  automation: AutomationInput,
+) {
   const response = await client.task.import[":projectId"].$post({
     param: { projectId },
-    json: { tasks },
+    json: { tasks, automation },
   });
 
   if (!response.ok) {

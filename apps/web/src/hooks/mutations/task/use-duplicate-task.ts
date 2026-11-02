@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CopyPlusIcon } from "lucide-react";
 import { invalidateMyWork } from "@/lib/invalidate-my-work";
+import { AUTOMATION_QUERY_ROOT } from "@/intelia/automation/api";
 import { useTranslation } from "react-i18next";
 import duplicateTask from "@/fetchers/task/duplicate-task";
 import { toast } from "@/lib/toast";
@@ -14,6 +15,8 @@ export function useDuplicateTask() {
     onSuccess: (task) => {
       invalidateMyWork(queryClient);
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      // Intelia fork: the copy carries an automation level, refresh the badges.
+      void queryClient.invalidateQueries({ queryKey: [AUTOMATION_QUERY_ROOT] });
       toast.success(t("tasks:duplicate.success"), { icon: CopyPlusIcon });
       queryClient.invalidateQueries({
         queryKey: ["tasks", task.projectId],

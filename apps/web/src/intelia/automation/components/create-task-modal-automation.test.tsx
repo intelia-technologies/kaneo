@@ -177,6 +177,18 @@ describe("CreateTaskModal automation", () => {
     );
   });
 
+  it("shows the reason in the footer row, beside the buttons, not below the scrolling fields", () => {
+    renderModal();
+    const reason = screen.getByText("intelia:automation.required");
+    const footer = screen
+      .getByText("common:modals.createTask.createButton")
+      .closest('[data-slot="dialog-footer"]');
+
+    expect(footer).not.toBeNull();
+    expect(footer).toContainElement(reason);
+    expect(reason.closest(".overflow-y-auto")).toBeNull();
+  });
+
   it("does not create from the keyboard shortcut without the choice", async () => {
     renderModal();
     enterTitle("Task");

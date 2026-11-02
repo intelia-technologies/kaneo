@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { CheckboxGroup } from "@/components/ui/checkbox-group";
 import type { ImportSourceProject } from "@/fetchers/import/list-import-source-projects";
+import { useAutomationImportBlock } from "@/intelia/automation/use-import-block";
 
 const MAX_IMPORT_PROJECTS = 50;
 
@@ -41,6 +42,7 @@ export function ImportProjectPicker({
   onStart,
 }: ImportProjectPickerProps) {
   const { t } = useTranslation();
+  const blockedReason = useAutomationImportBlock();
   const [selected, setSelected] = useState<string[]>([]);
   const [includeComments, setIncludeComments] = useState(true);
   const copy = IMPORT_UNIT_COPY[source.unit];
@@ -67,7 +69,7 @@ export function ImportProjectPicker({
         className="space-y-3"
         onSubmit={(event) => {
           event.preventDefault();
-          if (selected.length === 0 || overLimit) return;
+          if (blockedReason || selected.length === 0 || overLimit) return;
           onStart({ projectIds: selected, includeComments });
         }}
       >
@@ -126,6 +128,14 @@ export function ImportProjectPicker({
               {t(copy.limit, { max: MAX_IMPORT_PROJECTS })}
             </p>
           ) : null}
+          {blockedReason ? (
+            <p
+              role="status"
+              className="me-auto text-destructive-foreground text-xs"
+            >
+              {blockedReason}
+            </p>
+          ) : null}
           <Button variant="ghost" size="sm" onClick={onBack}>
             {t("settings:workspaceImport.select.back")}
           </Button>
@@ -134,7 +144,9 @@ export function ImportProjectPicker({
               type="submit"
               size="sm"
               loading={isStarting}
-              disabled={selected.length === 0 || overLimit}
+              disabled={
+                Boolean(blockedReason) || selected.length === 0 || overLimit
+              }
             >
               {t(copy.importButton, { count: selected.length })}
             </Button>

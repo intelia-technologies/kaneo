@@ -18,6 +18,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import useImportTasks from "@/hooks/mutations/task/use-import-tasks";
+import { ImportAutomationFields } from "@/intelia/automation/components/import-automation-fields";
+import { useAutomationDraft } from "@/intelia/automation/use-automation-draft";
 import { toast } from "@/lib/toast";
 
 const EXAMPLE_FORMAT = `{
@@ -49,8 +51,12 @@ export function ImportTasksDialog({
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { mutateAsync: importTasks, isPending } = useImportTasks();
+  const automation = useAutomationDraft();
 
   const importFile = async (file: File) => {
+    const input = automation.input;
+    if (!input) return;
+
     try {
       const tasks = parseTasksImport(await file.text());
 
@@ -61,11 +67,12 @@ export function ImportTasksDialog({
 
       toast.loading(t("settings:tasksImportExport.importing"));
 
-      const result = await importTasks({ projectId, tasks });
+      const result = await importTasks({ projectId, tasks, automation: input });
 
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
 
       onOpenChange(false);
+      automation.reset();
       toast.dismiss();
       toast.success(
         t("settings:tasksImportExport.importSuccess", {
@@ -131,6 +138,7 @@ export function ImportTasksDialog({
               {EXAMPLE_FORMAT}
             </pre>
           </div>
+          <ImportAutomationFields control={automation} disabled={isPending} />
           <div
             className="flex flex-col items-center gap-3 rounded-lg border border-border bg-muted/30 px-6 py-8 text-center transition-colors hover:border-ring"
             onDrop={handleDrop}
@@ -148,7 +156,7 @@ export function ImportTasksDialog({
               variant="outline"
               size="sm"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isPending}
+              disabled={isPending || !automation.isValid}
             >
               {isPending ? <Loader2 className="animate-spin" /> : null}
               {t("settings:tasksImportExport.selectFile")}

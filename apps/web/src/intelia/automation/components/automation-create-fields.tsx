@@ -1,22 +1,23 @@
-import { CircleAlert } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import type { AutomationDraftControl } from "../use-automation-draft";
 import { AutomationFields } from "./automation-fields";
+import { AutomationRequiredReason } from "./automation-required-reason";
 import "../i18n";
 
 // The required level + verification choice of the task-creation forms.
+// `showReason={false}` leaves the "choose a level" message to the caller, for
+// forms that render it next to their own footer buttons.
 export function AutomationCreateFields({
   control,
   disabled,
+  showReason = true,
   className,
 }: {
   control: AutomationDraftControl;
   disabled?: boolean;
+  showReason?: boolean;
   className?: string;
 }) {
-  const { t } = useTranslation();
-
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       <AutomationFields
@@ -24,15 +25,7 @@ export function AutomationCreateFields({
         onChange={control.setDraft}
         disabled={disabled}
       />
-      {!control.isValid && (
-        <p
-          role="status"
-          className="flex items-center gap-1.5 text-destructive-foreground text-xs"
-        >
-          <CircleAlert aria-hidden="true" className="size-3.5" />
-          {t("intelia:automation.required")}
-        </p>
-      )}
+      {showReason && <AutomationRequiredReason control={control} />}
     </div>
   );
 }

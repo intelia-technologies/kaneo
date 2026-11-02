@@ -134,6 +134,11 @@ export const importTasksBody = z.object({
       }),
     }),
   ),
+  // Intelia fork: required automation level, applied to every imported task.
+  automation: automationInput.openapi({
+    description:
+      "The automation level and verification of every imported task. Required, with no default.",
+  }),
 });
 
 export const updateStatusBody = z.object({ status: z.string() });
@@ -183,7 +188,14 @@ export const descriptionMatchesQuery = z.object({
   after: z.string().min(1).max(128).optional(),
 });
 
-export const duplicateTaskBody = z.object({ title: z.string().optional() });
+export const duplicateTaskBody = z.object({
+  title: z.string().optional(),
+  // Intelia fork: README-INTELIA.md, «Nivel de automatización de las tareas».
+  automation: automationInput.optional().openapi({
+    description:
+      "The copy's automation level and verification. Omit to copy the source's; a source without a level then needs this field.",
+  }),
+});
 
 export const stagedImageUploadBody = imageUploadBody.extend({
   surface: z.literal("description"),

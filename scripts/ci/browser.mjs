@@ -67,8 +67,11 @@ try {
   await taskDialog
     .getByPlaceholder("Task title", { exact: true })
     .fill("Browser persistence task");
-  await taskDialog.getByRole("radio", { name: "Manual", exact: true }).click();
-  await taskDialog.getByRole("radio", { name: "Yes", exact: true }).click();
+  // Not the manual/true test default: proves the form really sends the choice.
+  await taskDialog
+    .getByRole("radio", { name: "Arranque", exact: true })
+    .click();
+  await taskDialog.getByRole("radio", { name: "No", exact: true }).click();
   const [taskResponse] = await Promise.all([
     page.waitForResponse(
       (response) =>
@@ -81,10 +84,11 @@ try {
   ]);
   assert.ok(taskResponse.ok(), await taskResponse.text());
   const task = await taskResponse.json();
-  assert.equal(
-    (await owner.json(`/api/intelia/task/${task.id}/automation`)).level,
-    "manual",
+  const automation = await owner.json(
+    `/api/intelia/task/${task.id}/automation`,
   );
+  assert.equal(automation.level, "arranque");
+  assert.equal(automation.verification, false);
   await page.goto(
     `${origin}/dashboard/workspace/${workspace.id}/project/${project.id}/task/${task.id}`,
   );

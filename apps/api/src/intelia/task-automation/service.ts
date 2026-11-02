@@ -15,10 +15,31 @@ export type AutomationValue = {
   verification: boolean;
 };
 
-/** Who writes the level: a Kaneo user, or the gateway acting for a graph id. */
+/**
+ * Who writes the level: a Kaneo user, the gateway acting for a graph id, or
+ * the migration rule (no user) for a level nobody chose.
+ */
 export type AutomationWriter =
   | { source: "session" | "api_key"; userId: string }
-  | { source: "gateway"; actor: string };
+  | { source: "gateway"; actor: string }
+  | { source: "migration" };
+
+/** A stored writer: the columns of `task_automation` that name who set it. */
+export type AutomationAuthor = {
+  source: AutomationSource;
+  userId: string | null;
+  actor: string | null;
+};
+
+function authorOf(writer: AutomationWriter): AutomationAuthor {
+  if (writer.source === "gateway") {
+    return { source: "gateway", userId: null, actor: writer.actor };
+  }
+  if (writer.source === "migration") {
+    return { source: "migration", userId: null, actor: null };
+  }
+  return { source: writer.source, userId: writer.userId, actor: null };
+}
 
 /** A level and who writes it (at creation, the task's creator). */
 export type AutomationChange = {
@@ -26,7 +47,7 @@ export type AutomationChange = {
   writer: AutomationWriter;
 };
 
-type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 const setBy = alias(userTable, "automation_set_by");
 const changedBy = alias(userTable, "automation_changed_by");
@@ -67,15 +88,21 @@ export function listProjectAutomation(projectId: string) {
  * same value are not changes: nothing is logged and the stored row (with its
  * author) stays.
  */
-export async function writeAutomation(
+export function writeAutomation(
   tx: Transaction,
   taskId: string,
   { value, writer }: AutomationChange,
 ) {
-  const userId = writer.source === "gateway" ? null : writer.userId;
-  const actor = writer.source === "gateway" ? writer.actor : null;
-  const source: AutomationSource = writer.source;
+  return writeAutomationAs(tx, taskId, value, authorOf(writer));
+}
 
+/** `writeAutomation` for an author read back from a stored level. */
+export async function writeAutomationAs(
+  tx: Transaction,
+  taskId: string,
+  value: AutomationValue,
+  { source, userId, actor }: AutomationAuthor,
+) {
   const [current] = await tx
     .select()
     .from(taskAutomationTable)

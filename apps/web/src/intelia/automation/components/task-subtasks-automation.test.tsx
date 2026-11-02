@@ -139,6 +139,27 @@ describe("TaskSubtasks automation", () => {
     );
   });
 
+  it("shows the reason right under the Add row, before the radio groups", () => {
+    const input = openAddRow();
+    fireEvent.change(input, { target: { value: "Needs a level" } });
+
+    const addButton = screen.getByRole("button", {
+      name: "tasks:subtasks.addAction",
+    });
+    const reason = screen.getByText("intelia:automation.required");
+    const firstRadio = radio("intelia:automation.levels.manual");
+
+    expect(screen.getAllByText("intelia:automation.required")).toHaveLength(1);
+    expect(
+      addButton.compareDocumentPosition(reason) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      reason.compareDocumentPosition(firstRadio) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("asks for the choice again when the add row is reopened", () => {
     const input = openAddRow();
     fireEvent.change(input, { target: { value: "Discarded" } });

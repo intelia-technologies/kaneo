@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { IntegrationPanelRow } from "@/components/project/integrations/panel/integration-panel-row";
 import { IntegrationPanelSection } from "@/components/project/integrations/panel/integration-panel-section";
 import { Button } from "@/components/ui/button";
+import { useAutomationImportBlock } from "@/intelia/automation/use-import-block";
 
 type ImportIssuesSectionProps = {
   description: ReactNode;
@@ -22,6 +23,7 @@ export function ImportIssuesSection({
   onImport,
 }: ImportIssuesSectionProps) {
   const { t } = useTranslation();
+  const blockedReason = useAutomationImportBlock();
 
   return (
     <IntegrationPanelSection label={t("settings:codeHosting.issuesSection")}>
@@ -34,12 +36,17 @@ export function ImportIssuesSection({
           variant="outline"
           size="sm"
           onClick={onImport}
-          disabled={pending || disabled}
+          disabled={pending || disabled || Boolean(blockedReason)}
         >
           {pending ? t("settings:codeHosting.importing") : actionLabel}
         </Button>
       </IntegrationPanelRow>
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {blockedReason ? (
+        <p role="status" className="text-xs text-muted-foreground">
+          {blockedReason}
+        </p>
+      ) : null}
     </IntegrationPanelSection>
   );
 }

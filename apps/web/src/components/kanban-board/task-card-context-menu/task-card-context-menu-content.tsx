@@ -20,7 +20,7 @@ import {
   ContextMenuSubContent,
   ContextMenuSubTrigger,
 } from "@/components/ui/context-menu";
-import { useDuplicateTask } from "@/hooks/mutations/task/use-duplicate-task";
+import { useDuplicateWithAutomation } from "@/intelia/automation/use-duplicate-with-automation";
 import { useUpdateTask } from "@/hooks/mutations/task/use-update-task";
 import { useUpdateTaskAssignee } from "@/hooks/mutations/task/use-update-task-assignee";
 import { useUpdateTaskDescription } from "@/hooks/mutations/task/use-update-task-description";
@@ -88,7 +88,7 @@ export default function TaskCardContextMenuContent({
   const { mutateAsync: updateTaskAssignee } = useUpdateTaskAssignee();
   const { mutateAsync: updateTaskTitle } = useUpdateTaskTitle();
   const { mutateAsync: updateTaskDescription } = useUpdateTaskDescription();
-  const { mutate: duplicateTask } = useDuplicateTask();
+  const duplicateTask = useDuplicateWithAutomation();
   const { canCreateTasks, canUpdateTasks, canDeleteTasks, canAssignTasks } =
     useWorkspacePermission();
   const canCreate = canCreateTasks();

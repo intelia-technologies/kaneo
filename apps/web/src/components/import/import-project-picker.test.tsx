@@ -11,6 +11,11 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+// The block has its own test in intelia/automation.
+vi.mock("@/intelia/automation/use-import-block", () => ({
+  useAutomationImportBlock: () => null,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     children,

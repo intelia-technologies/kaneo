@@ -42,6 +42,15 @@ const en = {
     saveError: "Failed to change the automation level",
     loadError: "Failed to load the automation level",
     filter: "Automation",
+    duplicate: {
+      title: "Choose the automation level",
+      description:
+        "The task you are duplicating has no automation level. Choose one for the copy.",
+      confirm: "Duplicate",
+    },
+    importAppliesToAll: "Applied to every imported task.",
+    importBlocked:
+      "In this Kaneo every task needs an automation level; this import does not ask for it yet.",
   },
 };
 
@@ -79,6 +88,15 @@ const es = {
     saveError: "No se pudo cambiar el nivel de automatización",
     loadError: "No se pudo cargar el nivel de automatización",
     filter: "Automatización",
+    duplicate: {
+      title: "Elige el nivel de automatización",
+      description:
+        "La tarea que vas a duplicar no tiene nivel de automatización. Elige uno para la copia.",
+      confirm: "Duplicar",
+    },
+    importAppliesToAll: "Se aplica a todas las tareas importadas.",
+    importBlocked:
+      "En este Kaneo cada tarea necesita nivel de automatización; esta importación aún no lo pide.",
   },
 };
 
