@@ -23,6 +23,18 @@ vi.mock("react-i18next", () => ({
   initReactI18next: { type: "3rdParty", init: vi.fn() },
 }));
 vi.mock("../i18n", () => ({}));
+vi.mock("@/intelia/initiatives/i18n", () => ({}));
+vi.mock("@/intelia/initiatives/components/initiative-picker", () => ({
+  InitiativePicker: ({ onChange }: { onChange: (id: string) => void }) => (
+    <button
+      type="button"
+      data-testid="mock-initiative-picker"
+      onClick={() => onChange("init-copy")}
+    >
+      Pick initiative
+    </button>
+  ),
+}));
 vi.mock("@/hooks/mutations/task/use-duplicate-task", () => ({
   useDuplicateTask: () => ({ mutate: mocks.mutate, isPending: false }),
 }));
@@ -106,5 +118,36 @@ describe("DuplicateAutomationDialog", () => {
     fireEvent.click(confirmButton());
 
     expect(useDuplicateAutomationStore.getState().request).toBeNull();
+  });
+
+  it("asks for an initiative when only the initiative is missing and sends initiativeId", () => {
+    render(<DuplicateAutomationDialog />);
+    act(() =>
+      useDuplicateAutomationStore.getState().ask({
+        taskId: "task-1",
+        projectId: "proj-1",
+        title: "Copy of task",
+        missingAutomation: false,
+        missingInitiative: true,
+      }),
+    );
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.getByTestId("mock-initiative-picker")).toBeInTheDocument();
+    expect(confirmButton()).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("mock-initiative-picker"));
+    expect(confirmButton()).toBeEnabled();
+    fireEvent.click(confirmButton());
+
+    expect(mocks.mutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: "task-1",
+        title: "Copy of task",
+        initiativeId: "init-copy",
+      }),
+      expect.anything(),
+    );
   });
 });

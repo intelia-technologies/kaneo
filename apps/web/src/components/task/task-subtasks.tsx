@@ -25,6 +25,8 @@ import type { AutomationInput } from "@/intelia/automation/api";
 import { AutomationInputField } from "@/intelia/automation/components/automation-input-field";
 import { useGetActiveWorkspaceUsers } from "@/hooks/queries/workspace-users/use-get-active-workspace-users";
 import { useWorkspacePermission } from "@/hooks/use-workspace-permission";
+import { useTaskInitiative } from "@/intelia/initiatives/api";
+import "@/intelia/initiatives/i18n";
 import { toast } from "@/lib/toast";
 import queryClient from "@/query-client";
 import type Task from "@/types/task";
@@ -52,7 +54,9 @@ export default function TaskSubtasks({
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [automation, setAutomation] = useState<AutomationInput | null>(null);
-  const readyToAdd = Boolean(newTitle.trim() && automation);
+  const { data: parentInitiative, isLoading: isLoadingInitiative } =
+    useTaskInitiative(taskId);
+  const readyToAdd = Boolean(newTitle.trim() && automation && parentInitiative);
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -243,7 +247,14 @@ export default function TaskSubtasks({
   ]);
 
   const handleAddSubtask = async () => {
-    if (!canCreate || !canEdit || !newTitle.trim() || !automation) return;
+    if (
+      !canCreate ||
+      !canEdit ||
+      !newTitle.trim() ||
+      !automation ||
+      !parentInitiative
+    )
+      return;
     const initialStatus = parentStatus === "planned" ? "planned" : todoSlug;
     if (!initialStatus) return;
 
@@ -255,6 +266,7 @@ export default function TaskSubtasks({
         status: initialStatus,
         priority: "no-priority",
         automation,
+        initiative: { parentTaskId: taskId },
       });
 
       await createRelation.mutateAsync({
@@ -422,6 +434,21 @@ export default function TaskSubtasks({
           <AutomationInputField onChange={setAutomation} />
         )}
 
+        {isAdding && canEdit && canCreate && (
+          <div className="px-1 text-xs">
+            {parentInitiative ? (
+              <p className="text-muted-foreground">
+                {t("intelia:initiative.inheritsFromParent", {
+                  name: parentInitiative.initiativeName,
+                })}
+              </p>
+            ) : !isLoadingInitiative ? (
+              <p role="alert" className="text-destructive-foreground">
+                {t("intelia:initiative.parentWithout")}
+              </p>
+            ) : null}
+          </div>
+        )}
         {!isAdding && totalCount === 0 && (
           <p className="px-2 py-1 text-muted-foreground text-xs">
             {t("tasks:subtasks.empty")}

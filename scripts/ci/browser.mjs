@@ -72,6 +72,11 @@ try {
     .getByRole("radio", { name: "Arranque", exact: true })
     .click();
   await taskDialog.getByRole("radio", { name: "No", exact: true }).click();
+  await taskDialog.getByRole("combobox", { name: "Initiative" }).click();
+  await page
+    .getByPlaceholder("Search or create initiative…")
+    .fill("Browser persistence initiative");
+  await page.getByRole("option", { name: /Create initiative/i }).click();
   const [taskResponse] = await Promise.all([
     page.waitForResponse(
       (response) =>
@@ -89,6 +94,11 @@ try {
   );
   assert.equal(automation.level, "arranque");
   assert.equal(automation.verification, false);
+  const taskInitiative = await owner.json(
+    `/api/intelia/task/${task.id}/initiative`,
+  );
+  assert.equal(taskInitiative.initiativeName, "Browser persistence initiative");
+  assert.equal(taskInitiative.origin, "plan");
   await page.goto(
     `${origin}/dashboard/workspace/${workspace.id}/project/${project.id}/task/${task.id}`,
   );

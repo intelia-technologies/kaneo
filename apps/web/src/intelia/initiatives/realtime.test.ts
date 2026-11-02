@@ -7,7 +7,7 @@ import {
   it,
   vi,
 } from "vite-plus/test";
-import { INITIATIVES_QUERY_ROOT } from "./api";
+import { INITIATIVE_QUERY_ROOT } from "./api";
 import { INITIATIVES_BURST_MS, refreshInitiatives } from "./realtime";
 
 beforeEach(() => {
@@ -22,7 +22,7 @@ function refreshes(client: QueryClient) {
   const spy = vi.spyOn(client, "invalidateQueries");
   return () =>
     spy.mock.calls.filter(
-      ([filters]) => filters?.queryKey?.[0] === INITIATIVES_QUERY_ROOT,
+      ([filters]) => filters?.queryKey?.[0] === INITIATIVE_QUERY_ROOT,
     );
 }
 
@@ -38,7 +38,9 @@ describe("refreshInitiatives", () => {
 
     refreshInitiatives(client, "p", "TASK_RELATION_UPDATED");
     vi.advanceTimersByTime(1);
-    expect(calls()).toEqual([[{ queryKey: [INITIATIVES_QUERY_ROOT, "p"] }]]);
+    expect(calls()).toEqual([
+      [{ queryKey: [INITIATIVE_QUERY_ROOT, "project", "p"] }],
+    ]);
   });
 
   it("ignores events that cannot change an initiative", () => {

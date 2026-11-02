@@ -132,7 +132,6 @@ export function DetailHeader({
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         initiative={initiative}
-        projectId={projectId}
       />
     </header>
   );

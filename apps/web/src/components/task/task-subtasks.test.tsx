@@ -76,6 +76,17 @@ vi.mock("@/hooks/use-workspace-permission", () => ({
     canUpdateTasks: mocks.canUpdateTasks,
   }),
 }));
+vi.mock("@/intelia/initiatives/api", () => ({
+  useTaskInitiative: () => ({
+    data: {
+      taskId: "parent-1",
+      initiativeId: "init-1",
+      initiativeName: "Parent Initiative",
+    },
+    isLoading: false,
+  }),
+}));
+vi.mock("@/intelia/initiatives/i18n", () => ({}));
 vi.mock("@/lib/toast", () => ({
   toast: { error: mocks.toastError, success: vi.fn() },
 }));

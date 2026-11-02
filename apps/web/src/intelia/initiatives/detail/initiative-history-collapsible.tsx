@@ -15,7 +15,6 @@ import type { InitiativeChange } from "../api";
 import { useInitiativeHistory } from "../api";
 
 type InitiativeHistoryCollapsibleProps = {
-  projectId: string;
   initiativeId: string;
 };
 
@@ -27,14 +26,10 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 export function InitiativeHistoryCollapsible({
-  projectId,
   initiativeId,
 }: InitiativeHistoryCollapsibleProps) {
   const { t } = useTranslation();
-  const { data: history = [], isLoading } = useInitiativeHistory(
-    projectId,
-    initiativeId,
-  );
+  const { data: history = [], isLoading } = useInitiativeHistory(initiativeId);
   const [open, setOpen] = useState(false);
 
   const formatValue = (key: string, val: unknown): string => {

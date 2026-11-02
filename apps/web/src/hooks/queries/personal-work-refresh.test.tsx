@@ -246,6 +246,7 @@ describe("personal work refresh", () => {
         status: "to-do",
         priority: "no-priority",
         automation: { level: "manual", verification: true },
+        initiative: { id: "init-1" },
       });
     });
     await waitFor(() =>

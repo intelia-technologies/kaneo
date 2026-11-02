@@ -19,6 +19,18 @@ vi.mock("react-i18next", () => ({
   initReactI18next: { type: "3rdParty", init: vi.fn() },
 }));
 vi.mock("../i18n", () => ({}));
+vi.mock("@/intelia/initiatives/i18n", () => ({}));
+vi.mock("@/intelia/initiatives/components/initiative-picker", () => ({
+  InitiativePicker: ({ onChange }: { onChange: (id: string) => void }) => (
+    <button
+      type="button"
+      data-testid="mock-initiative-picker"
+      onClick={() => onChange("init-import")}
+    >
+      Pick initiative
+    </button>
+  ),
+}));
 vi.mock("@/hooks/mutations/task/use-import-tasks", () => ({
   default: () => ({ mutateAsync: mocks.importTasks, isPending: false }),
 }));
@@ -49,6 +61,8 @@ const selectFileButton = () =>
   screen.getByRole("button", { name: "settings:tasksImportExport.selectFile" });
 const fileInput = () =>
   document.querySelector('input[type="file"]') as HTMLInputElement;
+const chooseInitiative = () =>
+  fireEvent.click(screen.getByTestId("mock-initiative-picker"));
 
 function renderDialog(onOpenChange = vi.fn()) {
   render(
@@ -101,6 +115,7 @@ describe("ImportTasksDialog automation", () => {
 
     fireEvent.click(radio("intelia:automation.levels.arranque"));
     fireEvent.click(radio("intelia:automation.no"));
+    chooseInitiative();
     expect(selectFileButton()).toBeEnabled();
     expect(
       screen.queryByText("intelia:automation.required"),
@@ -113,11 +128,11 @@ describe("ImportTasksDialog automation", () => {
         projectId: "project-1",
         tasks: [{ title: "Imported", status: "to-do" }],
         automation: { level: "arranque", verification: false },
+        initiativeId: "init-import",
       }),
     );
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
-
   it("never allows completa without verification", () => {
     renderDialog();
 
@@ -126,6 +141,31 @@ describe("ImportTasksDialog automation", () => {
     expect(radio("intelia:automation.levels.completa")).toHaveAttribute(
       "aria-disabled",
       "true",
+    );
+  });
+
+  it("keeps select file disabled until an initiative is chosen, and sends initiativeId", async () => {
+    mocks.importTasks.mockResolvedValue({
+      results: { successful: 1, failed: 0 },
+    });
+    renderDialog();
+
+    fireEvent.click(radio("intelia:automation.levels.manual"));
+    fireEvent.click(radio("intelia:automation.yes"));
+    expect(selectFileButton()).toBeDisabled();
+
+    chooseInitiative();
+    expect(selectFileButton()).toBeEnabled();
+
+    pickFile();
+    await waitFor(() =>
+      expect(mocks.importTasks).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: "project-1",
+          automation: { level: "manual", verification: true },
+          initiativeId: "init-import",
+        }),
+      ),
     );
   });
 });

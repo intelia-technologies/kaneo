@@ -21,17 +21,15 @@ type EditInitiativeDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initiative: InitiativeDetail;
-  projectId: string;
 };
 
 export function EditInitiativeDialog({
   open,
   onOpenChange,
   initiative,
-  projectId,
 }: EditInitiativeDialogProps) {
   const { t } = useTranslation();
-  const updateMutation = useUpdateInitiative(projectId);
+  const updateMutation = useUpdateInitiative();
 
   const initialName = initiative.name ?? "";
   const initialDesignUrl = initiative.designUrl ?? "";

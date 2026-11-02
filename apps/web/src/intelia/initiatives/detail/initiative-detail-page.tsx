@@ -158,10 +158,7 @@ export function InitiativeDetailPage({
               initiative={initiative}
             />
 
-            <InitiativeHistoryCollapsible
-              projectId={projectId}
-              initiativeId={initiativeId}
-            />
+            <InitiativeHistoryCollapsible initiativeId={initiativeId} />
 
             <Tabs
               value={activeTab}

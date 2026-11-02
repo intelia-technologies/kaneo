@@ -17,6 +17,7 @@ import TaskTitle from "./task-title";
 import { ReactionBar } from "../intelia/reaction-bar";
 import { TaskRoutinePanel } from "@/intelia/routines/components/routine-panel";
 import { TaskAutomationPanel } from "@/intelia/automation/components/automation-panel";
+import { TaskInitiativePanel } from "@/intelia/initiatives/components/initiative-panel";
 
 type TaskDetailsContentProps = {
   taskId: string | undefined;
@@ -104,6 +105,7 @@ export default function TaskDetailsContent({
         />
         <TaskRoutinePanel taskId={taskId} />
         <TaskAutomationPanel taskId={taskId} />
+        <TaskInitiativePanel taskId={taskId} />
       </div>
 
       <TaskActivity

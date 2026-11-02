@@ -6,14 +6,16 @@ async function duplicateTask({
   taskId,
   title,
   automation,
+  initiativeId,
 }: {
   taskId: string;
   title?: string;
   automation?: AutomationInput;
+  initiativeId?: string;
 }) {
   const response = await client.task.duplicate[":id"].$post({
     param: { id: taskId },
-    json: { title, automation },
+    json: { title, automation, initiativeId },
   });
 
   if (!response.ok) {
