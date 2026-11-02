@@ -282,11 +282,15 @@ export const projectInitiativesKey = (projectId: string) =>
 export const initiativeKey = (projectId: string, initiativeId: string) =>
   [...projectInitiativesRootKey(projectId), "detail", initiativeId] as const;
 
+// The app's client turns refetchOnMount off; a read invalidated while its
+// page was closed (an edit in the detail, a socket event) must be read again
+// when the page comes back. `true` refetches only stale data.
 export function useProjectInitiatives(projectId: string) {
   return useQuery({
     queryKey: projectInitiativesKey(projectId),
     queryFn: () => getProjectInitiatives(projectId),
     enabled: !!projectId,
+    refetchOnMount: true,
   });
 }
 
@@ -295,6 +299,7 @@ export function useInitiative(projectId: string, initiativeId: string) {
     queryKey: initiativeKey(projectId, initiativeId),
     queryFn: () => getInitiative(initiativeId),
     enabled: !!projectId && !!initiativeId,
+    refetchOnMount: true,
   });
 }
 

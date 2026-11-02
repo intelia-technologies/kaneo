@@ -102,6 +102,9 @@ export function InitiativeDetailPage({
       search: nextSearch,
       replace: true,
     });
+    // The sheet may have changed what the table shows (status, assignee,
+    // block reason) without a socket event reaching here yet.
+    void refetchInitiative();
     if (targetId) {
       requestAnimationFrame(() => {
         const btn = document.getElementById(`task-btn-${targetId}`);

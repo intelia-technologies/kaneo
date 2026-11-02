@@ -189,4 +189,45 @@ describe("project WebSocket lifecycle", () => {
     unmount();
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  // Intelia fork: initiatives (design 19 §6).
+  const initiativeReads = () =>
+    client.invalidateQueries.mock.calls.filter(
+      ([filters]) => filters?.queryKey?.[0] === "intelia-initiative",
+    );
+
+  it("reads the initiatives again when the socket reopens, not on the first open", () => {
+    renderHook(() => useProjectWebSocket("project-a"));
+    act(() => TestSocket.instances[0]?.open());
+    expect(initiativeReads()).toEqual([]);
+
+    act(() => {
+      TestSocket.instances[0]?.onclose?.();
+      vi.advanceTimersByTime(1000);
+      TestSocket.instances[1]?.open();
+    });
+
+    expect(initiativeReads()).toEqual([
+      [{ queryKey: ["intelia-initiative", "project", "project-a"] }],
+      [{ queryKey: ["intelia-initiative", "initiative-history"] }],
+    ]);
+  });
+
+  it("drops the grouped initiatives reload when it unmounts before 5 seconds", () => {
+    const { unmount } = renderHook(() => useProjectWebSocket("project-a"));
+    act(() => {
+      TestSocket.instances[0]?.open();
+      TestSocket.instances[0]?.onmessage?.({
+        data: JSON.stringify({
+          type: "TASK_UPDATED",
+          projectId: "project-a",
+          taskId: "task-a",
+        }),
+      });
+    });
+    unmount();
+    act(() => vi.advanceTimersByTime(10_000));
+
+    expect(initiativeReads()).toEqual([]);
+  });
 });

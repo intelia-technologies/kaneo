@@ -128,7 +128,9 @@ export function InitiativesPage({
       search: () => cleanSearch(rest),
       replace: true,
     });
-  }, [navigate, search]);
+    // The sheet may have changed counters or a block reason.
+    void refetchInitiatives();
+  }, [navigate, search, refetchInitiatives]);
 
   const visibleRows = useMemo(() => {
     let rows = groups.inFlight;

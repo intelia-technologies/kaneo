@@ -592,6 +592,57 @@ describe("InitiativeDetailPage", () => {
       });
     });
 
+    const nonWebUrls = [
+      "javascript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "file:///etc/passwd",
+    ];
+
+    it.each(nonWebUrls)("refuses to save the design link %s", async (url) => {
+      render(
+        <InitiativeDetailPage
+          workspaceId="ws-1"
+          projectId="proj-1"
+          initiativeId="init-1"
+          search={{}}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Editar" }));
+      fireEvent.change(screen.getByLabelText(/URL del diseño/), {
+        target: { value: url },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
+
+      expect(
+        await screen.findByText("Debe ser un enlace http o https"),
+      ).toBeInTheDocument();
+      expect(mocks.mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it.each(nonWebUrls)("shows a stored %s as text, never as a link", (url) => {
+      mocks.useInitiative.mockReturnValue({
+        data: { ...mockInitiative, designUrl: url },
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      });
+
+      render(
+        <InitiativeDetailPage
+          workspaceId="ws-1"
+          projectId="proj-1"
+          initiativeId="init-1"
+          search={{}}
+        />,
+      );
+
+      expect(screen.getByText(url)).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Diseño/ })).toBeNull();
+      for (const link of document.querySelectorAll("a"))
+        expect(link.getAttribute("href")).not.toBe(url);
+    });
+
     it("maps 409 INITIATIVE_NAME_TAKEN error to user-friendly Spanish message", async () => {
       mocks.mutateAsync.mockRejectedValue({
         status: 409,

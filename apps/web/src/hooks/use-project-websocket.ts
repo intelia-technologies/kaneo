@@ -16,7 +16,11 @@ import getExternalLinks from "@/fetchers/external-link/get-external-links";
 import type { ResumePreview } from "@/fetchers/integration-sync/types";
 import { patchBoardTask } from "@/lib/patch-board-task";
 import { refreshDependencies } from "@/intelia/dependencies/realtime";
-import { refreshInitiatives } from "@/intelia/initiatives/realtime";
+import {
+  cancelInitiativesRefresh,
+  invalidateProjectInitiatives,
+  refreshInitiatives,
+} from "@/intelia/initiatives/realtime";
 import type { ProjectWithTasks } from "@/types/project";
 import {
   hasSyncTaskSample,
@@ -49,6 +53,8 @@ export function useProjectWebSocket(projectId: string) {
     // or session must not alter the next effect's connection or reconnect it.
     let disposed = false;
     let needsReconcile = false;
+    // Intelia fork: a reopened socket may have missed initiative changes.
+    let hasOpened = false;
     let flushQueued = false;
     const taskVersions = new Map<string, number>();
     const titleVersions = new Map<string, number>();
@@ -169,6 +175,8 @@ export function useProjectWebSocket(projectId: string) {
         if (disposed || activeSocket !== ws) return;
         needsReconcile = true;
         flushPending();
+        if (hasOpened) invalidateProjectInitiatives(queryClient, projectId);
+        hasOpened = true;
         if (healthyTimeout !== null) clearTimeout(healthyTimeout);
         healthyTimeout = setTimeout(() => {
           healthyTimeout = null;
@@ -657,6 +665,7 @@ export function useProjectWebSocket(projectId: string) {
       pendingMessages.clear();
       if (burstReconcileTimer !== null) clearTimeout(burstReconcileTimer);
       disposed = true;
+      cancelInitiativesRefresh(projectId);
       clearPing();
       if (fallbackInterval !== null) clearInterval(fallbackInterval);
       if (retryTimeout !== null) {

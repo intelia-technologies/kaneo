@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { formatDateMedium } from "@/lib/format";
 import type { InitiativeSummary } from "../api";
+import { DesignLink } from "../components/design-link";
 import {
   GrowthLine,
   ProgressBar,
@@ -141,14 +142,12 @@ export function InitiativeInspector({
               {t("intelia:initiatives.list.inspector.designLabel")}
             </span>
             {initiative.designUrl ? (
-              <a
-                href={initiative.designUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <DesignLink
+                url={initiative.designUrl}
                 className="inline-flex items-center gap-1 text-primary text-xs hover:underline"
               >
                 {t("intelia:initiatives.list.inspector.designDoc")}
-              </a>
+              </DesignLink>
             ) : (
               <span className="text-muted-foreground text-xs">
                 {t("intelia:initiatives.list.inspector.noDesign")}

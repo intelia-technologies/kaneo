@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { formatDateMedium } from "@/lib/format";
 import type { InitiativeDetail } from "../api";
+import { DesignLink } from "../components/design-link";
 import { ProgressFigures } from "../components/initiative-progress";
 import { EditInitiativeDialog } from "./edit-initiative-dialog";
 import { rememberedListSearch } from "../search";
@@ -98,14 +99,12 @@ export function DetailHeader({
 
         <div className="flex flex-wrap items-center gap-2">
           {initiative.designUrl ? (
-            <a
-              href={initiative.designUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <DesignLink
+              url={initiative.designUrl}
               className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-medium text-foreground shadow-xs hover:bg-accent hover:text-accent-foreground"
             >
               {t("intelia:initiatives.detail.design")}
-            </a>
+            </DesignLink>
           ) : (
             <span className="inline-flex h-8 items-center justify-center rounded-md border border-dashed border-border px-3 text-xs text-muted-foreground/60 cursor-not-allowed">
               {t("intelia:initiatives.detail.noDesign")}

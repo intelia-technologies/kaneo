@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getExternalWebUrl } from "@/lib/external-url";
 import { toast } from "@/lib/toast";
 import type { InitiativeDetail, InitiativeUpdate } from "../api";
 import { useUpdateInitiative } from "../api";
@@ -68,15 +69,13 @@ export function EditInitiativeDialog({
     }
 
     const trimmedDesignUrl = designUrl.trim();
-    if (trimmedDesignUrl) {
-      try {
-        new URL(trimmedDesignUrl);
-      } catch {
-        setErrorMessage(
-          t("intelia:initiatives.detail.editDialog.designUrlInvalid"),
-        );
-        return;
-      }
+    // Only web links: `javascript:`, `data:` or `file:` pass `new URL` and
+    // the API's `z.url()`, but must never become an `href`.
+    if (trimmedDesignUrl && !getExternalWebUrl(trimmedDesignUrl)) {
+      setErrorMessage(
+        t("intelia:initiatives.detail.editDialog.designUrlInvalid"),
+      );
+      return;
     }
 
     const trimmedApprovedBy = approvedBy.trim();
