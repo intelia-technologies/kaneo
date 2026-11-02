@@ -12,6 +12,8 @@ import { coercePriority, VIRTUAL_STATUSES } from "../validate-task-fields";
 import { resolveImportTaskStatus } from "../resolve-import-task-status";
 import { claimTaskNumber } from "./claim-task-numbers";
 import { nextTaskPosition } from "./next-task-position";
+import type { InitiativeWriter } from "../../intelia/initiatives/access";
+import { assignOnCreate } from "../../intelia/initiatives/service";
 import {
   type AutomationChange,
   writeAutomation,
@@ -33,6 +35,8 @@ async function importTasks(
   tasksToImport: ImportTask[],
   currentUserId: string | undefined,
   automation: AutomationChange,
+  // Intelia: the initiative of every imported task, signed by the importer.
+  initiative?: { initiativeId: string; writer: InitiativeWriter },
 ) {
   const project = await db.query.projectTable.findFirst({
     where: eq(projectTable.id, projectId),
@@ -141,8 +145,16 @@ async function importTasks(
           })
           .returning();
 
-        // Intelia: the level commits with the task or the task does not exist.
+        // Intelia: the level and the initiative commit with the task or the
+        // task does not exist.
         if (task) await writeAutomation(tx, task.id, automation);
+        if (task && initiative)
+          await assignOnCreate(
+            tx,
+            task,
+            initiative.initiativeId,
+            initiative.writer,
+          );
 
         return task;
       });

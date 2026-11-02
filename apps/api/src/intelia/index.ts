@@ -1,5 +1,6 @@
 import { apiRouter } from "../openapi";
 import comments from "./comments";
+import initiatives from "./initiatives";
 import reactions from "./reactions";
 import relations from "./relations";
 import routines from "./routines";
@@ -10,6 +11,7 @@ import userAvatar from "./user-avatar";
 // apps/api/src/index.ts so new features do not touch upstream's file.
 const intelia = apiRouter()
   .route("/", comments)
+  .route("/", initiatives)
   .route("/", reactions)
   .route("/", relations)
   .route("/", routines)

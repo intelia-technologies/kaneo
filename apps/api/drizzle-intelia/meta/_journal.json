@@ -29,6 +29,13 @@
       "when": 1793574256186,
       "tag": "0003_task_automation",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793629906549,
+      "tag": "0004_initiative",
+      "breakpoints": true
     }
   ]
 }

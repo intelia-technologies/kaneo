@@ -46,28 +46,29 @@ export const automationInput = z
 // error, so it cannot block a write the gateway allowed.
 const DECLARED_ACTOR = /^(agent|person):[a-z0-9-]+$/;
 
+// Shared by every write that takes a declared actor (initiatives too).
+export const declaredActorInput = z
+  .preprocess(
+    (value) =>
+      typeof value === "string" &&
+      value.length <= 100 &&
+      DECLARED_ACTOR.test(value)
+        ? value
+        : undefined,
+    z.string().max(100).regex(DECLARED_ACTOR).optional(),
+  )
+  .openapi({
+    type: "string",
+    maxLength: 100,
+    pattern: DECLARED_ACTOR.source,
+    description:
+      "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
+    example: "agent:orq-jaime",
+  });
+
 export const putAutomationInput = z.intersection(
   automationInput,
-  z.object({
-    actor: z
-      .preprocess(
-        (value) =>
-          typeof value === "string" &&
-          value.length <= 100 &&
-          DECLARED_ACTOR.test(value)
-            ? value
-            : undefined,
-        z.string().max(100).regex(DECLARED_ACTOR).optional(),
-      )
-      .openapi({
-        type: "string",
-        maxLength: 100,
-        pattern: DECLARED_ACTOR.source,
-        description:
-          "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
-        example: "agent:orq-jaime",
-      }),
-  }),
+  z.object({ actor: declaredActorInput }),
 );
 
 export const automationHistoryQuery = z.object({

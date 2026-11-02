@@ -105,6 +105,9 @@ process.env.DEVICE_AUTH_CLIENT_IDS = "kaneo-cli";
 // Intelia fork: upstream's tests create tasks without the automation level;
 // intelia-task-automation.test.ts stubs this off to test the rule.
 process.env.INTELIA_TASK_AUTOMATION_OPTIONAL = "true";
+// Same for the initiative (README-INTELIA.md, «Iniciativas»);
+// intelia-initiatives.test.ts stubs it off.
+process.env.INTELIA_TASK_INITIATIVE_OPTIONAL = "true";
 
 afterEach(() => {
   vi.restoreAllMocks();

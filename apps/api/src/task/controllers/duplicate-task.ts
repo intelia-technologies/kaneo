@@ -16,6 +16,11 @@ import {
 import { publishEvent } from "../../events";
 import { projectAccessCondition } from "../../project-access/project-access-condition";
 import {
+  assertCopyInitiative,
+  type CopyInitiative,
+  writeCopyInitiative,
+} from "../../intelia/initiatives/on-copy";
+import {
   assertCopyAutomation,
   type CopyAutomation,
   writeCopyAutomation,
@@ -152,7 +157,10 @@ type DuplicatedTask = typeof taskTable.$inferSelect & {
 };
 
 function duplicateTask(
-  options: DuplicateTaskOptions & { automation: CopyAutomation },
+  options: DuplicateTaskOptions & {
+    automation: CopyAutomation;
+    initiative: CopyInitiative;
+  },
 ): Promise<DuplicatedTask>;
 // Resolves to null when the source no longer holds a rule to hand over: it was
 // reopened, or a concurrent completion already created the next occurrence.
@@ -166,10 +174,13 @@ async function duplicateTask({
   title,
   occurrence,
   automation,
+  initiative,
 }: DuplicateTaskOptions & {
   occurrence?: Occurrence;
-  // Intelia: the manual copy's level; an occurrence follows its template.
+  // Intelia: the manual copy's level and initiative; an occurrence follows
+  // its template.
   automation?: CopyAutomation;
+  initiative?: CopyInitiative;
 }): Promise<DuplicatedTask | null> {
   const sourceTask = await db.query.taskTable.findFirst({
     where: eq(taskTable.id, taskId),
@@ -314,6 +325,7 @@ async function duplicateTask({
   }
 
   await assertCopyAutomation(sourceTask.id, automation);
+  await assertCopyInitiative(sourceTask.id, initiative);
 
   // The destination object keys embed the new task id, so it is generated up front
   // instead of being left to the insert.
@@ -413,6 +425,7 @@ async function duplicateTask({
       }
 
       await writeCopyAutomation(tx, sourceTask.id, task.id, automation);
+      await writeCopyInitiative(tx, sourceTask.id, task, initiative);
 
       if (customFields.length > 0) {
         await tx
