@@ -1,4 +1,4 @@
-import { desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { desc, eq, getTableColumns, max, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
@@ -97,7 +97,18 @@ export async function writeAutomation(
     return null;
   }
 
-  const now = new Date();
+  // Strictly increasing per task, so the log and task.automation_changed
+  // order by it even with two changes in the same millisecond or a clock that
+  // goes back: at most a few milliseconds ahead of the clock. Safe because
+  // writers of a task are serialized (the advisory lock in setAutomation; at
+  // creation, the task is not visible to anyone else yet).
+  const [{ last } = { last: null }] = await tx
+    .select({ last: max(taskAutomationChangeTable.changedAt) })
+    .from(taskAutomationChangeTable)
+    .where(eq(taskAutomationChangeTable.taskId, taskId));
+  const now = new Date(
+    Math.max(Date.now(), last ? last.getTime() + 1 : Number.NEGATIVE_INFINITY),
+  );
   const row = {
     level: value.level,
     verification: value.verification,

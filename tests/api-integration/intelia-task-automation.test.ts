@@ -688,5 +688,102 @@ describe("API integration: Intelia task automation level", () => {
       }
       expect(ofEvent("task.automation_changed")).toHaveLength(2);
     });
+
+    describe("changedAt", () => {
+      const FROZEN = new Date("2026-11-02T10:00:00.000Z");
+
+      beforeEach(() => {
+        // Only Date: timers, the database and the receiver run for real.
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(FROZEN);
+      });
+
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      async function liveTask() {
+        const { app, project } = await setup();
+        await db.insert(schema.integrationTable).values({
+          projectId: project.id,
+          type: "generic-webhook",
+          isActive: true,
+          config: JSON.stringify({ webhookUrl, secret: SECRET }),
+        });
+        return { app, taskId: await createdTaskId(app, project.id) };
+      }
+
+      // Alternating values, so that every PUT is a change.
+      async function change(app: App, taskId: string, i: number) {
+        const res = await putAutomation(app, taskId, {
+          level: i % 2 === 0 ? "arranque" : "completa",
+          verification: true,
+        });
+        expect(res.status).toBe(200);
+      }
+
+      async function eventTimes(count: number) {
+        await vi.waitFor(() =>
+          expect(ofEvent("task.automation_changed")).toHaveLength(count),
+        );
+        return ofEvent("task.automation_changed")
+          .map((d) => d.body.data.changedAt as string)
+          .sort();
+      }
+
+      it("grows strictly per task with a frozen clock, the same in the log, the row and the event", async () => {
+        const { app, taskId } = await liveTask();
+        for (let i = 0; i < 12; i++) await change(app, taskId, i);
+
+        const logged = (await changes(taskId)).map((c) =>
+          c.changedAt.getTime(),
+        );
+        expect(logged).toHaveLength(13);
+        // Creation at the frozen time, then one millisecond per change.
+        expect(logged).toEqual(
+          Array.from({ length: 13 }, (_, i) => FROZEN.getTime() + i),
+        );
+        expect(await eventTimes(12)).toEqual(
+          logged.slice(1).map((t) => new Date(t).toISOString()),
+        );
+        const [row] = await stored(taskId);
+        expect(row!.setAt.getTime()).toBe(logged.at(-1));
+        // The history keeps the real order: the last change first.
+        const history = await app.request(
+          `/api/intelia/task/${taskId}/automation/history`,
+        );
+        expect(
+          ((await history.json()) as Array<{ changedAt: string }>).map((c) =>
+            new Date(c.changedAt).getTime(),
+          ),
+        ).toEqual([...logged].reverse());
+      });
+
+      it("keeps growing when the clock goes back", async () => {
+        const { app, taskId } = await liveTask();
+        await change(app, taskId, 0);
+        vi.setSystemTime(new Date(FROZEN.getTime() - 60 * 60 * 1000));
+        await change(app, taskId, 1);
+
+        const logged = (await changes(taskId)).map((c) =>
+          c.changedAt.getTime(),
+        );
+        expect(logged).toEqual([
+          FROZEN.getTime(),
+          FROZEN.getTime() + 1,
+          FROZEN.getTime() + 2,
+        ]);
+        expect(await eventTimes(2)).toEqual(
+          logged.slice(1).map((t) => new Date(t).toISOString()),
+        );
+
+        // Once the clock is past the last one, it is the clock again.
+        vi.setSystemTime(new Date(FROZEN.getTime() + 5000));
+        await change(app, taskId, 2);
+        expect((await changes(taskId)).at(-1)!.changedAt.getTime()).toBe(
+          FROZEN.getTime() + 5000,
+        );
+      });
+    });
   });
 });
