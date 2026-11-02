@@ -25,7 +25,7 @@ export function notifyAutomationChanged(
     AUTOMATION_CHANGED_EVENT,
     taskId,
     projectId,
-    writer.source === "gateway" ? null : writer.userId,
+    "userId" in writer ? writer.userId : null,
     {
       previousLevel: previous?.level ?? null,
       previousVerification: previous?.verification ?? null,

@@ -12,6 +12,10 @@ import { coercePriority, VIRTUAL_STATUSES } from "../validate-task-fields";
 import { resolveImportTaskStatus } from "../resolve-import-task-status";
 import { claimTaskNumber } from "./claim-task-numbers";
 import { nextTaskPosition } from "./next-task-position";
+import {
+  type AutomationChange,
+  writeAutomation,
+} from "../../intelia/task-automation/service";
 import { resolveImportAssignees } from "../resolve-import-assignees";
 
 export type ImportTask = {
@@ -27,7 +31,8 @@ export type ImportTask = {
 async function importTasks(
   projectId: string,
   tasksToImport: ImportTask[],
-  currentUserId?: string,
+  currentUserId: string | undefined,
+  automation: AutomationChange,
 ) {
   const project = await db.query.projectTable.findFirst({
     where: eq(projectTable.id, projectId),
@@ -135,6 +140,9 @@ async function importTasks(
             position,
           })
           .returning();
+
+        // Intelia: the level commits with the task or the task does not exist.
+        if (task) await writeAutomation(tx, task.id, automation);
 
         return task;
       });

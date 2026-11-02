@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import createTask from "./create-task";
 
+const automation = { level: "manual", verification: true } as const;
+
 const mocks = vi.hoisted(() => ({
   post: vi.fn(),
 }));
@@ -36,6 +38,7 @@ describe("createTask", () => {
         undefined,
         undefined,
         "no-priority",
+        automation,
       );
 
       expect(mocks.post).toHaveBeenCalledWith({
@@ -46,6 +49,7 @@ describe("createTask", () => {
           startDate: undefined,
           dueDate: undefined,
           priority: "no-priority",
+          automation,
         },
         param: { projectId: "project-1" },
       });
@@ -62,6 +66,7 @@ describe("createTask", () => {
       undefined,
       undefined,
       "no-priority",
+      automation,
     );
 
     expect(mocks.post).toHaveBeenCalledWith(

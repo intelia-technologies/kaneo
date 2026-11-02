@@ -5,8 +5,8 @@ import TaskCardContextMenuContent from "./task-card-context-menu-content";
 
 const duplicateTask = vi.fn();
 const canCreateTasks = vi.fn(() => true);
-vi.mock("@/hooks/mutations/task/use-duplicate-task", () => ({
-  useDuplicateTask: () => ({ mutate: duplicateTask }),
+vi.mock("@/intelia/automation/use-duplicate-with-automation", () => ({
+  useDuplicateWithAutomation: () => duplicateTask,
 }));
 
 afterEach(() => {

@@ -10,6 +10,8 @@ export type BoardFilters = {
   assignee: string[] | null;
   dueDate: string[] | null;
   labels: string[] | null;
+  // Intelia: task automation level (see intelia/automation/filter.ts).
+  automation?: string[] | null;
   customFields: Record<string, string[]> | null;
   negated?: string[] | null;
 };

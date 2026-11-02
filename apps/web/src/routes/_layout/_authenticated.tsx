@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { GlobalShortcuts } from "@/components/shortcuts/global-shortcuts";
+import { DuplicateAutomationDialog } from "@/intelia/automation/components/duplicate-automation-dialog";
 import { useTrackSignup } from "@/hooks/use-track-signup";
 import { useUserWebSocket } from "@/hooks/use-user-websocket";
 import { authClient } from "@/lib/auth-client";
@@ -52,6 +53,7 @@ function AuthenticatedLayout() {
   return (
     <>
       <GlobalShortcuts />
+      <DuplicateAutomationDialog />
       <Outlet />
     </>
   );

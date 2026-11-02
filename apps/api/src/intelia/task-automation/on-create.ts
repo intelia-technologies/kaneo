@@ -1,5 +1,9 @@
 import type { Context, Next } from "hono";
-import type { AutomationChange, AutomationValue } from "./service";
+import type {
+  AutomationChange,
+  AutomationValue,
+  AutomationWriter,
+} from "./service";
 
 // Upstream's API test suite and CI smoke create tasks without Intelia's field;
 // they set this to "true". Never set in a deployment (design 18 §3, decision
@@ -8,9 +12,10 @@ import type { AutomationChange, AutomationValue } from "./service";
 export const AUTOMATION_OPTIONAL_ENV = "INTELIA_TASK_AUTOMATION_OPTIONAL";
 
 /**
- * Middleware of `POST /api/task/{projectId}`, before body validation: with
- * the test exception on, a JSON body without `automation` gets `manual` with
- * verification. Otherwise it does nothing and the body schema rejects it.
+ * Middleware of `POST /api/task/{projectId}` and `POST /api/task/import/
+ * {projectId}`, before body validation: with the test exception on, a JSON
+ * body without `automation` gets `manual` with verification. Otherwise it
+ * does nothing and the body schema rejects it.
  */
 export async function testAutomationDefault(c: Context, next: Next) {
   if (process.env[AUTOMATION_OPTIONAL_ENV] !== "true") return next();
@@ -31,20 +36,23 @@ export async function testAutomationDefault(c: Context, next: Next) {
   return next();
 }
 
+/** Whoever makes the request writes the level: a session or an API key. */
+export function callerWriter(c: Context): AutomationWriter {
+  return {
+    source: c.get("apiKey") ? "api_key" : "session",
+    userId: c.get("userId"),
+  };
+}
+
 /**
- * The validated `automation` of `POST /api/task/{projectId}`, signed by whoever
- * creates the task (session or API key: the creator may always set the first
- * level). Upstream's createTask writes it in the task's own transaction.
+ * The validated `automation` of `POST /api/task/{projectId}` (and the import),
+ * signed by whoever creates the task (session or API key: the creator may
+ * always set the first level). Upstream's createTask writes it in the task's
+ * own transaction.
  */
 export function automationOnCreateBy(
   c: Context,
   value: AutomationValue,
 ): AutomationChange {
-  return {
-    value,
-    writer: {
-      source: c.get("apiKey") ? "api_key" : "session",
-      userId: c.get("userId"),
-    },
-  };
+  return { value, writer: callerWriter(c) };
 }

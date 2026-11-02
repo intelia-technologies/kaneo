@@ -44,6 +44,9 @@ vi.mock("@/hooks/use-workspace-permission", () => ({
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
+vi.mock("@/intelia/automation/use-import-block", () => ({
+  useAutomationImportBlock: () => null,
+}));
 vi.mock(
   "@/hooks/queries/gitlab-integration/use-get-gitlab-integration",
   () => ({

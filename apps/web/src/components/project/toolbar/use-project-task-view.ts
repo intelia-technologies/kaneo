@@ -44,6 +44,7 @@ export function useProjectTaskView({
     columns: project?.columns,
     tasks,
     showStatus: scope !== "backlog",
+    projectId,
   });
 
   return { search, setSearch, descriptionSearch, filters, subjects };

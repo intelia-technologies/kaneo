@@ -420,6 +420,10 @@ describe("notification recipient boundaries", () => {
           { title: "Invalid", status: "to-do", userId: outsider.user.id },
         ],
         actor.user.id,
+        {
+          value: { level: "manual", verification: true },
+          writer: { source: "session", userId: actor.user.id },
+        },
       ),
     ).resolves.toMatchObject({
       results: {

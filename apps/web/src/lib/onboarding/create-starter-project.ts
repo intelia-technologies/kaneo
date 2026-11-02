@@ -19,6 +19,11 @@ export async function createStarterProject({
     workspaceId,
     icon: "Layout",
   });
-  await importTasks(project.id, tasks).catch(() => undefined);
+  // Onboarding sample tasks are not chosen by the person: they get the
+  // factory's safe default, the same one the one-off backfill gives.
+  await importTasks(project.id, tasks, {
+    level: "manual",
+    verification: true,
+  }).catch(() => undefined);
   return project.id;
 }

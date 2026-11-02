@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { countActiveFilters } from "@/lib/task-filters/count-active-filters";
 import { filterProjectTasks } from "@/lib/task-filters/filter-project-tasks";
+import { useProjectAutomation } from "@/intelia/automation/api";
 import {
   expandLabelFilter,
   type FilterLabel,
@@ -35,6 +36,7 @@ const FILTER_KEYS: Array<keyof BoardFilters> = [
   "assignee",
   "dueDate",
   "labels",
+  "automation",
   "customFields",
   "negated",
 ];
@@ -128,6 +130,9 @@ export function useTaskFiltersWithLabelsSupport(
     effectiveFilters.customFields ? projectId : undefined,
   );
   const { getValuesForTask, hasData } = customFieldValues;
+  const { data: automation } = useProjectAutomation(
+    effectiveFilters.automation ? projectId : undefined,
+  );
 
   const createMatcher = useCallback(() => {
     const context = {
@@ -138,6 +143,7 @@ export function useTaskFiltersWithLabelsSupport(
       today: new Date(),
       getCustomFieldValues: getValuesForTask,
       labelIds: matchingLabelIds,
+      automation,
     };
     // Missing query data is unknown, rather than an empty value on every task.
     const readyFilters = !hasData
@@ -153,6 +159,7 @@ export function useTaskFiltersWithLabelsSupport(
     hasData,
     descriptionMatches,
     matchingLabelIds,
+    automation,
   ]);
 
   const filterTasks = useCallback(
@@ -205,7 +212,7 @@ export function useTaskFiltersWithLabelsSupport(
   };
 
   const toggleFilter = (
-    key: "status" | "priority" | "assignee" | "dueDate" | "labels",
+    key: Exclude<keyof BoardFilters, "customFields" | "negated">,
     value: string,
   ) => {
     setFilters((prev) => {

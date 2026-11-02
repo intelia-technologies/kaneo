@@ -12133,6 +12133,55 @@
                 "properties": {
                   "title": {
                     "type": "string"
+                  },
+                  "automation": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "completa"
+                            ],
+                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
+                          },
+                          "verification": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ],
+                            "description": "Whether the verifier checks the task when the worker ends."
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "verification"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "manual",
+                              "arranque"
+                            ],
+                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
+                          },
+                          "verification": {
+                            "type": "boolean",
+                            "description": "Whether the verifier checks the task when the worker ends."
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "verification"
+                        ]
+                      }
+                    ],
+                    "description": "The copy's automation level and verification. Omit to copy the source's; a source without a level then needs this field."
                   }
                 }
               }
@@ -12151,7 +12200,7 @@
             }
           },
           "400": {
-            "description": "Invalid task fields or request",
+            "description": "Invalid task fields or request, or no level to copy",
             "content": {
               "application/json": {
                 "schema": {
@@ -12847,10 +12896,60 @@
                         "status"
                       ]
                     }
+                  },
+                  "automation": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "completa"
+                            ],
+                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
+                          },
+                          "verification": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ],
+                            "description": "Whether the verifier checks the task when the worker ends."
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "verification"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "manual",
+                              "arranque"
+                            ],
+                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
+                          },
+                          "verification": {
+                            "type": "boolean",
+                            "description": "Whether the verifier checks the task when the worker ends."
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "verification"
+                        ]
+                      }
+                    ],
+                    "description": "The automation level and verification of every imported task. Required, with no default."
                   }
                 },
                 "required": [
-                  "tasks"
+                  "tasks",
+                  "automation"
                 ]
               }
             }
@@ -12868,7 +12967,7 @@
             }
           },
           "400": {
-            "description": "Invalid body",
+            "description": "Invalid body, or no `automation`",
             "content": {
               "application/json": {
                 "schema": {

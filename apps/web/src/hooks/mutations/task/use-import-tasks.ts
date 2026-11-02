@@ -1,5 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import importTasks, { type TaskToImport } from "@/fetchers/task/import-tasks";
+import {
+  AUTOMATION_QUERY_ROOT,
+  type AutomationInput,
+} from "@/intelia/automation/api";
 
 import { invalidateMyWork } from "@/lib/invalidate-my-work";
 
@@ -9,13 +13,16 @@ const useImportTasks = () => {
     mutationFn: ({
       projectId,
       tasks,
+      automation,
     }: {
       projectId: string;
       tasks: TaskToImport[];
-    }) => importTasks(projectId, tasks),
+      automation: AutomationInput;
+    }) => importTasks(projectId, tasks, automation),
     onSuccess: () => {
       invalidateMyWork(queryClient);
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      void queryClient.invalidateQueries({ queryKey: [AUTOMATION_QUERY_ROOT] });
     },
   });
 };

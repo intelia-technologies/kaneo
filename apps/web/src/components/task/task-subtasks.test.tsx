@@ -123,6 +123,7 @@ describe("TaskSubtasks", () => {
         target: { value: "Design login form" },
       },
     );
+    chooseAutomation();
     fireEvent.click(
       screen.getByRole("button", { name: "tasks:subtasks.addAction" }),
     );
@@ -157,6 +158,7 @@ describe("TaskSubtasks", () => {
         target: { value: "Implement login form" },
       },
     );
+    chooseAutomation();
     fireEvent.click(
       screen.getByRole("button", { name: "tasks:subtasks.addAction" }),
     );
@@ -205,6 +207,14 @@ describe("TaskSubtasks", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+function chooseAutomation() {
+  for (const name of ["levels.manual", "yes"]) {
+    fireEvent.click(
+      screen.getByRole("radio", { name: `intelia:automation.${name}` }),
+    );
+  }
+}
 
 vi.mock("@/fetchers/column/get-columns", () => ({
   default: (projectId: string) => mocks.fetchColumns(projectId),

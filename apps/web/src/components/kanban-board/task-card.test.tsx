@@ -69,6 +69,9 @@ vi.mock("@/hooks/use-workspace-permission", () => ({
 vi.mock("@/hooks/mutations/task/use-update-task-status-priority", () => ({
   useUpdateTaskPriority: () => ({ mutateAsync: vi.fn() }),
 }));
+vi.mock("@/intelia/automation/components/task-card-automation", () => ({
+  TaskCardAutomation: () => null,
+}));
 vi.mock("./task-card-context-menu/task-card-context-menu-content", () => ({
   default: () => null,
 }));

@@ -25,6 +25,7 @@ import {
   initializeEventSubscriptions,
   registerPlugin,
 } from "../../apps/api/src/plugins/registry";
+import { createNextOccurrence } from "../../apps/api/src/task/recurrence/create-next-occurrence";
 import { mockAnonymousSession, mockAuthenticatedSession } from "./helpers/auth";
 import { resetTestDatabase } from "./helpers/database";
 import { readErrorBody } from "./helpers/error-body";
@@ -782,6 +783,72 @@ describe("API integration: Intelia task automation level", () => {
         await change(app, taskId, 2);
         expect((await changes(taskId)).at(-1)!.changedAt.getTime()).toBe(
           FROZEN.getTime() + 5000,
+        );
+      });
+
+      it("duplicate, recurrence and import log copies under the same rule and send no change event", async () => {
+        const { app, project, columns } = await setup();
+        await db.insert(schema.integrationTable).values({
+          projectId: project.id,
+          type: "generic-webhook",
+          isActive: true,
+          config: JSON.stringify({ webhookUrl, secret: SECRET }),
+        });
+        const sourceId = await createdTaskId(app, project.id);
+
+        const dup = await app.request(`/api/task/duplicate/${sourceId}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        expect(dup.status).toBe(200);
+        const copyId = ((await dup.json()) as { id: string }).id;
+
+        const imported = await app.request(`/api/task/import/${project.id}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            tasks: [{ title: "Importada", status: "to-do" }],
+            automation: { level: "arranque", verification: false },
+          }),
+        });
+        expect(imported.status).toBe(200);
+        const [importedTask] = await db
+          .select({ id: schema.taskTable.id })
+          .from(schema.taskTable)
+          .where(eq(schema.taskTable.title, "Importada"));
+
+        await db
+          .update(schema.taskTable)
+          .set({
+            status: "done",
+            columnId: columns.done.id,
+            recurrence: { frequency: "weekly", interval: 1, timeZone: "UTC" },
+          })
+          .where(eq(schema.taskTable.id, sourceId));
+        const occurrence = await createNextOccurrence(sourceId, null);
+        expect(occurrence).not.toBeNull();
+
+        // Each copy starts its own log at the frozen clock, and a later change
+        // of that copy follows it by one millisecond.
+        const copies = [copyId, importedTask!.id, occurrence!.id];
+        for (const [i, id] of copies.entries()) {
+          await change(app, id, i);
+          expect((await changes(id)).map((c) => c.changedAt.getTime())).toEqual(
+            [FROZEN.getTime(), FROZEN.getTime() + 1],
+          );
+        }
+
+        // Only the three PUTs send task.automation_changed; the copies sent
+        // task.created (duplicate and import) and nothing else.
+        const times = await eventTimes(3);
+        expect(
+          ofEvent("task.automation_changed")
+            .map((d) => d.body.task.id)
+            .sort(),
+        ).toEqual([...copies].sort());
+        expect(times).toEqual(
+          Array(3).fill(new Date(FROZEN.getTime() + 1).toISOString()),
         );
       });
     });

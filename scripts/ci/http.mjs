@@ -90,11 +90,15 @@ export async function seed(origin, label) {
     icon: "Folder",
     slug: "CI",
   });
+  // Every task needs a level (INTELIA_TASK_AUTOMATION_OPTIONAL=false). The
+  // previous release in the upgrade test ignores the unknown field, so its
+  // task is still backfilled by the migration.
   const task = await client.json(`/api/task/${project.id}`, "POST", {
     title: `CI ${label} task`,
     description: "Upgrade and realtime fixture",
     priority: "medium",
     status: "to-do",
+    automation: { level: "manual", verification: true },
   });
   return { client, account, workspace, project, task };
 }

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { AUTOMATION_QUERY_ROOT } from "@/intelia/automation/api";
 import { invalidateMyWork } from "@/lib/invalidate-my-work";
 import createTask, { type CreateTaskInput } from "@/fetchers/task/create-task";
 import { trackFirstTask } from "@/lib/analytics/activation";
@@ -30,10 +31,10 @@ function useCreateTask() {
         startDate ? new Date(startDate) : undefined,
         dueDate ? new Date(dueDate) : undefined,
         priority,
+        automation,
         customFields,
         draftAssetIds,
         recurrence,
-        automation,
       ),
     onSuccess: (_data, variables) => {
       invalidateMyWork(queryClient);
@@ -45,6 +46,7 @@ function useCreateTask() {
       void queryClient.invalidateQueries({
         queryKey: ["custom-field-values", variables.projectId],
       });
+      void queryClient.invalidateQueries({ queryKey: [AUTOMATION_QUERY_ROOT] });
     },
   });
 }

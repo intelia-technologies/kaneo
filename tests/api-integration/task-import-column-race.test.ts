@@ -11,6 +11,11 @@ import {
   createWorkspaceMember,
 } from "./helpers/fixtures";
 
+const automation = {
+  value: { level: "manual", verification: true },
+  writer: { source: "migration" },
+} as const;
+
 const hooks = vi.hoisted(() => ({ beforePosition: vi.fn(), publish: vi.fn() }));
 vi.mock("../../apps/api/src/events", async (original) => ({
   ...(await original<object>()),
@@ -68,6 +73,7 @@ describe("task import column deletion", () => {
           { title: "Second", status },
         ],
         user.id,
+        automation,
       );
       expect(result.results.successful).toBe(2);
       expect(result.results.failed).toBe(0);
@@ -96,6 +102,7 @@ describe("task import column deletion", () => {
       project.id,
       [{ title: "Existing", status: "done" }],
       user.id,
+      automation,
     );
     expect(result.results.successful).toBe(1);
     hooks.publish.mockClear();
@@ -141,6 +148,7 @@ describe("task import column deletion", () => {
         project.id,
         [{ title: "Concurrent", status: "done" }],
         user.id,
+        automation,
       );
       expect(result.results.successful).toBe(1);
       expect(result.results.failed).toBe(0);

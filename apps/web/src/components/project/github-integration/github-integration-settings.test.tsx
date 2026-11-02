@@ -96,6 +96,9 @@ vi.mock("@/hooks/use-workspace-permission", () => ({
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
+vi.mock("@/intelia/automation/use-import-block", () => ({
+  useAutomationImportBlock: () => null,
+}));
 vi.mock("@/lib/toast", () => ({
   toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }));
