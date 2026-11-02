@@ -297,7 +297,30 @@ Cada tarea lleva un **nivel** (`manual`, `arranque` o `completa`) y una **verifi
   - `GET /api/intelia/project/{projectId}/automation`: los niveles de las tareas del proyecto que lo tienen, por número (`project:read` y `task:read`, o el token).
 - **Token de servicio del gateway:** `INTELIA_GATEWAY_TOKEN` (mínimo 32 caracteres), en la cabecera `X-Service-Token`. Solo abre las cuatro rutas de arriba, sin sesión ni permisos de Kaneo; en cualquier otra ruta se ignora. Un token que no coincide, o cualquier token sin `INTELIA_GATEWAY_TOKEN` configurado, recibe 401. El valor vive en la configuración de despliegue de la factory, nunca en este repo.
 - **Relleno único:** la migración `0003` pone `manual` con verificación a todas las tareas abiertas que existan al aplicarla y deja una fila `migration` por tarea en el diario. Las cerradas quedan sin nivel: las que están en una columna final de su proyecto (el criterio de `taskIsCompleted` de upstream) y, en un proyecto antiguo sin columnas, las `done`. Esta migración corre antes de `migrateColumns()` de upstream, que da a esos proyectos las columnas por defecto con `done` como única final.
-- **Tests:** `tests/api-integration/intelia-task-automation.test.ts` (creación, transacción con fallo inyectado y reintento, cambios y diario, 403 a las API keys, el token del gateway) e `intelia-task-automation-backfill.test.ts` (el relleno sobre tareas que ya existían, también en un proyecto sin columnas). Corren con la suite de integración (`intelia-integration.yml`): en cada versión, a mano o en las PR que cambian ese workflow, no en cada PR. `scripts/ci/upgrade.mjs` (job `docker-build`, en cada PR) comprueba el relleno al actualizar desde la imagen de upstream.
+- **Evento `task.automation_changed`:** cada cambio real del nivel por `PUT /api/intelia/task/{taskId}/automation`, venga de la sesión de una persona (la interfaz) o del token del gateway, sale por el webhook genérico como `intelia.routine_skipped`: a cada webhook genérico activo del proyecto que tenga activado `task.status_changed`, con el sobre y la firma de upstream (`apps/api/src/intelia/webhooks.ts`). Es lo que arranca la tarea en el despachador al subir el nivel (diseño 18 §4.1). **No sale** al crear la tarea (sale solo `task.created`), ni al escribir el mismo valor que ya tiene, ni con el relleno de la migración. Sale después del commit y sin retener la respuesta, como los eventos de upstream: si la entrega falla, el cambio queda igual y no se reintenta (el reconciliador del despachador es la red de seguridad), y dos cambios muy seguidos pueden llegar en otro orden (`data.changedAt` los ordena). Cuerpo:
+
+  ```json
+  {
+    "event": "task.automation_changed",
+    "timestamp": "2026-11-02T10:00:00.123Z",
+    "integration": { "type": "generic-webhook" },
+    "project": { "id": "…", "name": "…", "workspaceId": "…" },
+    "task": { "id": "…", "number": 12, "title": "…", "status": "to-do", "statusName": "To Do", "priority": "medium", "url": "…" },
+    "actor": { "id": null, "name": null },
+    "data": {
+      "previousLevel": "manual",
+      "previousVerification": true,
+      "level": "arranque",
+      "verification": true,
+      "source": "gateway",
+      "changedByActor": "agent:orq-jaime",
+      "changedAt": "2026-11-02T10:00:00.100Z"
+    }
+  }
+  ```
+
+  El autor, como en el diario: con sesión, `actor` es la persona (id y nombre de Kaneo), `source: "session"` y `changedByActor: null`; con el token, `actor` va a nulos, `source: "gateway"` y `changedByActor` es el id del grafo por el que actuó. `previousLevel` y `previousVerification` son nulos si la tarea no tenía nivel. `changedAt` es el de la fila del diario. Sin emails ni tokens.
+- **Tests:** `tests/api-integration/intelia-task-automation.test.ts` (creación, transacción con fallo inyectado y reintento, cambios y diario, 403 a las API keys, el token del gateway y `task.automation_changed` con un receptor HTTP real que comprueba la firma: uno por cambio desde la sesión y otro desde el gateway, ninguno al crear ni al repetir el valor) e `intelia-task-automation-backfill.test.ts` (el relleno sobre tareas que ya existían, también en un proyecto sin columnas). Corren con la suite de integración (`intelia-integration.yml`): en cada versión, a mano o en las PR que cambian ese workflow, no en cada PR. `scripts/ci/upgrade.mjs` (job `docker-build`, en cada PR) comprueba el relleno al actualizar desde la imagen de upstream.
 
 ## Vista «Dependencias»
 

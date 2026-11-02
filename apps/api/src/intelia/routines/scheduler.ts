@@ -1,14 +1,10 @@
 import { and, asc, eq, lte } from "drizzle-orm";
 import db from "../../database";
-import { integrationTable, taskTable, userTable } from "../../database/schema";
-import {
-  type GenericWebhookConfig,
-  normalizeGenericWebhookConfig,
-} from "../../plugins/generic-webhook/config";
-import { sendEvent } from "../../plugins/generic-webhook/events";
+import { taskTable, userTable } from "../../database/schema";
 import updateTaskStatus from "../../task/controllers/update-task-status";
 import { taskIsCompleted } from "../../task/task-is-completed";
 import { type RoutineResult, routineRunTable, routineTable } from "../schema";
+import { sendToStatusWebhooks } from "../webhooks";
 import { nextRunAt } from "./schedule";
 import {
   ROUTINE_SERVICE_ID,
@@ -162,46 +158,27 @@ async function runRoutine(
   return result;
 }
 
-// Same generic webhook, envelope and X-Kaneo-Signature as upstream's events,
-// for every active generic webhook of the project that sends
-// task.status_changed. Body documented in README-INTELIA.md.
+// Body documented in README-INTELIA.md.
 async function notifyRoutineSkipped(
   routine: DueRoutine,
   projectId: string,
   runId: string,
   next: Date,
 ) {
-  const integrations = await db
-    .select({ config: integrationTable.config })
-    .from(integrationTable)
-    .where(
-      and(
-        eq(integrationTable.projectId, projectId),
-        eq(integrationTable.type, "generic-webhook"),
-        eq(integrationTable.isActive, true),
-      ),
-    );
-  for (const integration of integrations) {
-    const config = normalizeGenericWebhookConfig(
-      JSON.parse(integration.config) as GenericWebhookConfig,
-    );
-    if (!config.events?.taskStatusChanged) continue;
-    await sendEvent(
-      config,
-      ROUTINE_SKIPPED_EVENT,
-      routine.taskId,
-      projectId,
-      ROUTINE_SERVICE_ID,
-      {
-        routineId: routine.id,
-        runId,
-        result: "saltada_abierta",
-        scheduledAt: routine.nextRunAt.toISOString(),
-        nextRunAt: next.toISOString(),
-        cron: routine.cron,
-        timezone: routine.timezone,
-        owner: { id: routine.ownerId, name: routine.ownerName },
-      },
-    );
-  }
+  await sendToStatusWebhooks(
+    ROUTINE_SKIPPED_EVENT,
+    routine.taskId,
+    projectId,
+    ROUTINE_SERVICE_ID,
+    {
+      routineId: routine.id,
+      runId,
+      result: "saltada_abierta",
+      scheduledAt: routine.nextRunAt.toISOString(),
+      nextRunAt: next.toISOString(),
+      cron: routine.cron,
+      timezone: routine.timezone,
+      owner: { id: routine.ownerId, name: routine.ownerName },
+    },
+  );
 }
