@@ -9,10 +9,12 @@ export type CreateTaskRequest = InferRequestType<
 
 // Intelia fork: the API requires `automation` (README-INTELIA.md, «Nivel de
 // automatización de las tareas»). The creation form and the subtask input do
-// not ask for it yet (AU-12), so it stays optional here and a create without
-// it fails before the request.
+// not ask for it yet (AU-12), so it is optional here.
 export type CreateTaskInput = Omit<CreateTaskRequest, "automation"> &
   Partial<Pick<CreateTaskRequest, "automation">>;
+type CreateTaskJson = InferRequestType<
+  (typeof client)["task"][":projectId"]["$post"]
+>["json"];
 
 async function createTask(
   title: string,
@@ -31,24 +33,25 @@ async function createTask(
   if (!projectId) {
     throw new Error("No project selected for task creation");
   }
-  if (!automation) {
-    throw new Error("Choose the task's automation level and verification");
-  }
 
+  // Without a level the request goes as before and the API decides: 400 in a
+  // deployment, the test default in upstream's CI smoke. The client does not
+  // repeat the server's rule, hence the cast of the optional field.
+  const json = {
+    title,
+    description,
+    ...(userId ? { userId } : {}),
+    status,
+    startDate: startDate?.toISOString() || undefined,
+    dueDate: dueDate?.toISOString() || undefined,
+    priority,
+    recurrence,
+    customFields,
+    draftAssetIds,
+    ...(automation ? { automation } : {}),
+  } as CreateTaskJson;
   const response = await client.task[":projectId"].$post({
-    json: {
-      title,
-      description,
-      ...(userId ? { userId } : {}),
-      status,
-      startDate: startDate?.toISOString() || undefined,
-      dueDate: dueDate?.toISOString() || undefined,
-      priority,
-      recurrence,
-      customFields,
-      draftAssetIds,
-      automation,
-    },
+    json,
     param: { projectId },
   });
 

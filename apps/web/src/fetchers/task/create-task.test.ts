@@ -15,8 +15,6 @@ vi.mock("@kaneo/libs", () => ({
   },
 }));
 
-// Intelia fork: the level every create sends (README-INTELIA.md).
-const automation = { level: "manual", verification: true } as const;
 describe("createTask", () => {
   beforeEach(() => {
     mocks.post.mockReset();
@@ -38,10 +36,6 @@ describe("createTask", () => {
         undefined,
         undefined,
         "no-priority",
-        undefined,
-        undefined,
-        undefined,
-        automation,
       );
 
       expect(mocks.post).toHaveBeenCalledWith({
@@ -52,7 +46,6 @@ describe("createTask", () => {
           startDate: undefined,
           dueDate: undefined,
           priority: "no-priority",
-          automation,
         },
         param: { projectId: "project-1" },
       });
@@ -69,10 +62,6 @@ describe("createTask", () => {
       undefined,
       undefined,
       "no-priority",
-      undefined,
-      undefined,
-      undefined,
-      automation,
     );
 
     expect(mocks.post).toHaveBeenCalledWith(
@@ -80,21 +69,5 @@ describe("createTask", () => {
         json: expect.objectContaining({ userId: "user-1" }),
       }),
     );
-  });
-
-  it("sends nothing without an automation level", async () => {
-    await expect(
-      createTask(
-        "Task",
-        "",
-        "project-1",
-        undefined,
-        "to-do",
-        undefined,
-        undefined,
-        "no-priority",
-      ),
-    ).rejects.toThrow("automation level");
-    expect(mocks.post).not.toHaveBeenCalled();
   });
 });
