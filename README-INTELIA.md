@@ -230,6 +230,17 @@ Reacciones con emoji en los comentarios y en la propia tarea (la tarjeta), con a
 - **Solo lee** tablas de upstream: sin tablas ni migraciones propias.
 - **Test:** `tests/api-integration/intelia-relations.test.ts`.
 
+## Tiempo en el estado actual
+
+`GET /api/intelia/project/{projectId}/status-age` (OpenAPI, etiqueta `Tasks`; código en `apps/api/src/intelia/status-age/`) da cuánto lleva cada tarea en su columna y lo habitual en cada columna del proyecto ([diseño 23](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/23-tiempo-en-estado.md) §3, §4 y §6).
+
+- **`tareas`:** las tareas del proyecto fuera de `done` y `cancelled` (o `canceled`), por id, con su fecha de entrada: su última actividad `status_changed` o, si no hay ninguna, su creación. Reordenar dentro de la columna no deja actividad y no la cambia. Una sola consulta por petición. La fecha la calcula `statusSince` (`apps/api/src/intelia/status-since.ts`), la misma que usa la vista de iniciativas.
+- **`columnas`:** por slug, cada columna con alguna **estancia terminada** que salió en los últimos 90 días: `casos`, `p75_s` y `p90_s` (segundos, `percentile_cont` en PostgreSQL). Una estancia va de un cambio de estado de la tarea (o de su creación, la primera) al siguiente, en la columna que este deja (`oldStatus`); las abiertas no cuentan. Con menos de 10 casos, `p75_s` y `p90_s` son `null`. Se atribuyen al proyecto actual de la tarea.
+- **Caché:** `columnas` se guarda en memoria por proyecto e instancia durante 10 minutos; `calculado_en` dice cuándo se calculó. `tareas` no se guarda.
+- **Permisos:** los de listar las tareas del proyecto (`project:read` y `task:read`), con sesión o con API key; sin acceso, la misma respuesta que `GET /api/task/tasks/{projectId}`.
+- **Solo lee** tablas de upstream: sin tablas ni migraciones propias.
+- **Test:** `tests/api-integration/intelia-status-age.test.ts`.
+
 ## Foto de perfil con API key
 
 `PUT /api/intelia/user/avatar` (OpenAPI, etiqueta `User`; código en `apps/api/src/intelia/user-avatar/`) guarda el avatar de quien llama y fija `user.image` a su URL en la misma petición. Sirve con sesión o con API key, para que cada agente ponga su foto con su propia clave. En upstream no se puede con una API key: `PUT /api/user/avatar` guarda la imagen pero no toca `user.image`, y `POST /api/auth/update-user` exige sesión.
