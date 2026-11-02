@@ -36,6 +36,22 @@ export type InitiativeDetailSearch = {
   cancelled?: boolean;
 };
 
+// The listing's last search per project, so «← Todas las iniciativas» in the
+// detail returns to the same search, order, filter and selection, however
+// the detail was reached. Memory only: a reload starts from the defaults.
+const lastListSearch = new Map<string, InitiativesListSearch>();
+
+export function rememberListSearch(
+  projectId: string,
+  search: InitiativesListSearch,
+) {
+  lastListSearch.set(projectId, { ...search, taskId: undefined });
+}
+
+export function rememberedListSearch(projectId: string): InitiativesListSearch {
+  return lastListSearch.get(projectId) ?? {};
+}
+
 const text = (value: unknown) =>
   typeof value === "string" && value !== "" ? value : undefined;
 

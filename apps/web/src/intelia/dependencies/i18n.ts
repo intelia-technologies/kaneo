@@ -27,6 +27,15 @@ const en = {
     loadErrorDescription: "Could not retrieve task relations for this project.",
     retry: "Retry",
     loading: "Loading dependencies...",
+    initiative: "Initiative",
+    allInitiatives: "All",
+    withoutInitiative: "Without initiative",
+    showCancelled: "Show cancelled tasks",
+    hideCancelled: "Hide cancelled tasks",
+    cancelledTasks: "Cancelled tasks",
+    longestPendingChain: "Longest pending chain",
+    chainBadge: "Chain",
+    openInDependencies: "Open in Dependencies",
   },
 };
 
@@ -58,6 +67,15 @@ const es = {
       "No se pudieron obtener las relaciones entre tareas de este proyecto.",
     retry: "Reintentar",
     loading: "Cargando dependencias...",
+    initiative: "Iniciativa",
+    allInitiatives: "Todas",
+    withoutInitiative: "Sin iniciativa",
+    showCancelled: "Mostrar canceladas",
+    hideCancelled: "Ocultar canceladas",
+    cancelledTasks: "Tareas canceladas",
+    longestPendingChain: "Cadena pendiente más larga",
+    chainBadge: "Cadena",
+    openInDependencies: "Abrir en Dependencias",
   },
 };
 

@@ -18,6 +18,9 @@ vi.mock("react-i18next", () => ({
       if (key === "intelia:dependencies.openExternal") {
         return `Open ${opts?.task} in ${opts?.project}`;
       }
+      if (key === "intelia:dependencies.chainBadge") {
+        return "Chain";
+      }
       return key;
     },
   }),
@@ -56,10 +59,17 @@ const defaultProps = {
   draggable: true,
 } as unknown as NodeProps & { data: ExternalNodeData };
 
-function renderNode() {
+function renderNode(dataOverrides?: Partial<ExternalNodeData>) {
+  const props = {
+    ...defaultProps,
+    data: {
+      ...mockData,
+      ...dataOverrides,
+    },
+  };
   return render(
     <ReactFlowProvider>
-      <ExternalNode {...defaultProps} />
+      <ExternalNode {...props} />
     </ReactFlowProvider>,
   );
 }
@@ -117,5 +127,36 @@ describe("ExternalNode", () => {
 
     fireEvent.keyDown(link, { key: " " });
     expect(m.navigate).toHaveBeenCalledTimes(2);
+  });
+
+  it("renders with button role, calls onOpen on click/keyboard for same-project task", () => {
+    const onOpen = vi.fn();
+    renderNode({
+      sameProject: true,
+      scopeName: "Motor de flujo",
+      onOpen,
+    });
+
+    const button = screen.getByRole("button", {
+      name: "EXT-1 · External task 1",
+    });
+    expect(button).toBeInTheDocument();
+    expect(screen.getByText("Motor de flujo")).toBeInTheDocument();
+
+    fireEvent.click(button);
+    expect(onOpen).toHaveBeenCalledWith("task-ext-1");
+    expect(m.navigate).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(button, { key: "Enter" });
+    expect(onOpen).toHaveBeenCalledTimes(2);
+  });
+
+  it("renders critical chain badge when isCritical is true", () => {
+    renderNode({
+      isCritical: true,
+      criticalLabel: "Cadena pendiente más larga",
+    });
+
+    expect(screen.getByText("Chain")).toBeInTheDocument();
   });
 });

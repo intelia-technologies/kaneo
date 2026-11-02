@@ -15,6 +15,25 @@ import type {
   TaskNodeData,
 } from "./types";
 
+export type FrontierTask = {
+  id: string;
+  number?: number | null;
+  title?: string;
+  status?: string;
+  projectId?: string;
+  projectSlug?: string;
+  projectName?: string;
+  initiativeId?: string | null;
+  initiativeName?: string | null;
+  isCompleted?: boolean;
+};
+
+export type GraphScope = {
+  taskIds: Set<string>;
+  frontier?: FrontierTask[] | Map<string, FrontierTask>;
+  initiativeNames?: Map<string, string>;
+};
+
 export type BuildGraphModelOptions = {
   tasks: Task[];
   columns: GraphColumn[];
@@ -25,6 +44,8 @@ export type BuildGraphModelOptions = {
   projectSlug: string;
   workspaceId: string;
   onOpenTask: (taskId: string) => void;
+  scope?: GraphScope;
+  showCancelled?: boolean;
 };
 
 export type GraphModelResult = {
@@ -69,9 +90,18 @@ export function isTaskCancelled(
   columnsBySlug: Map<string, GraphColumn>,
 ): boolean {
   const col = resolveTaskColumn(task, columnsBySlug);
-  if (!col?.isFinal) return false;
-  const slug = col.slug.toLowerCase();
+  if (col) {
+    if (!col.isFinal) return false;
+    const slug = col.slug.toLowerCase();
+    return slug === "cancelled" || slug === "canceled";
+  }
+  const slug = (task.status ?? "").toLowerCase();
   return slug === "cancelled" || slug === "canceled";
+}
+
+export function isExternalTaskCancelled(status: string): boolean {
+  const s = status.toLowerCase();
+  return s === "cancelled" || s === "canceled";
 }
 
 export function isTaskDone(
@@ -89,7 +119,7 @@ export function checkIsBlocked(
   columnsBySlug: Map<string, GraphColumn>,
   incomingBlocks: ProjectRelation[],
   allTasksById: Map<string, Task>,
-  externalTasksById: Map<string, ProjectRelationExternalTask>,
+  externalTasksById: Map<string, { isCompleted: boolean; status?: string }>,
 ): boolean {
   // A finished task (final column) is never marked blocked
   if (isTaskFinal(task, columnsBySlug)) {
@@ -131,7 +161,12 @@ export function buildGraphModel({
   projectSlug,
   workspaceId,
   onOpenTask,
+  scope,
+  showCancelled,
 }: BuildGraphModelOptions): GraphModelResult {
+  const shouldShowCancelled =
+    showCancelled !== undefined ? showCancelled : scope ? false : true;
+
   const columnsBySlug = new Map<string, GraphColumn>();
   for (const col of columns) {
     columnsBySlug.set(col.slug, col);
@@ -142,9 +177,94 @@ export function buildGraphModel({
     allTasksById.set(task.id, task);
   }
 
-  const externalTasksById = new Map<string, ProjectRelationExternalTask>();
+  // Build unified frontier map
+  type UnifiedFrontier = {
+    id: string;
+    number: number | null;
+    title: string;
+    status: string;
+    projectId: string;
+    projectSlug: string;
+    projectName: string;
+    initiativeId: string | null;
+    initiativeName: string | null;
+    sameProject: boolean;
+    isCompleted: boolean;
+  };
+
+  const frontierMap = new Map<string, UnifiedFrontier>();
+
+  // 1. From externalTasks (usually cross-project)
   for (const ext of externalTasks) {
-    externalTasksById.set(ext.id, ext);
+    frontierMap.set(ext.id, {
+      id: ext.id,
+      number: ext.number,
+      title: ext.title,
+      status: ext.status,
+      projectId: ext.projectId,
+      projectSlug: ext.projectSlug,
+      projectName: ext.projectName,
+      initiativeId: null,
+      initiativeName: null,
+      sameProject: false,
+      isCompleted: ext.isCompleted,
+    });
+  }
+
+  // 2. From tasks in the same project that are outside the scope
+  if (scope) {
+    for (const task of tasks) {
+      if (!scope.taskIds.has(task.id)) {
+        frontierMap.set(task.id, {
+          id: task.id,
+          number: task.number,
+          title: task.title,
+          status: task.status,
+          projectId: task.projectId ?? "",
+          projectSlug,
+          projectName: "",
+          initiativeId: null,
+          initiativeName: null,
+          sameProject: true,
+          isCompleted: isTaskDone(task, columnsBySlug),
+        });
+      }
+    }
+  }
+
+  // 3. From scope.frontier (explicit frontier items with initiative details)
+  if (scope?.frontier) {
+    const frontierItems = Array.isArray(scope.frontier)
+      ? scope.frontier
+      : Array.from(scope.frontier.values());
+    for (const item of frontierItems) {
+      const existing = frontierMap.get(item.id);
+      const initName =
+        item.initiativeName ??
+        (item.initiativeId
+          ? scope.initiativeNames?.get(item.initiativeId)
+          : null) ??
+        null;
+      frontierMap.set(item.id, {
+        id: item.id,
+        number: item.number ?? existing?.number ?? null,
+        title: item.title ?? existing?.title ?? "",
+        status: item.status ?? existing?.status ?? "",
+        projectId: item.projectId ?? existing?.projectId ?? "",
+        projectSlug: item.projectSlug ?? existing?.projectSlug ?? projectSlug,
+        projectName: item.projectName ?? existing?.projectName ?? "",
+        initiativeId: item.initiativeId ?? existing?.initiativeId ?? null,
+        initiativeName: initName ?? existing?.initiativeName ?? null,
+        sameProject:
+          item.projectId !== undefined && item.projectId !== ""
+            ? item.projectId === (tasks[0]?.projectId ?? item.projectId)
+            : (existing?.sameProject ?? true),
+        isCompleted:
+          item.isCompleted ??
+          existing?.isCompleted ??
+          (item.status ? item.status.toLowerCase() === "done" : false),
+      });
+    }
   }
 
   // Group incoming blocks relations by target task id (for blocked checks)
@@ -159,10 +279,19 @@ export function buildGraphModel({
     }
   }
 
-  // 1. Candidate project tasks (pass filter bar)
-  const candidateProjectTasks = tasks.filter((task) =>
-    filteredTaskIds.has(task.id),
-  );
+  // 1. Candidate project tasks (pass filter bar and scope)
+  const candidateProjectTasks = tasks.filter((task) => {
+    if (scope && !scope.taskIds.has(task.id)) {
+      return false;
+    }
+    if (!filteredTaskIds.has(task.id)) {
+      return false;
+    }
+    if (!shouldShowCancelled && isTaskCancelled(task, columnsBySlug)) {
+      return false;
+    }
+    return true;
+  });
   const candidateProjectTaskIds = new Set(
     candidateProjectTasks.map((task) => task.id),
   );
@@ -171,17 +300,24 @@ export function buildGraphModel({
   const visibleExternalTaskIds = new Set<string>();
   for (const relation of relations) {
     if (relation.relationType !== "blocks") continue;
-    if (
-      externalTasksById.has(relation.sourceTaskId) &&
-      candidateProjectTaskIds.has(relation.targetTaskId)
-    ) {
-      visibleExternalTaskIds.add(relation.sourceTaskId);
+    const isSourceCandidate = candidateProjectTaskIds.has(
+      relation.sourceTaskId,
+    );
+    const isTargetCandidate = candidateProjectTaskIds.has(
+      relation.targetTaskId,
+    );
+
+    if (isSourceCandidate && frontierMap.has(relation.targetTaskId)) {
+      const ext = frontierMap.get(relation.targetTaskId)!;
+      if (shouldShowCancelled || !isExternalTaskCancelled(ext.status)) {
+        visibleExternalTaskIds.add(relation.targetTaskId);
+      }
     }
-    if (
-      externalTasksById.has(relation.targetTaskId) &&
-      candidateProjectTaskIds.has(relation.sourceTaskId)
-    ) {
-      visibleExternalTaskIds.add(relation.targetTaskId);
+    if (isTargetCandidate && frontierMap.has(relation.sourceTaskId)) {
+      const ext = frontierMap.get(relation.sourceTaskId)!;
+      if (shouldShowCancelled || !isExternalTaskCancelled(ext.status)) {
+        visibleExternalTaskIds.add(relation.sourceTaskId);
+      }
     }
   }
 
@@ -229,9 +365,10 @@ export function buildGraphModel({
     displayedProjectTasks.map((t) => t.id),
   );
 
-  const displayedExternalTasks = externalTasks.filter((ext) =>
-    visibleExternalTaskIds.has(ext.id),
-  );
+  const displayedExternalTasks = Array.from(visibleExternalTaskIds)
+    .map((id) => frontierMap.get(id)!)
+    .filter(Boolean);
+
   const displayedExternalTaskIds = new Set(
     displayedExternalTasks.map((e) => e.id),
   );
@@ -247,26 +384,45 @@ export function buildGraphModel({
   );
 
   // 5. The cycle check covers every drawn node (external ones included) and
-  // edge; the critical path only runs over project tasks when there is none.
+  // edge; the critical path runs over all drawn non-final tasks.
   const cycle = findCycle(
     Array.from(finalNodeIds),
     finalEdgesRaw.map((e) => ({ source: e.source, target: e.target })),
   );
 
-  const criticalResult: CriticalPathResult = cycle
-    ? { kind: "cycle", taskIds: cycle }
-    : computeCriticalPath(
-        displayedProjectTasks.map((task) => ({
+  const allPathTasks = scope
+    ? [
+        ...displayedProjectTasks.map((task) => ({
           id: task.id,
           priority: task.priority ?? null,
           finished: isTaskFinal(task, columnsBySlug),
         })),
-        finalEdgesRaw.filter(
-          (e) =>
-            displayedProjectTaskIds.has(e.source) &&
-            displayedProjectTaskIds.has(e.target),
-        ),
+        ...displayedExternalTasks.map((ext) => ({
+          id: ext.id,
+          priority: null,
+          finished:
+            ext.isCompleted ||
+            isExternalTaskCancelled(ext.status) ||
+            ext.status.toLowerCase() === "done",
+        })),
+      ]
+    : displayedProjectTasks.map((task) => ({
+        id: task.id,
+        priority: task.priority ?? null,
+        finished: isTaskFinal(task, columnsBySlug),
+      }));
+
+  const pathEdges = scope
+    ? finalEdgesRaw
+    : finalEdgesRaw.filter(
+        (e) =>
+          displayedProjectTaskIds.has(e.source) &&
+          displayedProjectTaskIds.has(e.target),
       );
+
+  const criticalResult: CriticalPathResult = cycle
+    ? { kind: "cycle", taskIds: cycle }
+    : computeCriticalPath(allPathTasks, pathEdges);
 
   let hasCycle = false;
   let cycleTaskNames: string[] = [];
@@ -282,7 +438,7 @@ export function buildGraphModel({
           ? `${projectSlug}-${task.number} ${task.title}`
           : task.title;
       }
-      const ext = externalTasksById.get(id);
+      const ext = frontierMap.get(id);
       if (ext) {
         return ext.number !== null
           ? `${ext.projectSlug}-${ext.number} ${ext.title}`
@@ -332,6 +488,8 @@ export function buildGraphModel({
     dagre.layout(g);
   }
 
+  const criticalLabel = scope ? "Cadena pendiente más larga" : undefined;
+
   // 7. Build @xyflow nodes
   const nodes: Node[] = [];
 
@@ -343,7 +501,7 @@ export function buildGraphModel({
       columnsBySlug,
       incoming,
       allTasksById,
-      externalTasksById,
+      frontierMap,
     );
     const isCancelled = isTaskCancelled(task, columnsBySlug);
     const isDone = isTaskDone(task, columnsBySlug);
@@ -368,6 +526,7 @@ export function buildGraphModel({
       isCancelled,
       isCritical,
       onOpen: onOpenTask,
+      criticalLabel,
     };
 
     nodes.push({
@@ -395,8 +554,14 @@ export function buildGraphModel({
       projectSlug: ext.projectSlug,
       projectName: ext.projectName,
       isCompleted: ext.isCompleted,
-      isCritical: false,
+      isCritical: scope ? criticalTaskIds.has(ext.id) : false,
       workspaceId,
+      initiativeId: ext.initiativeId,
+      initiativeName: ext.initiativeName,
+      scopeName: ext.initiativeName,
+      sameProject: ext.sameProject,
+      onOpen: onOpenTask,
+      criticalLabel,
     };
 
     nodes.push({
@@ -437,6 +602,10 @@ export function buildGraphModel({
     };
   });
 
+  const totalProjectTasks = scope
+    ? tasks.filter((t) => scope.taskIds.has(t.id)).length
+    : tasks.length;
+
   return {
     nodes,
     edges,
@@ -454,7 +623,7 @@ export function buildGraphModel({
           },
     hasCycle,
     cycleTaskNames,
-    totalProjectTasks: tasks.length,
+    totalProjectTasks,
     filteredProjectTasks: candidateProjectTasks.length,
     visibleProjectTasks: displayedProjectTasks.length,
     hasVisibleNodes: nodes.length > 0,

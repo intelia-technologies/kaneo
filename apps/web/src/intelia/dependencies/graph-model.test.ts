@@ -8,9 +8,11 @@ import {
   isTaskFinal,
 } from "./graph-model";
 import type {
+  ExternalNodeData,
   GraphColumn,
   ProjectRelation,
   ProjectRelationExternalTask,
+  TaskNodeData,
 } from "./types";
 
 function createTask(
@@ -658,6 +660,324 @@ describe("graph-model rules", () => {
       expect(modelShown.filteredProjectTasks).toBe(2);
       expect(modelShown.visibleProjectTasks).toBe(2);
       expect(modelShown.hasVisibleNodes).toBe(true);
+    });
+  });
+
+  describe("initiative scope", () => {
+    it("scopes project tasks to initiative members only", () => {
+      const task1 = createTask({ id: "t1", title: "Task 1", status: "todo" });
+      const task2 = createTask({ id: "t2", title: "Task 2", status: "todo" });
+      const task3 = createTask({ id: "t3", title: "Task 3", status: "todo" });
+
+      const relations: ProjectRelation[] = [
+        {
+          id: "r1",
+          sourceTaskId: "t1",
+          targetTaskId: "t2",
+          relationType: "blocks",
+        },
+      ];
+
+      const model = buildGraphModel({
+        tasks: [task1, task2, task3],
+        columns: mockColumns,
+        filteredTaskIds: new Set(["t1", "t2", "t3"]),
+        relations,
+        externalTasks: [],
+        showLoose: false,
+        projectSlug: "DEMO",
+        workspaceId: "ws-1",
+        onOpenTask: vi.fn(),
+        scope: {
+          taskIds: new Set(["t1", "t2"]),
+        },
+      });
+
+      expect(model.totalProjectTasks).toBe(2);
+      expect(model.filteredProjectTasks).toBe(2);
+      expect(model.visibleProjectTasks).toBe(2);
+      expect(model.nodes.map((n) => n.id)).toEqual(["t1", "t2"]);
+      expect(model.nodes.every((n) => n.type === "projectTask")).toBe(true);
+    });
+
+    it("draws tasks of other initiatives in the same project as frontier nodes with initiative name", () => {
+      const onOpenTask = vi.fn();
+      const task1 = createTask({
+        id: "t1",
+        number: 1,
+        title: "Task 1",
+        status: "todo",
+      });
+      const task2 = createTask({
+        id: "t2",
+        number: 2,
+        title: "Task 2",
+        status: "todo",
+      });
+
+      const relations: ProjectRelation[] = [
+        {
+          id: "r1",
+          sourceTaskId: "t1",
+          targetTaskId: "t2",
+          relationType: "blocks",
+        },
+      ];
+
+      const model = buildGraphModel({
+        tasks: [task1, task2],
+        columns: mockColumns,
+        filteredTaskIds: new Set(["t1", "t2"]),
+        relations,
+        externalTasks: [],
+        showLoose: false,
+        projectSlug: "DEMO",
+        workspaceId: "ws-1",
+        onOpenTask,
+        scope: {
+          taskIds: new Set(["t1"]),
+          frontier: [
+            {
+              id: "t2",
+              initiativeId: "init-other",
+              initiativeName: "Motor de flujo",
+            },
+          ],
+        },
+      });
+
+      expect(model.nodes).toHaveLength(2);
+      const node1 = model.nodes.find((n) => n.id === "t1");
+      const node2 = model.nodes.find((n) => n.id === "t2");
+
+      expect(node1?.type).toBe("projectTask");
+      expect(node2?.type).toBe("externalTask");
+      const data2 = node2?.data as unknown as ExternalNodeData;
+      expect(data2.sameProject).toBe(true);
+      expect(data2.scopeName).toBe("Motor de flujo");
+      expect(data2.initiativeName).toBe("Motor de flujo");
+
+      // Clicking same-project external triggers onOpenTask
+      data2.onOpen?.("t2");
+      expect(onOpenTask).toHaveBeenCalledWith("t2");
+    });
+
+    it("hides cancelled tasks by default when initiative scope is active", () => {
+      const task1 = createTask({ id: "t1", title: "Task 1", status: "todo" });
+      const task2 = createTask({
+        id: "t2",
+        title: "Task 2 (cancelled)",
+        status: "cancelled",
+      });
+
+      const relations: ProjectRelation[] = [
+        {
+          id: "r1",
+          sourceTaskId: "t1",
+          targetTaskId: "t2",
+          relationType: "blocks",
+        },
+        {
+          id: "r2",
+          sourceTaskId: "t3",
+          targetTaskId: "t1",
+          relationType: "blocks",
+        },
+      ];
+
+      // Scoped without showCancelled: defaults to false (hidden)
+      const modelHidden = buildGraphModel({
+        tasks: [task1, task2],
+        columns: mockColumns,
+        filteredTaskIds: new Set(["t1", "t2"]),
+        relations,
+        externalTasks: [],
+        showLoose: true,
+        projectSlug: "DEMO",
+        workspaceId: "ws-1",
+        onOpenTask: vi.fn(),
+        scope: {
+          taskIds: new Set(["t1", "t2"]),
+          frontier: [{ id: "t3", status: "cancelled", title: "Ext Cancelled" }],
+        },
+      });
+
+      expect(modelHidden.nodes.map((n) => n.id)).toEqual(["t1"]);
+      expect(modelHidden.edges).toHaveLength(0);
+
+      // Scoped with showCancelled: true
+      const modelShown = buildGraphModel({
+        tasks: [task1, task2],
+        columns: mockColumns,
+        filteredTaskIds: new Set(["t1", "t2"]),
+        relations,
+        externalTasks: [],
+        showLoose: true,
+        projectSlug: "DEMO",
+        workspaceId: "ws-1",
+        onOpenTask: vi.fn(),
+        scope: {
+          taskIds: new Set(["t1", "t2"]),
+          frontier: [{ id: "t3", status: "cancelled", title: "Ext Cancelled" }],
+        },
+        showCancelled: true,
+      });
+
+      expect(modelShown.nodes.map((n) => n.id).sort()).toEqual(
+        ["t1", "t2", "t3"].sort(),
+      );
+      expect(modelShown.edges).toHaveLength(2);
+    });
+
+    it("computes longest pending chain including external/frontier nodes and sets criticalLabel", () => {
+      const task1 = createTask({ id: "t1", title: "Task 1", status: "todo" });
+      const task2 = createTask({ id: "t2", title: "Task 2", status: "todo" });
+      const extTask = {
+        id: "ext-1",
+        number: 99,
+        title: "External blocker",
+        status: "in-progress",
+        projectId: "proj-ext",
+        projectSlug: "EXT",
+        projectName: "Project External",
+        isCompleted: false,
+      };
+
+      const relations: ProjectRelation[] = [
+        {
+          id: "r1",
+          sourceTaskId: "ext-1",
+          targetTaskId: "t1",
+          relationType: "blocks",
+        },
+        {
+          id: "r2",
+          sourceTaskId: "t1",
+          targetTaskId: "t2",
+          relationType: "blocks",
+        },
+      ];
+
+      const model = buildGraphModel({
+        tasks: [task1, task2],
+        columns: mockColumns,
+        filteredTaskIds: new Set(["t1", "t2"]),
+        relations,
+        externalTasks: [extTask],
+        showLoose: false,
+        projectSlug: "DEMO",
+        workspaceId: "ws-1",
+        onOpenTask: vi.fn(),
+        scope: {
+          taskIds: new Set(["t1", "t2"]),
+        },
+      });
+
+      expect(model.critical.kind).toBe("path");
+      expect(model.critical.taskIds).toEqual(["ext-1", "t1", "t2"]);
+
+      const extNode = model.nodes.find((n) => n.id === "ext-1");
+      const t1Node = model.nodes.find((n) => n.id === "t1");
+      const t2Node = model.nodes.find((n) => n.id === "t2");
+      const extData = extNode?.data as unknown as ExternalNodeData;
+      const t1Data = t1Node?.data as unknown as TaskNodeData;
+      const t2Data = t2Node?.data as unknown as TaskNodeData;
+
+      expect(extData.isCritical).toBe(true);
+      expect(t1Data.isCritical).toBe(true);
+      expect(t2Data.isCritical).toBe(true);
+      expect(t1Data.criticalLabel).toBe("Cadena pendiente más larga");
+      expect(extData.criticalLabel).toBe("Cadena pendiente más larga");
+    });
+
+    it("keeps existing behaviour completely unchanged when scope is not provided", () => {
+      const task1 = createTask({ id: "t1", title: "Task 1", status: "todo" });
+      const task2 = createTask({
+        id: "t2",
+        title: "Task 2 (cancelled)",
+        status: "cancelled",
+      });
+
+      const relations: ProjectRelation[] = [
+        {
+          id: "r1",
+          sourceTaskId: "t1",
+          targetTaskId: "t2",
+          relationType: "blocks",
+        },
+      ];
+
+      const model = buildGraphModel({
+        tasks: [task1, task2],
+        columns: mockColumns,
+        filteredTaskIds: new Set(["t1", "t2"]),
+        relations,
+        externalTasks: [],
+        showLoose: false,
+        projectSlug: "DEMO",
+        workspaceId: "ws-1",
+        onOpenTask: vi.fn(),
+      });
+
+      // Unscoped without showCancelled defaults to showCancelled = true
+      expect(model.nodes.map((n) => n.id)).toEqual(["t1", "t2"]);
+      const t1Node = model.nodes.find((n) => n.id === "t1");
+      const t1Data = t1Node?.data as unknown as TaskNodeData;
+      expect(t1Data.criticalLabel).toBeUndefined();
+    });
+
+    it("does not include external tasks in critical path when scope is not provided (unscoped regression)", () => {
+      const task1 = createTask({ id: "t1", title: "Task 1", status: "todo" });
+      const task2 = createTask({ id: "t2", title: "Task 2", status: "todo" });
+      const extTask = {
+        id: "ext-1",
+        number: 99,
+        title: "External blocker",
+        status: "in-progress",
+        projectId: "proj-ext",
+        projectSlug: "EXT",
+        projectName: "Project External",
+        isCompleted: false,
+      };
+
+      const relations: ProjectRelation[] = [
+        {
+          id: "r1",
+          sourceTaskId: "ext-1",
+          targetTaskId: "t1",
+          relationType: "blocks",
+        },
+        {
+          id: "r2",
+          sourceTaskId: "t1",
+          targetTaskId: "t2",
+          relationType: "blocks",
+        },
+      ];
+
+      const model = buildGraphModel({
+        tasks: [task1, task2],
+        columns: mockColumns,
+        filteredTaskIds: new Set(["t1", "t2"]),
+        relations,
+        externalTasks: [extTask],
+        showLoose: false,
+        projectSlug: "DEMO",
+        workspaceId: "ws-1",
+        onOpenTask: vi.fn(),
+      });
+
+      // Without scope: critical path only covers project tasks t1 -> t2, NOT ext-1
+      expect(model.critical.kind).toBe("path");
+      expect(model.critical.taskIds).toEqual(["t1", "t2"]);
+      expect(model.critical.edgeKeys).toEqual(["t1->t2"]);
+
+      const extNode = model.nodes.find((n) => n.id === "ext-1");
+      const extData = extNode?.data as unknown as ExternalNodeData;
+      expect(extData.isCritical).toBe(false);
+
+      const extEdge = model.edges.find((e) => e.id === "ext-1->t1");
+      expect(extEdge?.animated).toBe(false);
     });
   });
 });

@@ -16,4 +16,7 @@ it("returns to the last task layout, falling back to board or list", () => {
   expect(tasksViewFor("calendar", "list")).toBe("calendar");
   expect(tasksViewFor("gantt", "board")).toBe("gantt");
   expect(tasksViewFor("board", "list")).toBe("list");
+  // Intelia views have their own links: Tasks never leads to them.
+  expect(tasksViewFor("initiatives", "board")).toBe("board");
+  expect(tasksViewFor("dependencies", "list")).toBe("list");
 });

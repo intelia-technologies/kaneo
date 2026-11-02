@@ -1,0 +1,146 @@
+import { registerInteliaI18n } from "../../i18n";
+import "../i18n";
+
+const en = {
+  initiatives: {
+    list: {
+      stats: {
+        inFlight: "In flight",
+        withBlocked: "With Blocked tasks",
+        addedVsPlan: "Added vs plan",
+        addedVsPlanSub: "+{{percent}} % · {{inFlight}} in flight",
+        addedVsPlanNoPlan: "+{{added}} added",
+        cancelled: "Cancelled",
+        cancelledSub: "Excluded from progress",
+      },
+      toolbar: {
+        searchPlaceholder: "Search initiative…",
+        searchAria: "Search initiatives",
+        filterLabel: "Filter initiatives",
+        filterAll: "All in flight",
+        filterBlocked: "With Blocked",
+        filterAdded: "With added scope",
+        sortLabel: "Sort initiatives",
+        sortBlocked: "Blocked first",
+        sortName: "Name",
+        sortProgress: "Lowest progress",
+      },
+      heading: {
+        subtitle: "{{inFlight}} in flight · {{finished}} finished",
+        visibleCount_one: "{{count}} visible initiative",
+        visibleCount_other: "{{count}} visible initiatives",
+        doneOfActive: "Done / active",
+      },
+      row: {
+        planAndAdded_one: "▤ {{plan}} plan + {{added}} added",
+        planAndAdded_other: "▤ {{plan}} plan + {{added}} added",
+        unrecorded: " · {{count}} unrecorded",
+        inExecution: "In progress",
+      },
+      emptyFiltered: "No results. Change the filters.",
+      emptyProject: "No initiatives in this project.",
+      emptyInFlight: "No in-flight initiatives.",
+      inspector: {
+        preview: "Preview",
+        requiresAttention: "Requires attention",
+        inFlight: "In flight",
+        viewInitiative: "View initiative →",
+        tree: "Tree",
+        blockedTitle_one: "{{count}} Blocked task",
+        blockedTitle_other: "{{count}} Blocked tasks",
+        approvalLabel: "Design & approval",
+        approvalBy: "Approved by {{name}} · {{date}}",
+        approvalNoDate: "Approved by {{name}}",
+        noApproval: "No approval recorded",
+        designLabel: "Design",
+        designDoc: "↗ Design document",
+        noDesign: "No design linked",
+      },
+      sections: {
+        finished: "✓ Finished · {{count}}",
+        finishedRowFoot_one: "▤ {{plan}} plan · {{added}} added",
+        finishedRowFoot_other: "▤ {{plan}} plan · {{added}} added",
+        inactive: "Sin trabajo activo · {{count}}",
+        noTasks: "Sin tareas · —",
+        allCancelled_one: "— · {{count}} cancelled",
+        allCancelled_other: "— · {{count}} cancelled",
+        withoutInitiative: "Without initiative · {{count}} tasks",
+        withoutInitiativeSubtitle:
+          "Excluded from initiative totals. Assign from the existing task sheet.",
+      },
+    },
+  },
+};
+
+const es = {
+  initiatives: {
+    list: {
+      stats: {
+        inFlight: "En vuelo",
+        withBlocked: "Con tareas Blocked",
+        addedVsPlan: "Añadidas frente a plan",
+        addedVsPlanSub: "+{{percent}} % · solo las {{inFlight}} en vuelo",
+        addedVsPlanNoPlan: "+{{added}} añadidas",
+        cancelled: "Canceladas",
+        cancelledSub: "Excluidas del avance",
+      },
+      toolbar: {
+        searchPlaceholder: "Buscar iniciativa…",
+        searchAria: "Buscar iniciativas",
+        filterLabel: "Filtrar iniciativas",
+        filterAll: "Todas en vuelo",
+        filterBlocked: "Con Blocked",
+        filterAdded: "Con añadido",
+        sortLabel: "Orden de iniciativas",
+        sortBlocked: "Bloqueadas primero",
+        sortName: "Nombre",
+        sortProgress: "Menor avance",
+      },
+      heading: {
+        subtitle: "{{inFlight}} en vuelo · {{finished}} finalizadas",
+        visibleCount_one: "{{count}} iniciativa visible",
+        visibleCount_other: "{{count}} iniciativas visibles",
+        doneOfActive: "Hechas / activas",
+      },
+      row: {
+        planAndAdded_one: "▤ {{plan}} plan + {{added}} añadida",
+        planAndAdded_other: "▤ {{plan}} plan + {{added}} añadidas",
+        unrecorded: " · {{count}} sin registro",
+        inExecution: "En ejecución",
+      },
+      emptyFiltered: "Sin resultados. Cambia los filtros.",
+      emptyProject: "No hay iniciativas en este proyecto.",
+      emptyInFlight: "No hay iniciativas en vuelo.",
+      inspector: {
+        preview: "Vista previa",
+        requiresAttention: "Requiere atención",
+        inFlight: "En vuelo",
+        viewInitiative: "Ver iniciativa →",
+        tree: "Árbol",
+        blockedTitle_one: "{{count}} tarea Blocked",
+        blockedTitle_other: "{{count}} tareas Blocked",
+        approvalLabel: "Diseño y aprobación",
+        approvalBy: "Aprobada por {{name}} · {{date}}",
+        approvalNoDate: "Aprobada por {{name}}",
+        noApproval: "Sin aprobación registrada",
+        designLabel: "Diseño",
+        designDoc: "↗ Documento de diseño",
+        noDesign: "Sin diseño enlazado",
+      },
+      sections: {
+        finished: "✓ Finalizadas · {{count}}",
+        finishedRowFoot_one: "▤ {{plan}} plan · {{added}} añadida",
+        finishedRowFoot_other: "▤ {{plan}} plan · {{added}} añadidas",
+        inactive: "Sin trabajo activo · {{count}}",
+        noTasks: "Sin tareas · —",
+        allCancelled_one: "— · {{count}} cancelada",
+        allCancelled_other: "— · {{count}} canceladas",
+        withoutInitiative: "Sin iniciativa · {{count}} tareas",
+        withoutInitiativeSubtitle:
+          "Fuera de los totales de iniciativas. Asignar desde el detalle de tarea existente.",
+      },
+    },
+  },
+};
+
+registerInteliaI18n(en, es);
