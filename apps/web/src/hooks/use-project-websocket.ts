@@ -16,6 +16,7 @@ import getExternalLinks from "@/fetchers/external-link/get-external-links";
 import type { ResumePreview } from "@/fetchers/integration-sync/types";
 import { patchBoardTask } from "@/lib/patch-board-task";
 import { refreshDependencies } from "@/intelia/dependencies/realtime";
+import { refreshInitiatives } from "@/intelia/initiatives/realtime";
 import type { ProjectWithTasks } from "@/types/project";
 import {
   hasSyncTaskSample,
@@ -192,6 +193,7 @@ export function useProjectWebSocket(projectId: string) {
         try {
           const message = JSON.parse(event.data);
           refreshDependencies(queryClient, projectId, message.type);
+          refreshInitiatives(queryClient, projectId, message.type);
           if (message.type === "PROJECT_MEMBERS_UPDATED") {
             void queryClient.invalidateQueries({
               predicate: (query) =>
