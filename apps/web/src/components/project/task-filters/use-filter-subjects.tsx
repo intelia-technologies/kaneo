@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { getColumnIcon } from "@/lib/column";
 import { getPriorityLabel } from "@/lib/i18n/domain";
 import { getPriorityIcon } from "@/lib/priority";
+import { useAutomationFilterSubject } from "@/intelia/automation/filter-subject";
 import { countValues } from "@/lib/task-filters/count-values";
 import { DUE_DATE_OPTIONS } from "@/lib/task-filters/due-date-options";
 import { customFieldSubjectId } from "@/lib/task-filters/filter-subject-id";
@@ -31,6 +32,7 @@ type UseFilterSubjectsInput = {
   columns?: ProjectWithTasks["columns"];
   tasks: Task[];
   showStatus: boolean;
+  projectId?: string;
 };
 
 export function useFilterSubjects({
@@ -39,6 +41,7 @@ export function useFilterSubjects({
   columns = [],
   tasks,
   showStatus,
+  projectId,
 }: UseFilterSubjectsInput): FilterSubject[] {
   const { t } = useTranslation();
   const { filters, toggleFilter, updateFilter, setNegated } = controls;
@@ -165,6 +168,7 @@ export function useFilterSubjects({
         label: t(option.labelKey),
       })),
     }),
+    useAutomationFilterSubject({ projectId, controls, tasks, build: subject }),
   ];
 
   const customFields = options.customFields.map((field) => {

@@ -64,6 +64,8 @@ import useCreateTask from "@/hooks/mutations/task/use-create-task";
 import useGetCustomFieldsByProject from "@/hooks/queries/custom-field/use-get-custom-fields-by-project";
 import useGetLabelsByWorkspace from "@/hooks/queries/label/use-get-labels-by-workspace";
 import useGetProjects from "@/hooks/queries/project/use-get-projects";
+import { AutomationCreateFields } from "@/intelia/automation/components/automation-create-fields";
+import { useAutomationDraft } from "@/intelia/automation/use-automation-draft";
 import useActiveWorkspace from "@/hooks/queries/workspace/use-active-workspace";
 import { useGetActiveWorkspaceUsers } from "@/hooks/queries/workspace-users/use-get-active-workspace-users";
 import useGetProjectMembers from "@/hooks/queries/workspace-users/use-get-project-members";
@@ -247,6 +249,7 @@ function CreateTaskModalContent({
   const [startDateOpen, setStartDateOpen] = useState(false);
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [createMore, setCreateMore] = useState(false);
+  const automationDraft = useAutomationDraft();
   const [labels, setLabels] = useState<Label[]>([]);
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
 
@@ -412,6 +415,7 @@ function CreateTaskModalContent({
     selectedProjectId ||
     labels.length > 0 ||
     stagedAssetsRef.current.length > 0 ||
+    automationDraft.isDirty ||
     hasCustomFieldChanges,
   );
 
@@ -536,6 +540,7 @@ function CreateTaskModalContent({
     )
       return;
 
+    const automation = automationDraft.input;
     if (missingRequired.length > 0) {
       setShowMissingRequired(true);
       e.currentTarget
@@ -545,6 +550,7 @@ function CreateTaskModalContent({
         ?.focus();
       return;
     }
+    if (!automation) return;
 
     submittingRef.current = true;
     setIsSubmitting(true);
@@ -564,6 +570,7 @@ function CreateTaskModalContent({
           description: description.trim() || "",
           userId: selectedUser?.id ?? "",
           priority,
+          automation,
           projectId: resolvedProjectId,
           startDate: startDate ? startDate.toISOString() : undefined,
           dueDate: dueDate ? dueDate.toISOString() : undefined,
@@ -626,6 +633,7 @@ function CreateTaskModalContent({
 
         setCustomFieldValues(buildDefaultCustomFieldValues());
         setShowMissingRequired(false);
+        automationDraft.reset();
       } else {
         closeAndReset();
       }
@@ -1270,6 +1278,11 @@ function CreateTaskModalContent({
                 </div>
               )}
             </div>
+            <AutomationCreateFields
+              control={automationDraft}
+              disabled={isSubmitting}
+              className="w-full"
+            />
           </div>
 
           {awaitingColumns && columnsError && (
@@ -1329,6 +1342,7 @@ function CreateTaskModalContent({
                 assigneeUnconfirmed ||
                 isSubmitting ||
                 awaitingColumns ||
+                !automationDraft.isValid ||
                 isPreparingDraft
               }
               aria-busy={isPreparingDraft || isSubmitting}

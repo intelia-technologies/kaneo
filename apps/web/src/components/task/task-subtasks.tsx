@@ -21,6 +21,8 @@ import useCreateTaskRelation from "@/hooks/mutations/task-relation/use-create-ta
 import { useGetColumns } from "@/hooks/queries/column/use-get-columns";
 import useGetTaskRelations from "@/hooks/queries/task-relation/use-get-task-relations";
 import useActiveWorkspace from "@/hooks/queries/workspace/use-active-workspace";
+import type { AutomationInput } from "@/intelia/automation/api";
+import { AutomationInputField } from "@/intelia/automation/components/automation-input-field";
 import { useGetActiveWorkspaceUsers } from "@/hooks/queries/workspace-users/use-get-active-workspace-users";
 import { useWorkspacePermission } from "@/hooks/use-workspace-permission";
 import { toast } from "@/lib/toast";
@@ -49,6 +51,8 @@ export default function TaskSubtasks({
   const navigate = useNavigate();
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [automation, setAutomation] = useState<AutomationInput | null>(null);
+  const readyToAdd = Boolean(newTitle.trim() && automation);
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -164,7 +168,7 @@ export default function TaskSubtasks({
       const target = e.target as HTMLElement | null;
       if (
         target?.closest(
-          "input, textarea, [contenteditable='true'], .ProseMirror",
+          "input, textarea, [contenteditable='true'], .ProseMirror, [role='radio']",
         )
       )
         return;
@@ -239,7 +243,7 @@ export default function TaskSubtasks({
   ]);
 
   const handleAddSubtask = async () => {
-    if (!canCreate || !canEdit || !newTitle.trim()) return;
+    if (!canCreate || !canEdit || !newTitle.trim() || !automation) return;
     const initialStatus = parentStatus === "planned" ? "planned" : todoSlug;
     if (!initialStatus) return;
 
@@ -250,6 +254,7 @@ export default function TaskSubtasks({
         projectId,
         status: initialStatus,
         priority: "no-priority",
+        automation,
       });
 
       await createRelation.mutateAsync({
@@ -395,7 +400,7 @@ export default function TaskSubtasks({
               size="xs"
               onClick={handleAddSubtask}
               disabled={
-                !newTitle.trim() || createTask.isPending || !canCreateSubtask
+                !readyToAdd || createTask.isPending || !canCreateSubtask
               }
             >
               {t("tasks:subtasks.addAction")}
@@ -411,6 +416,10 @@ export default function TaskSubtasks({
               {t("common:actions.cancel")}
             </Button>
           </div>
+        )}
+
+        {isAdding && canEdit && canCreate && (
+          <AutomationInputField onChange={setAutomation} />
         )}
 
         {!isAdding && totalCount === 0 && (

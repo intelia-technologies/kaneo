@@ -17,6 +17,10 @@ const VERIFICATION_OPTIONS = [
   { value: "no", verification: false },
 ] as const;
 
+// The Fieldset's class wins over the rendered RadioGroup's, so the row
+// layout of the options goes here.
+const FIELDSET_CLASS = "max-w-none flex-row flex-wrap gap-x-4 gap-y-1.5";
+
 // Level and verification, both required and with nothing preselected
 // (design 18 §5.1). `completa` and "no verification" disable each other, so
 // the draft can never hold `completa` without verification.
@@ -40,10 +44,9 @@ export function AutomationFields({
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       <Fieldset
-        className="max-w-none gap-1.5"
+        className={FIELDSET_CLASS}
         render={
           <RadioGroup
-            className="flex-row flex-wrap gap-x-4 gap-y-1.5"
             disabled={disabled}
             value={value.level}
             onValueChange={(level) => {
@@ -81,10 +84,9 @@ export function AutomationFields({
         ))}
       </Fieldset>
       <Fieldset
-        className="max-w-none gap-1.5"
+        className={FIELDSET_CLASS}
         render={
           <RadioGroup
-            className="flex-row flex-wrap gap-x-4 gap-y-1.5"
             disabled={disabled}
             value={verificationValue}
             onValueChange={(selected) => {

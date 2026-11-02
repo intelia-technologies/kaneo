@@ -365,6 +365,7 @@ describe("CreateTaskModal", () => {
         target: { value: "Picked project task" },
       },
     );
+    chooseAutomation();
     fireEvent.submit(document.querySelector("form") as HTMLFormElement);
 
     await vi.waitFor(() => {
@@ -600,6 +601,16 @@ function enterTitle(title = "Private task") {
       target: { value: title },
     },
   );
+  chooseAutomation();
+}
+
+// Level and verification are required to create a task.
+function chooseAutomation() {
+  for (const name of ["levels.manual", "yes"]) {
+    fireEvent.click(
+      screen.getByRole("radio", { name: `intelia:automation.${name}` }),
+    );
+  }
 }
 
 async function chooseBeta() {

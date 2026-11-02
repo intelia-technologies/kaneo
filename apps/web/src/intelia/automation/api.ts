@@ -95,14 +95,18 @@ export function useTaskAutomationHistory(taskId: string) {
   });
 }
 
+// A module-level `select` keeps React Query from rebuilding the Map on every
+// render of the same observer. Each observer still builds its own Map.
+const byTaskId = (rows: TaskAutomation[]) =>
+  new Map<string, TaskAutomation>(rows.map((row) => [row.taskId, row]));
+
 // One request per project for the board badges and the filter, keyed by task.
 export function useProjectAutomation(projectId: string | undefined) {
   return useQuery({
     queryKey: projectAutomationKey(projectId ?? ""),
     queryFn: () => getProjectAutomation(projectId ?? ""),
     enabled: !!projectId,
-    select: (rows) =>
-      new Map<string, TaskAutomation>(rows.map((row) => [row.taskId, row])),
+    select: byTaskId,
   });
 }
 

@@ -67,6 +67,8 @@ try {
   await taskDialog
     .getByPlaceholder("Task title", { exact: true })
     .fill("Browser persistence task");
+  await taskDialog.getByRole("radio", { name: "Manual", exact: true }).click();
+  await taskDialog.getByRole("radio", { name: "Yes", exact: true }).click();
   const [taskResponse] = await Promise.all([
     page.waitForResponse(
       (response) =>
@@ -79,6 +81,10 @@ try {
   ]);
   assert.ok(taskResponse.ok(), await taskResponse.text());
   const task = await taskResponse.json();
+  assert.equal(
+    (await owner.json(`/api/intelia/task/${task.id}/automation`)).level,
+    "manual",
+  );
   await page.goto(
     `${origin}/dashboard/workspace/${workspace.id}/project/${project.id}/task/${task.id}`,
   );

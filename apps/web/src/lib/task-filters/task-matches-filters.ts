@@ -9,6 +9,7 @@ import {
   type BoardFilters,
   DUE_DATE_FILTER_VALUES,
 } from "@/hooks/use-task-filters";
+import { matchesAutomationFilter } from "@/intelia/automation/filter";
 import type Task from "@/types/task";
 import { customFieldSubjectId } from "./filter-subject-id";
 
@@ -19,6 +20,7 @@ export type TaskFilterContext = {
   weekStartsOn: Day;
   today: Date;
   labelIds?: ReadonlySet<string>;
+  automation?: ReadonlyMap<string, { level: string }>;
   getCustomFieldValues: (
     taskId: string,
   ) => Array<{ fieldId: string; value: string | null }>;
@@ -109,6 +111,16 @@ export function taskMatchesFilters(
           context.labelIds
             ? context.labelIds.has(label.id)
             : filters.labels?.includes(label.id),
+        ),
+    ],
+    [
+      "automation",
+      // Unknown (map not loaded yet) is not "no level": skip the filter.
+      context.automation && filters.automation,
+      () =>
+        matchesAutomationFilter(
+          filters.automation ?? [],
+          context.automation?.get(task.id),
         ),
     ],
   ];

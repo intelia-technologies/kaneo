@@ -245,6 +245,7 @@ describe("personal work refresh", () => {
         description: "",
         status: "to-do",
         priority: "no-priority",
+        automation: { level: "manual", verification: true },
       });
     });
     await waitFor(() =>

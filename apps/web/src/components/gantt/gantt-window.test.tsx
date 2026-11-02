@@ -77,6 +77,9 @@ const noCustomFieldValues = () => [];
 vi.mock("@/hooks/queries/label/use-get-labels-by-workspace", () => ({
   default: () => ({ data: undefined }),
 }));
+vi.mock("@/intelia/automation/api", () => ({
+  useProjectAutomation: () => ({ data: undefined }),
+}));
 vi.mock(
   "@/hooks/queries/custom-field/use-get-all-custom-field-values-by-project",
   () => ({
