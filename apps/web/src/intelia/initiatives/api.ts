@@ -1,6 +1,6 @@
 import { client } from "@kaneo/libs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { InferResponseType } from "hono/client";
+import type { InferRequestType, InferResponseType } from "hono/client";
 import { HttpError } from "@/lib/http-error";
 
 type ProjectInitiativesRoute =
@@ -218,6 +218,101 @@ export function useClosePlan() {
   return useMutation({
     mutationFn: ({ initiativeId }: { initiativeId: string }) =>
       postClosePlan(initiativeId),
+    onSettled: invalidate,
+  });
+}
+
+// Reads and edits of the «Iniciativas» view (IN-04, design 19 §5 and §6).
+
+export type ProjectInitiatives = InferResponseType<
+  ProjectInitiativesRoute["$get"],
+  200
+>;
+export type InitiativeSummary = ProjectInitiatives["initiatives"][number];
+export type TaskWithoutInitiative =
+  ProjectInitiatives["withoutInitiative"][number];
+export type InitiativeDetail = InferResponseType<InitiativeRoute["$get"], 200>;
+export type InitiativeTask = InitiativeDetail["tasks"][number];
+export type InitiativeExternalTask = InitiativeDetail["externalTasks"][number];
+export type InitiativeCounters = InitiativeDetail["counters"];
+export type InitiativeState = InitiativeDetail["state"];
+export type InitiativeUpdate = InferRequestType<
+  InitiativeRoute["$patch"]
+>["json"];
+
+export async function getProjectInitiatives(
+  projectId: string,
+): Promise<ProjectInitiatives> {
+  const response = await client.intelia.project[":projectId"].initiatives.$get({
+    param: { projectId },
+  });
+  if (!response.ok) throw await HttpError.fromResponse(response);
+  return response.json();
+}
+
+export async function getInitiative(
+  initiativeId: string,
+): Promise<InitiativeDetail> {
+  const response = await client.intelia.initiative[":initiativeId"].$get({
+    param: { initiativeId },
+  });
+  if (!response.ok) throw await HttpError.fromResponse(response);
+  return response.json();
+}
+
+export async function patchInitiative(
+  initiativeId: string,
+  input: InitiativeUpdate,
+): Promise<Initiative> {
+  const response = await client.intelia.initiative[":initiativeId"].$patch({
+    param: { initiativeId },
+    json: input,
+  });
+  if (!response.ok) throw await HttpError.fromResponse(response);
+  return response.json();
+}
+
+// Under INITIATIVE_QUERY_ROOT, so the selector's mutations refresh the view
+// too; one invalidation of the project prefix (realtime) refreshes the
+// listing and any open detail.
+export const projectInitiativesRootKey = (projectId: string) =>
+  [INITIATIVE_QUERY_ROOT, "project", projectId] as const;
+export const projectInitiativesKey = (projectId: string) =>
+  [...projectInitiativesRootKey(projectId), "list"] as const;
+export const initiativeKey = (projectId: string, initiativeId: string) =>
+  [...projectInitiativesRootKey(projectId), "detail", initiativeId] as const;
+
+// The app's client turns refetchOnMount off; a read invalidated while its
+// page was closed (an edit in the detail, a socket event) must be read again
+// when the page comes back. `true` refetches only stale data.
+export function useProjectInitiatives(projectId: string) {
+  return useQuery({
+    queryKey: projectInitiativesKey(projectId),
+    queryFn: () => getProjectInitiatives(projectId),
+    enabled: !!projectId,
+    refetchOnMount: true,
+  });
+}
+
+export function useInitiative(projectId: string, initiativeId: string) {
+  return useQuery({
+    queryKey: initiativeKey(projectId, initiativeId),
+    queryFn: () => getInitiative(initiativeId),
+    enabled: !!projectId && !!initiativeId,
+    refetchOnMount: true,
+  });
+}
+
+export function useUpdateInitiative() {
+  const invalidate = useInvalidateInitiatives();
+  return useMutation({
+    mutationFn: ({
+      initiativeId,
+      input,
+    }: {
+      initiativeId: string;
+      input: InitiativeUpdate;
+    }) => patchInitiative(initiativeId, input),
     onSettled: invalidate,
   });
 }

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { SetCustomFieldValueRequest } from "@/fetchers/custom-field/set-custom-field-value";
 import setCustomFieldValue from "@/fetchers/custom-field/set-custom-field-value";
+import { invalidateInitiativesAfterTaskEdit } from "@/intelia/initiatives/realtime";
 
 type SetCustomFieldValueArgs = SetCustomFieldValueRequest & {
   projectId?: string;
@@ -27,6 +28,7 @@ function useSetCustomFieldValue() {
       void queryClient.invalidateQueries({
         queryKey: ["task", variables.taskId],
       });
+      invalidateInitiativesAfterTaskEdit(queryClient);
     },
   });
 }

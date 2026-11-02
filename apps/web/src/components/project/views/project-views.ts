@@ -7,7 +7,7 @@ import {
   SquircleDashed,
 } from "lucide-react";
 import type { TaskLayout } from "@/store/user-preferences";
-import { INTELIA_PATHS, INTELIA_VIEWS } from "@/intelia/dependencies/view";
+import { INTELIA_PATHS, INTELIA_VIEWS, isInteliaView } from "@/intelia/view";
 
 export type ProjectView = TaskLayout | "backlog";
 
@@ -65,15 +65,18 @@ export function resolveProjectView(
   return route === "board" ? viewMode : route;
 }
 
+// Our views are their own links in `ProjectScopeToggle`, not task layouts.
 export const TASK_LAYOUTS = PROJECT_VIEWS.filter(
-  (view) => view.id !== "backlog",
+  (view) => view.id !== "backlog" && !isInteliaView(view.id),
 );
 
 export function tasksViewFor(
   taskLayout: TaskLayout,
   viewMode: "board" | "list",
 ): ProjectView {
-  return taskLayout !== "board" && taskLayout !== "list"
+  return taskLayout !== "board" &&
+    taskLayout !== "list" &&
+    !isInteliaView(taskLayout)
     ? taskLayout
     : viewMode;
 }

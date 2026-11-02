@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { INTELIA_VIEWS, isInteliaView } from "@/intelia/view";
 import { useUserPreferencesStore } from "@/store/user-preferences";
 import { ProjectScopeLink } from "./project-scope-link";
 import { type ProjectView, tasksViewFor } from "./project-views";
@@ -20,9 +21,11 @@ export function ProjectScopeToggle({
   const taskLayout = useUserPreferencesStore((state) => state.taskLayout);
   const viewMode = useUserPreferencesStore((state) => state.viewMode);
   const onBacklog = currentView === "backlog";
-  const tasksView = onBacklog
-    ? tasksViewFor(taskLayout, viewMode)
-    : currentView;
+  // Intelia fork: Dependencies and Initiatives are links of their own here,
+  // not hidden in the Display menu (design 19 §5).
+  const onIntelia = isInteliaView(currentView);
+  const tasksView =
+    onBacklog || onIntelia ? tasksViewFor(taskLayout, viewMode) : currentView;
 
   return (
     <nav
@@ -33,7 +36,7 @@ export function ProjectScopeToggle({
         view={tasksView}
         workspaceId={workspaceId}
         projectId={projectId}
-        active={!onBacklog}
+        active={!onBacklog && !onIntelia}
         onSelect={onSelect}
       >
         {t("tasks:title")}
@@ -47,6 +50,19 @@ export function ProjectScopeToggle({
       >
         {t("tasks:view.backlog")}
       </ProjectScopeLink>
+      {INTELIA_VIEWS.map(({ id, labelKey, icon: Icon }) => (
+        <ProjectScopeLink
+          key={id}
+          view={id}
+          workspaceId={workspaceId}
+          projectId={projectId}
+          active={currentView === id}
+          onSelect={onSelect}
+        >
+          <Icon className="size-3.5 sm:mr-1" aria-hidden="true" />
+          <span className="sr-only sm:not-sr-only">{t(labelKey)}</span>
+        </ProjectScopeLink>
+      ))}
     </nav>
   );
 }

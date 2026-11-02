@@ -104,9 +104,12 @@ export const TaskNode = memo(function TaskNode({
           {data.isCritical && (
             <span
               className="inline-flex items-center gap-0.5 rounded px-1 py-0.25 text-[10px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25"
-              title={t("intelia:dependencies.criticalPath")}
+              title={
+                data.criticalLabel ?? t("intelia:dependencies.criticalPath")
+              }
             >
               <Flame className="size-2.5" />
+              <span>{t("intelia:dependencies.chainBadge")}</span>
             </span>
           )}
         </div>

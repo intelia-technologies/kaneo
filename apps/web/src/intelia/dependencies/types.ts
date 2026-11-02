@@ -36,6 +36,7 @@ export type TaskNodeData = {
   isCancelled: boolean;
   isCritical: boolean;
   onOpen: (taskId: string) => void;
+  criticalLabel?: string;
 };
 
 export type ExternalNodeData = {
@@ -49,6 +50,12 @@ export type ExternalNodeData = {
   isCompleted: boolean;
   isCritical: boolean;
   workspaceId: string;
+  initiativeId?: string | null;
+  initiativeName?: string | null;
+  scopeName?: string | null;
+  sameProject?: boolean;
+  onOpen?: (taskId: string) => void;
+  criticalLabel?: string;
 };
 
 export type GraphColumn = {
