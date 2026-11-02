@@ -6734,6 +6734,64 @@
           "createdAt"
         ]
       },
+      "ProjectStatusAge": {
+        "type": "object",
+        "properties": {
+          "tareas": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Every task of the project outside Done and Cancelled, by id, with when it entered its current column: its last status change or, if it never changed, its creation."
+          },
+          "columnas": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StatusAgeColumn"
+            },
+            "description": "By column slug, every column with a finished stay that exited in the last 90 days."
+          },
+          "calculado_en": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When `columnas` was computed; it is kept up to 10 minutes per project."
+          }
+        },
+        "required": [
+          "tareas",
+          "columnas",
+          "calculado_en"
+        ]
+      },
+      "StatusAgeColumn": {
+        "type": "object",
+        "properties": {
+          "p75_s": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "75th percentile, in seconds, of the finished stays in the column. Null with fewer than 10 cases."
+          },
+          "p90_s": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "90th percentile, in seconds, of the finished stays in the column. Null with fewer than 10 cases."
+          },
+          "casos": {
+            "type": "integer",
+            "description": "Finished stays in the column that exited in the last 90 days."
+          }
+        },
+        "required": [
+          "p75_s",
+          "p90_s",
+          "casos"
+        ]
+      },
       "TaskAutomation": {
         "type": "object",
         "properties": {
@@ -28106,6 +28164,71 @@
           },
           "404": {
             "description": "Task or routine not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/project/{projectId}/status-age": {
+      "get": {
+        "operationId": "getProjectStatusAge",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get project status age",
+        "description": "When each open task entered its column, and the 75th and 90th percentiles of how long tasks stay in each column (finished stays of the last 90 days, at least 10 of them). The same access as listing the project's tasks.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entry dates of the open tasks and percentiles by column",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectStatusAge"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project, or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
             "content": {
               "application/json": {
                 "schema": {

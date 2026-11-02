@@ -4,6 +4,7 @@ import initiatives from "./initiatives";
 import reactions from "./reactions";
 import relations from "./relations";
 import routines from "./routines";
+import statusAge from "./status-age";
 import taskAutomation from "./task-automation";
 import userAvatar from "./user-avatar";
 
@@ -15,6 +16,7 @@ const intelia = apiRouter()
   .route("/", reactions)
   .route("/", relations)
   .route("/", routines)
+  .route("/", statusAge)
   .route("/", taskAutomation)
   .route("/", userAvatar);
 

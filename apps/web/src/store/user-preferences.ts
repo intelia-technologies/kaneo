@@ -52,6 +52,8 @@ type UserPreferencesStore = {
   showTaskItemCounts: boolean;
   setShowTaskItemCounts: (show: boolean) => void;
   toggleTaskItemCounts: () => void;
+  showStatusAge: boolean;
+  setShowStatusAge: (show: boolean) => void;
   hiddenCardFieldIds: string[];
   toggleCardFieldHidden: (fieldId: string) => void;
   resetDisplayPreferences: () => void;
@@ -135,6 +137,8 @@ export const useUserPreferencesStore = create<UserPreferencesStore>()(
       setShowTaskItemCounts: (show) => set({ showTaskItemCounts: show }),
       toggleTaskItemCounts: () =>
         set((state) => ({ showTaskItemCounts: !state.showTaskItemCounts })),
+      showStatusAge: true,
+      setShowStatusAge: (show) => set({ showStatusAge: show }),
       hiddenCardFieldIds: [],
       toggleCardFieldHidden: (fieldId) =>
         set((state) => ({
@@ -151,6 +155,7 @@ export const useUserPreferencesStore = create<UserPreferencesStore>()(
           showTaskNumbers: true,
           showPriority: true,
           showTaskItemCounts: true,
+          showStatusAge: true,
         }),
 
       sidebarDefaultOpen: true,

@@ -3718,7 +3718,8 @@
 			"showOnRows": "Pokaż w wierszach",
 			"checklistProgress": "Postęp listy kontrolnej",
 			"projectBackground": "Tło projektu",
-			"layout": "Układ"
+			"layout": "Układ",
+			"statusAge": "Time in status"
 		},
 		"filterBar": {
 			"label": "Aktywne filtry",
@@ -3768,6 +3769,20 @@
 			"startsOn": "Początek: {{date}}",
 			"beforeStart": "{{date}} jest przed datą rozpoczęcia",
 			"afterDue": "{{date}} jest po terminie"
+		},
+		"statusAge": {
+			"aboveP75": "Above usual for this column",
+			"aboveP90": "Well above usual for this column",
+			"days": "{{value}} d",
+			"hours": "{{value}} h",
+			"label": "{{duration}} in {{column}}",
+			"minutes": "{{value}} min",
+			"noBase_few": "No baseline to compare: {{count}} cases in the last 90 days.",
+			"noBase_many": "No baseline to compare: {{count}} cases in the last 90 days.",
+			"noBase_one": "No baseline to compare: {{count}} case in the last 90 days.",
+			"noBase_other": "No baseline to compare: {{count}} cases in the last 90 days.",
+			"since": "In {{column}} since {{date}}.",
+			"usual": "3 out of 4 tasks leave this column in under {{duration}} (last 90 days, {{cases}} cases)."
 		}
 	},
 	"press": {
