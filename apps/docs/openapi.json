@@ -5950,7 +5950,7 @@
               "gateway",
               "migration"
             ],
-            "description": "session: a person in Kaneo. api_key: set when creating the task with an API key. gateway: the factory's gateway, for `actor`. migration: the one-off backfill of open tasks."
+            "description": "session: a person in Kaneo. api_key: an account's API key (at creation or on a change), with the `actor` its caller declared, if any. migration: the one-off backfill of open tasks. gateway: no longer written (the former service token)."
           },
           "setByUserId": {
             "type": [
@@ -5969,7 +5969,7 @@
               "string",
               "null"
             ],
-            "description": "Graph id the gateway acted for; null otherwise."
+            "description": "Graph id an API key's caller declared it acts for (informative, not checked by Kaneo); null otherwise."
           },
           "setAt": {
             "type": "string",
@@ -6033,7 +6033,7 @@
               "gateway",
               "migration"
             ],
-            "description": "session: a person in Kaneo. api_key: set when creating the task with an API key. gateway: the factory's gateway, for `actor`. migration: the one-off backfill of open tasks."
+            "description": "session: a person in Kaneo. api_key: an account's API key (at creation or on a change), with the `actor` its caller declared, if any. migration: the one-off backfill of open tasks. gateway: no longer written (the former service token)."
           },
           "changedByUserId": {
             "type": [
@@ -26452,7 +26452,7 @@
           "Task Automation"
         ],
         "summary": "Get task automation level",
-        "description": "The task's automation level and verification, with who set them and when. Also with the gateway's service token (`X-Service-Token`).",
+        "description": "The task's automation level and verification, with who set them and when.",
         "parameters": [
           {
             "schema": {
@@ -26515,7 +26515,7 @@
           "Task Automation"
         ],
         "summary": "Set task automation level",
-        "description": "Set or change the task's level and verification; each change goes to the change log. Only a person's session (with task:update) or the gateway's service token (`X-Service-Token`, with `actor`); API keys get 403. `completa` requires verification.",
+        "description": "Set or change the task's level and verification; each change goes to the change log. A person's session or an account's API key, with task:update. Kaneo does not check who may change the level beyond that: the factory's gateway does, before calling (design 18 §5). With an API key, `actor` names who the caller acts for (informative, logged as given). `completa` requires verification.",
         "parameters": [
           {
             "schema": {
@@ -26586,8 +26586,9 @@
                     "properties": {
                       "actor": {
                         "type": "string",
-                        "pattern": "^[a-z]+:[A-Za-z0-9._@-]{1,200}$",
-                        "description": "Only with the gateway's service token, and then required: the graph id the gateway acts for (agent:…, person:…). A session always acts as its own user.",
+                        "maxLength": 100,
+                        "pattern": "^(agent|person):[a-z0-9-]+$",
+                        "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
                         "example": "agent:orq-jaime"
                       }
                     }
@@ -26609,7 +26610,7 @@
             }
           },
           "400": {
-            "description": "Invalid level, `completa` without verification, or `actor` missing (gateway) or present (session)",
+            "description": "Invalid level, `completa` without verification, or `actor` from a session",
             "content": {
               "application/json": {
                 "schema": {
@@ -26629,7 +26630,7 @@
             }
           },
           "403": {
-            "description": "An API key, no access to the project, or missing task:update",
+            "description": "No access to the project or missing task:update",
             "content": {
               "application/json": {
                 "schema": {

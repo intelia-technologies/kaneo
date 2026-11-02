@@ -36,7 +36,9 @@ import {
 
 type App = ReturnType<typeof createApp>["app"];
 
-const GATEWAY_TOKEN = "gateway-service-token-with-32-chars-or-more";
+// The former service token's variables: they must authenticate nothing now.
+const FORMER_TOKEN = "former-gateway-service-token-32-chars-or-more";
+const DECLARED = "agent:orq-jaime";
 
 // Every task.created, with whether the task's level was already committed
 // when the event went out.
@@ -52,12 +54,33 @@ beforeEach(async () => {
   await resetTestDatabase();
   createdEvents.length = 0;
   vi.stubEnv("INTELIA_TASK_AUTOMATION_OPTIONAL", "");
-  vi.stubEnv("INTELIA_GATEWAY_TOKEN", GATEWAY_TOKEN);
+  vi.stubEnv("INTELIA_GATEWAY_TOKEN", FORMER_TOKEN);
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
 });
+
+// A workspace member that only holds an API key, the way the factory's gateway
+// calls Kaneo. `scope` limits the key itself, on top of the member's role.
+async function keyAccount(
+  workspaceId: string,
+  userName: string,
+  role: "member" | "viewer",
+  scope?: Record<string, string[]>,
+) {
+  const account = await createWorkspaceMember({ userName });
+  await db.insert(schema.workspaceUserTable).values({
+    workspaceId,
+    userId: account.user.id,
+    role,
+    joinedAt: new Date(),
+  });
+  const { key } = await auth.api.createApiKey({
+    body: { userId: account.user.id, name: userName, permissions: scope },
+  });
+  return { account, key };
+}
 
 async function setup() {
   const { user, workspace } = await createWorkspaceMember({
@@ -67,17 +90,12 @@ async function setup() {
   const { project, columns } = await createProjectFixture({
     workspaceId: workspace.id,
   });
-  // A role account: a workspace member that only holds an API key.
-  const roleAccount = await createWorkspaceMember({ userName: "coder" });
-  await db.insert(schema.workspaceUserTable).values({
-    workspaceId: workspace.id,
-    userId: roleAccount.user.id,
-    role: "member",
-    joinedAt: new Date(),
-  });
-  const { key: roleKey } = await auth.api.createApiKey({
-    body: { userId: roleAccount.user.id, name: "coder" },
-  });
+  // A member account with task:update, through its API key.
+  const { account: roleAccount, key: roleKey } = await keyAccount(
+    workspace.id,
+    "coder",
+    "member",
+  );
   mockAuthenticatedSession(user);
   return { app: createApp().app, user, project, columns, roleKey, roleAccount };
 }
@@ -361,39 +379,6 @@ describe("API integration: Intelia task automation level", () => {
       ]);
     });
 
-    it("answers 403 to a role account's API key, which can still read the level", async () => {
-      const { app, project, roleKey } = await setup();
-      const taskId = await createdTaskId(app, project.id);
-      mockAnonymousSession();
-
-      const write = await putAutomation(
-        app,
-        taskId,
-        { level: "completa", verification: true },
-        { "x-api-key": roleKey },
-      );
-      const bearer = await putAutomation(
-        app,
-        taskId,
-        { level: "completa", verification: true },
-        { authorization: `Bearer ${roleKey}` },
-      );
-      const read = await app.request(`/api/intelia/task/${taskId}/automation`, {
-        headers: { "x-api-key": roleKey },
-      });
-
-      expect(write.status).toBe(403);
-      expect(await readErrorBody(write)).toMatchObject({
-        code: "AUTOMATION_WRITE_FORBIDDEN",
-      });
-      expect(bearer.status).toBe(403);
-      expect(read.status).toBe(200);
-      expect(await stored(taskId)).toEqual([
-        expect.objectContaining({ level: "manual" }),
-      ]);
-      expect(await changes(taskId)).toHaveLength(1);
-    });
-
     it("answers 403 to a person without task:update", async () => {
       const { app, project, user } = await setup();
       const taskId = await createdTaskId(app, project.id);
@@ -430,120 +415,396 @@ describe("API integration: Intelia task automation level", () => {
     });
   });
 
-  describe("the gateway's service token", () => {
-    it("writes for the actor it names and reads the task, its log and the project", async () => {
-      const { app, project } = await setup();
+  describe("an account's API key", () => {
+    it.each([
+      ["x-api-key", (key: string) => ({ "x-api-key": key })],
+      ["a bearer token", (key: string) => ({ authorization: `Bearer ${key}` })],
+    ])(
+      "with task:update writes as its account, with the actor it declares (%s)",
+      async (_how, headersOf) => {
+        const { app, project, roleKey, roleAccount, user } = await setup();
+        const taskId = await createdTaskId(app, project.id);
+        mockAnonymousSession();
+        const headers = headersOf(roleKey);
+
+        const res = await putAutomation(
+          app,
+          taskId,
+          { level: "arranque", verification: true, actor: DECLARED },
+          headers,
+        );
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({
+          taskId,
+          level: "arranque",
+          verification: true,
+          source: "api_key",
+          setByUserId: roleAccount.user.id,
+          setByName: "coder",
+          setByActor: DECLARED,
+        });
+        expect(await stored(taskId)).toEqual([
+          expect.objectContaining({
+            level: "arranque",
+            source: "api_key",
+            setByUserId: roleAccount.user.id,
+            setByActor: DECLARED,
+          }),
+        ]);
+        expect(await changes(taskId)).toEqual([
+          expect.objectContaining({
+            level: "manual",
+            source: "session",
+            changedByUserId: user.id,
+            changedByActor: null,
+          }),
+          expect.objectContaining({
+            previousLevel: "manual",
+            previousVerification: true,
+            level: "arranque",
+            verification: true,
+            source: "api_key",
+            changedByUserId: roleAccount.user.id,
+            changedByActor: DECLARED,
+          }),
+        ]);
+        // The same key reads the level, its log and the project's levels.
+        const history = await app.request(
+          `/api/intelia/task/${taskId}/automation/history`,
+          { headers },
+        );
+        expect(history.status).toBe(200);
+        expect(await history.json()).toEqual([
+          expect.objectContaining({
+            level: "arranque",
+            source: "api_key",
+            changedByName: "coder",
+            changedByActor: DECLARED,
+          }),
+          expect.objectContaining({ level: "manual", source: "session" }),
+        ]);
+        const list = await app.request(
+          `/api/intelia/project/${project.id}/automation`,
+          { headers },
+        );
+        expect(await list.json()).toEqual([
+          expect.objectContaining({ taskId, level: "arranque" }),
+        ]);
+      },
+    );
+
+    it("without `actor` writes as its account alone", async () => {
+      const { app, project, roleKey, roleAccount } = await setup();
       const taskId = await createdTaskId(app, project.id);
       mockAnonymousSession();
-      const gateway = { "x-service-token": GATEWAY_TOKEN };
 
       const res = await putAutomation(
         app,
         taskId,
-        { level: "arranque", verification: true, actor: "agent:orq-jaime" },
-        gateway,
+        { level: "completa", verification: true },
+        { "x-api-key": roleKey },
       );
 
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({
-        level: "arranque",
-        source: "gateway",
-        setByUserId: null,
-        setByActor: "agent:orq-jaime",
+      expect((await changes(taskId)).at(-1)).toMatchObject({
+        level: "completa",
+        source: "api_key",
+        changedByUserId: roleAccount.user.id,
+        changedByActor: null,
       });
-      const history = await app.request(
-        `/api/intelia/task/${taskId}/automation/history`,
-        { headers: gateway },
-      );
-      expect(await history.json()).toEqual([
-        expect.objectContaining({
-          previousLevel: "manual",
-          level: "arranque",
-          source: "gateway",
-          changedByActor: "agent:orq-jaime",
-        }),
-        expect.objectContaining({ level: "manual", source: "session" }),
-      ]);
-      const read = await app.request(`/api/intelia/task/${taskId}/automation`, {
-        headers: gateway,
-      });
-      expect(await read.json()).toMatchObject({ level: "arranque" });
-      const list = await app.request(
-        `/api/intelia/project/${project.id}/automation`,
-        { headers: gateway },
-      );
-      expect(await list.json()).toEqual([
-        expect.objectContaining({ taskId, level: "arranque" }),
-      ]);
     });
 
-    it("requires `actor`", async () => {
+    it("keeps a declared actor of exactly 100 characters", async () => {
+      const { app, project, roleKey } = await setup();
+      const taskId = await createdTaskId(app, project.id);
+      mockAnonymousSession();
+      const longest = `agent:${"a".repeat(94)}`;
+
+      const res = await putAutomation(
+        app,
+        taskId,
+        { level: "arranque", verification: false, actor: longest },
+        { "x-api-key": roleKey },
+      );
+
+      expect(res.status).toBe(200);
+      expect((await changes(taskId)).at(-1)?.changedByActor).toBe(longest);
+    });
+
+    it.each([
+      ["101 characters", `agent:${"a".repeat(95)}`],
+      ["another kind of id", "role:coder"],
+      ["upper case", "agent:Orq-Jaime"],
+      ["an underscore", "agent:orq_jaime"],
+      ["an email", "person:jaime@example.com"],
+      ["no name", "agent:"],
+      ["spaces around", " agent:orq-jaime "],
+      ["an empty string", ""],
+      ["a number", 42],
+      ["null", null],
+      ["an object", { id: DECLARED }],
+    ])(
+      "ignores an invalid declared actor (%s): the write goes through as the key's account only",
+      async (_what, actor) => {
+        const { app, project, roleKey, roleAccount } = await setup();
+        const taskId = await createdTaskId(app, project.id);
+        mockAnonymousSession();
+
+        const res = await putAutomation(
+          app,
+          taskId,
+          { level: "arranque", verification: true, actor },
+          { "x-api-key": roleKey },
+        );
+
+        expect(res.status).toBe(200);
+        expect(await res.json()).toMatchObject({
+          source: "api_key",
+          setByUserId: roleAccount.user.id,
+          setByActor: null,
+        });
+        expect((await changes(taskId)).at(-1)).toMatchObject({
+          level: "arranque",
+          source: "api_key",
+          changedByUserId: roleAccount.user.id,
+          changedByActor: null,
+        });
+      },
+    );
+
+    it("answers 403 to the key of a viewer account, which can still read the level", async () => {
       const { app, project } = await setup();
       const taskId = await createdTaskId(app, project.id);
+      const viewer = await keyAccount(project.workspaceId, "viewer", "viewer");
+      mockAnonymousSession();
+
+      const write = await putAutomation(
+        app,
+        taskId,
+        { level: "completa", verification: true, actor: DECLARED },
+        { "x-api-key": viewer.key },
+      );
+      const read = await app.request(`/api/intelia/task/${taskId}/automation`, {
+        headers: { "x-api-key": viewer.key },
+      });
+
+      expect(write.status).toBe(403);
+      expect(await readErrorBody(write)).toMatchObject({
+        code: "MISSING_PERMISSION",
+        missingPermissions: ["task:update"],
+      });
+      expect(read.status).toBe(200);
+      expect(await stored(taskId)).toEqual([
+        expect.objectContaining({ level: "manual", source: "session" }),
+      ]);
+      expect(await changes(taskId)).toHaveLength(1);
+    });
+
+    it("answers 403 to a member's key scoped without task:update", async () => {
+      const { app, project } = await setup();
+      const taskId = await createdTaskId(app, project.id);
+      const scoped = await keyAccount(project.workspaceId, "lector", "member", {
+        task: ["read"],
+      });
       mockAnonymousSession();
 
       const res = await putAutomation(
         app,
         taskId,
-        { level: "arranque", verification: true },
-        { "x-service-token": GATEWAY_TOKEN },
+        { level: "completa", verification: true },
+        { "x-api-key": scoped.key },
       );
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(403);
+      expect(await readErrorBody(res)).toMatchObject({
+        code: "API_KEY_SCOPE",
+        missingPermissions: ["task:update"],
+      });
       expect(await changes(taskId)).toHaveLength(1);
     });
 
-    it("answers 401 to a wrong token, or to any token when none is configured", async () => {
+    it("answers 404 to the key of an account outside the task's workspace, as Kaneo does for any task it cannot see", async () => {
       const { app, project } = await setup();
       const taskId = await createdTaskId(app, project.id);
+      // Owner of its own workspace, with every permission there, none here.
+      const outsider = await createWorkspaceMember({
+        role: "owner",
+        userName: "ajena",
+      });
+      const { key } = await auth.api.createApiKey({
+        body: { userId: outsider.user.id, name: "ajena" },
+      });
       mockAnonymousSession();
-      const body = {
-        level: "arranque",
-        verification: true,
-        actor: "agent:orq-jaime",
-      };
 
-      const wrong = await putAutomation(app, taskId, body, {
-        "x-service-token": `${GATEWAY_TOKEN}-not`,
-      });
-      vi.stubEnv("INTELIA_GATEWAY_TOKEN", "");
-      const unset = await putAutomation(app, taskId, body, {
-        "x-service-token": "",
-      });
-      const unconfigured = await putAutomation(app, taskId, body, {
-        "x-service-token": GATEWAY_TOKEN,
+      const write = await putAutomation(
+        app,
+        taskId,
+        { level: "completa", verification: true, actor: DECLARED },
+        { "x-api-key": key },
+      );
+      const read = await app.request(`/api/intelia/task/${taskId}/automation`, {
+        headers: { "x-api-key": key },
       });
 
-      expect(wrong.status).toBe(401);
-      expect(unset.status).toBe(401);
-      expect(unconfigured.status).toBe(401);
+      expect(write.status).toBe(404);
+      expect(read.status).toBe(404);
       expect(await changes(taskId)).toHaveLength(1);
     });
 
-    it("opens no other route", async () => {
-      const { app, project } = await setup();
+    it("answers 401 without credentials and with an unknown key", async () => {
+      const { app, project, roleKey } = await setup();
       const taskId = await createdTaskId(app, project.id);
       mockAnonymousSession();
+      const body = { level: "completa", verification: true, actor: DECLARED };
 
-      const res = await app.request(`/api/task/${taskId}`, {
-        headers: { "x-service-token": GATEWAY_TOKEN },
+      const none = await putAutomation(app, taskId, body);
+      const unknown = await putAutomation(app, taskId, body, {
+        "x-api-key": `${roleKey}x`,
+      });
+      const unknownBearer = await putAutomation(app, taskId, body, {
+        authorization: `Bearer ${roleKey}x`,
       });
 
-      expect(res.status).toBe(401);
+      expect(none.status).toBe(401);
+      expect(unknown.status).toBe(401);
+      expect(unknownBearer.status).toBe(401);
+      expect(await changes(taskId)).toHaveLength(1);
     });
 
     it("answers 404 for a task that does not exist", async () => {
-      const { app } = await setup();
+      const { app, roleKey } = await setup();
       mockAnonymousSession();
 
       const res = await putAutomation(
         app,
         "missing-task",
-        { level: "manual", verification: true, actor: "agent:orq-jaime" },
-        { "x-service-token": GATEWAY_TOKEN },
+        { level: "manual", verification: true, actor: DECLARED },
+        { "x-api-key": roleKey },
       );
 
       expect(res.status).toBe(404);
+    });
+
+    it.each([
+      ["the level", "task_automation"],
+      ["the change log", "task_automation_change"],
+    ])(
+      "keeps the previous level when %s cannot be written, and a retry writes once",
+      async (_what, table) => {
+        const { app, project, roleKey, roleAccount } = await setup();
+        const taskId = await createdTaskId(app, project.id);
+        mockAnonymousSession();
+        const body = { level: "arranque", verification: true, actor: DECLARED };
+        const key = { "x-api-key": roleKey };
+        // An upsert of the level fires the insert trigger too.
+        await db.execute(
+          sql.raw(`CREATE OR REPLACE FUNCTION intelia.au02c_test_fail() RETURNS trigger
+            LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected failure'; END $$`),
+        );
+        await db.execute(
+          sql.raw(`CREATE TRIGGER au02c_test_fail BEFORE INSERT ON intelia.${table}
+            FOR EACH ROW EXECUTE FUNCTION intelia.au02c_test_fail()`),
+        );
+        let failed: Response;
+        try {
+          failed = await putAutomation(app, taskId, body, key);
+        } finally {
+          await db.execute(
+            sql.raw(
+              `DROP TRIGGER au02c_test_fail ON intelia.${table}; DROP FUNCTION intelia.au02c_test_fail()`,
+            ),
+          );
+        }
+
+        expect(failed.status).toBe(500);
+        expect(await stored(taskId)).toEqual([
+          expect.objectContaining({ level: "manual", source: "session" }),
+        ]);
+        expect(await changes(taskId)).toHaveLength(1);
+
+        const retry = await putAutomation(app, taskId, body, key);
+
+        expect(retry.status).toBe(200);
+        expect(await changes(taskId)).toEqual([
+          expect.objectContaining({ level: "manual" }),
+          expect.objectContaining({
+            level: "arranque",
+            changedByUserId: roleAccount.user.id,
+            changedByActor: DECLARED,
+          }),
+        ]);
+      },
+    );
+  });
+
+  describe("the former service token", () => {
+    const token = { "x-service-token": FORMER_TOKEN };
+
+    it("authenticates nothing on its own, even with INTELIA_GATEWAY_TOKEN set", async () => {
+      const { app, project } = await setup();
+      const taskId = await createdTaskId(app, project.id);
+      mockAnonymousSession();
+
+      const write = await putAutomation(
+        app,
+        taskId,
+        { level: "completa", verification: true, actor: DECLARED },
+        token,
+      );
+      const reads = await Promise.all(
+        [
+          `/api/intelia/task/${taskId}/automation`,
+          `/api/intelia/task/${taskId}/automation/history`,
+          `/api/intelia/project/${project.id}/automation`,
+        ].map((path) => app.request(path, { headers: token })),
+      );
+
+      expect(write.status).toBe(401);
+      expect(reads.map((r) => r.status)).toEqual([401, 401, 401]);
+      expect(await changes(taskId)).toHaveLength(1);
+    });
+
+    it("is ignored next to a session or a key: the write is theirs", async () => {
+      const { app, project, user, roleKey, roleAccount } = await setup();
+      const taskId = await createdTaskId(app, project.id);
+
+      const bySession = await putAutomation(
+        app,
+        taskId,
+        { level: "arranque", verification: true },
+        token,
+      );
+      // A session still may not name an actor, token or not.
+      const sessionActor = await putAutomation(
+        app,
+        taskId,
+        { level: "completa", verification: true, actor: DECLARED },
+        token,
+      );
+      mockAnonymousSession();
+      const byKey = await putAutomation(
+        app,
+        taskId,
+        { level: "completa", verification: true, actor: DECLARED },
+        { ...token, "x-api-key": roleKey },
+      );
+
+      expect([bySession.status, sessionActor.status, byKey.status]).toEqual([
+        200, 400, 200,
+      ]);
+      expect(
+        (await changes(taskId)).map((c) => [
+          c.level,
+          c.source,
+          c.changedByUserId,
+          c.changedByActor,
+        ]),
+      ).toEqual([
+        ["manual", "session", user.id, null],
+        ["arranque", "session", user.id, null],
+        ["completa", "api_key", roleAccount.user.id, DECLARED],
+      ]);
     });
   });
 
@@ -604,8 +865,8 @@ describe("API integration: Intelia task automation level", () => {
       vi.stubEnv("KANEO_ALLOW_PRIVATE_WEBHOOK_DESTINATIONS", "true");
     });
 
-    it("goes out once per change, from a session and from the gateway, and not on creation", async () => {
-      const { app, project, user } = await setup();
+    it("goes out once per change, from a session and from an API key, and not on creation", async () => {
+      const { app, project, user, roleKey, roleAccount } = await setup();
       await db.insert(schema.integrationTable).values({
         projectId: project.id,
         type: "generic-webhook",
@@ -633,18 +894,31 @@ describe("API integration: Intelia task automation level", () => {
       expect(repeated.status).toBe(200);
 
       mockAnonymousSession();
-      const gateway = await putAutomation(
+      const byKey = await putAutomation(
         app,
         taskId,
-        { level: "completa", verification: true, actor: "agent:orq-jaime" },
-        { "x-service-token": GATEWAY_TOKEN },
+        { level: "completa", verification: true, actor: DECLARED },
+        { "x-api-key": roleKey },
       );
-      expect(gateway.status).toBe(200);
+      expect(byKey.status).toBe(200);
       await vi.waitFor(() =>
         expect(ofEvent("task.automation_changed")).toHaveLength(2),
       );
+      // An invalid declared actor is not in the event either.
+      const invalidActor = await putAutomation(
+        app,
+        taskId,
+        { level: "manual", verification: false, actor: "Agent:Orq" },
+        { "x-api-key": roleKey },
+      );
+      expect(invalidActor.status).toBe(200);
+      await vi.waitFor(() =>
+        expect(ofEvent("task.automation_changed")).toHaveLength(3),
+      );
 
-      const [bySession, byGateway] = ofEvent("task.automation_changed");
+      const [bySession, byKeyEvent, byInvalid] = ofEvent(
+        "task.automation_changed",
+      );
       expect(bySession).toMatchObject({
         signatureValid: true,
         body: {
@@ -661,33 +935,46 @@ describe("API integration: Intelia task automation level", () => {
           },
         },
       });
-      expect(byGateway).toMatchObject({
+      expect(byKeyEvent).toMatchObject({
         signatureValid: true,
         body: {
           task: { id: taskId },
-          actor: { id: null, name: null },
+          actor: { id: roleAccount.user.id, name: "coder" },
           data: {
             previousLevel: "arranque",
             previousVerification: true,
             level: "completa",
             verification: true,
-            source: "gateway",
-            changedByActor: "agent:orq-jaime",
+            source: "api_key",
+            changedByActor: DECLARED,
+          },
+        },
+      });
+      expect(byInvalid).toMatchObject({
+        body: {
+          actor: { id: roleAccount.user.id, name: "coder" },
+          data: {
+            previousLevel: "completa",
+            level: "manual",
+            verification: false,
+            source: "api_key",
+            changedByActor: null,
           },
         },
       });
       // The log and the events tell the same story, with the same times.
+      const events = [bySession, byKeyEvent, byInvalid];
       const logged = await changes(taskId);
-      expect([bySession, byGateway].map((d) => d!.body.data.changedAt)).toEqual(
+      expect(events.map((d) => d!.body.data.changedAt)).toEqual(
         logged.slice(1).map((c) => c.changedAt.toISOString()),
       );
-      // Nothing sensitive: no emails and no token.
-      for (const d of [bySession, byGateway]) {
+      // Nothing sensitive: no emails and no key.
+      for (const d of events) {
         expect(d!.raw).not.toContain("@example");
-        expect(d!.raw).not.toContain(GATEWAY_TOKEN);
+        expect(d!.raw).not.toContain(roleKey);
         expect(d!.raw).not.toMatch(/"email"/);
       }
-      expect(ofEvent("task.automation_changed")).toHaveLength(2);
+      expect(ofEvent("task.automation_changed")).toHaveLength(3);
     });
 
     describe("changedAt", () => {
@@ -704,22 +991,32 @@ describe("API integration: Intelia task automation level", () => {
       });
 
       async function liveTask() {
-        const { app, project } = await setup();
+        const { app, project, roleKey } = await setup();
         await db.insert(schema.integrationTable).values({
           projectId: project.id,
           type: "generic-webhook",
           isActive: true,
           config: JSON.stringify({ webhookUrl, secret: SECRET }),
         });
-        return { app, taskId: await createdTaskId(app, project.id) };
+        return { app, roleKey, taskId: await createdTaskId(app, project.id) };
       }
 
       // Alternating values, so that every PUT is a change.
-      async function change(app: App, taskId: string, i: number) {
-        const res = await putAutomation(app, taskId, {
-          level: i % 2 === 0 ? "arranque" : "completa",
-          verification: true,
-        });
+      async function change(
+        app: App,
+        taskId: string,
+        i: number,
+        headers: Record<string, string> = {},
+      ) {
+        const res = await putAutomation(
+          app,
+          taskId,
+          {
+            level: i % 2 === 0 ? "arranque" : "completa",
+            verification: true,
+          },
+          headers,
+        );
         expect(res.status).toBe(200);
       }
 
@@ -732,9 +1029,18 @@ describe("API integration: Intelia task automation level", () => {
           .sort();
       }
 
-      it("grows strictly per task with a frozen clock, the same in the log, the row and the event", async () => {
-        const { app, taskId } = await liveTask();
-        for (let i = 0; i < 12; i++) await change(app, taskId, i);
+      it("grows strictly per task with a frozen clock, from sessions and keys alike, the same in the log, the row and the event", async () => {
+        const { app, roleKey, taskId } = await liveTask();
+        // Every other change through the API key.
+        for (let i = 0; i < 12; i++) {
+          await change(app, taskId, i, i % 2 ? { "x-api-key": roleKey } : {});
+        }
+        expect((await changes(taskId)).map((c) => c.source)).toEqual([
+          "session",
+          ...Array.from({ length: 12 }, (_, i) =>
+            i % 2 ? "api_key" : "session",
+          ),
+        ]);
 
         const logged = (await changes(taskId)).map((c) =>
           c.changedAt.getTime(),

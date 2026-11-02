@@ -38,10 +38,10 @@ export async function testAutomationDefault(c: Context, next: Next) {
 
 /** Whoever makes the request writes the level: a session or an API key. */
 export function callerWriter(c: Context): AutomationWriter {
-  return {
-    source: c.get("apiKey") ? "api_key" : "session",
-    userId: c.get("userId"),
-  };
+  const userId = c.get("userId");
+  return c.get("apiKey")
+    ? { source: "api_key", userId, actor: null }
+    : { source: "session", userId };
 }
 
 /**

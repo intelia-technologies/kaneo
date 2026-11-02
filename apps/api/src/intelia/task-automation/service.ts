@@ -17,12 +17,13 @@ export type AutomationValue = {
 };
 
 /**
- * Who writes the level: a Kaneo user, the gateway acting for a graph id, or
- * the migration rule (no user) for a level nobody chose.
+ * Who writes the level: a person's session, an account's API key (with the
+ * actor its caller declares, if any), or the migration rule (no user) for a
+ * level nobody chose.
  */
 export type AutomationWriter =
-  | { source: "session" | "api_key"; userId: string }
-  | { source: "gateway"; actor: string }
+  | { source: "session"; userId: string }
+  | { source: "api_key"; userId: string; actor: string | null }
   | { source: "migration" };
 
 /** A stored writer: the columns of `task_automation` that name who set it. */
@@ -33,13 +34,14 @@ export type AutomationAuthor = {
 };
 
 function authorOf(writer: AutomationWriter): AutomationAuthor {
-  if (writer.source === "gateway") {
-    return { source: "gateway", userId: null, actor: writer.actor };
-  }
   if (writer.source === "migration") {
     return { source: "migration", userId: null, actor: null };
   }
-  return { source: writer.source, userId: writer.userId, actor: null };
+  return {
+    source: writer.source,
+    userId: writer.userId,
+    actor: writer.source === "api_key" ? writer.actor : null,
+  };
 }
 
 /** A level and who writes it (at creation, the task's creator). */
