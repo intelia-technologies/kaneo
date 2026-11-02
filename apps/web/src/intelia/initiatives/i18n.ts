@@ -1,0 +1,113 @@
+import { registerInteliaI18n } from "../i18n";
+
+const en = {
+  initiative: {
+    title: "Initiative",
+    required: "Choose an initiative.",
+    inheritsFromParent: "Inherits {{name}} from the parent task.",
+    parentWithout:
+      "The parent task has no initiative: assign one in its Initiative block first.",
+    loadError: "Could not load the initiative.",
+    duplicateTitle: "Choose the copy's initiative",
+    importHint: "Every imported task goes to this initiative.",
+    starterName: "Getting started",
+    noInitiative: "No initiative",
+    placeholder: "Choose an initiative…",
+    searchPlaceholder: "Search or create initiative…",
+    noMatches: "No initiatives found",
+    createOption: "Create initiative “{{name}}”",
+    nameTaken: "An initiative with that name already exists in this project.",
+    planClosedBadge: "Plan closed",
+    planClosedOn: "Plan closed on {{date}}",
+    closePlan: "Close plan",
+    closePlanConfirm: {
+      title: "Close plan?",
+      description:
+        "Tasks added to this initiative after closing will be marked as “Added”.",
+      confirm: "Close plan",
+      cancel: "Cancel",
+    },
+    origins: {
+      plan: "Plan",
+      añadido: "Added",
+      sin_registro: "No record",
+    },
+    setBy: "Assigned by {{name}} · {{date}}",
+    history: "History",
+    noHistory: "No changes yet",
+    change: "{{from}} → {{to}}",
+    firstSet: "Assigned to {{to}}",
+    removed: "Removed from {{from}}",
+    eventCreated: "Initiative created",
+    eventPlanClosed: "Plan closed",
+    eventPlanClosedAuto: "Plan closed on its own: a task moved to In progress",
+    source: {
+      session: "Kaneo",
+      api_key: "API key",
+      auto: "auto",
+      project_move: "project move",
+      migration: "migration",
+    },
+    unknownAuthor: "Unknown",
+    saveError: "Failed to change the initiative",
+    createError: "Failed to create the initiative",
+    closePlanError: "Failed to close the plan",
+  },
+};
+
+const es = {
+  initiative: {
+    title: "Iniciativa",
+    required: "Elige una iniciativa.",
+    inheritsFromParent: "Hereda {{name}} de la tarea padre.",
+    parentWithout:
+      "La tarea padre no tiene iniciativa: asígnale una en su bloque Iniciativa.",
+    loadError: "No se pudo cargar la iniciativa.",
+    duplicateTitle: "Elige la iniciativa de la copia",
+    importHint: "Todas las tareas importadas van a esta iniciativa.",
+    starterName: "Primeros pasos",
+    noInitiative: "Sin iniciativa",
+    placeholder: "Elige una iniciativa…",
+    searchPlaceholder: "Buscar o crear iniciativa…",
+    noMatches: "No se encontraron iniciativas",
+    createOption: "Crear iniciativa «{{name}}»",
+    nameTaken: "Ya existe una iniciativa con ese nombre en este proyecto.",
+    planClosedBadge: "Plan cerrado",
+    planClosedOn: "Plan cerrado el {{date}}",
+    closePlan: "Cerrar el plan",
+    closePlanConfirm: {
+      title: "¿Cerrar el plan?",
+      description:
+        "Las tareas que se añadan a esta iniciativa tras cerrar el plan quedarán como «Añadido».",
+      confirm: "Cerrar el plan",
+      cancel: "Cancelar",
+    },
+    origins: {
+      plan: "Plan",
+      añadido: "Añadido",
+      sin_registro: "Sin registro",
+    },
+    setBy: "Asignada por {{name}} · {{date}}",
+    history: "Diario",
+    noHistory: "Sin cambios todavía",
+    change: "{{from}} → {{to}}",
+    firstSet: "Asignada a {{to}}",
+    removed: "Quitada de {{from}}",
+    eventCreated: "Iniciativa creada",
+    eventPlanClosed: "Plan cerrado",
+    eventPlanClosedAuto: "Plan cerrado solo: una tarea pasó a In progress",
+    source: {
+      session: "Kaneo",
+      api_key: "clave de API",
+      auto: "auto",
+      project_move: "cambio de proyecto",
+      migration: "migración",
+    },
+    unknownAuthor: "Desconocido",
+    saveError: "No se pudo cambiar la iniciativa",
+    createError: "No se pudo crear la iniciativa",
+    closePlanError: "No se pudo cerrar el plan",
+  },
+};
+
+registerInteliaI18n(en, es);

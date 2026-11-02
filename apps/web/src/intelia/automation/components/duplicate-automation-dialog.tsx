@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useDuplicateTask } from "@/hooks/mutations/task/use-duplicate-task";
+import { InitiativePicker } from "@/intelia/initiatives/components/initiative-picker";
+import { InitiativeRequiredReason } from "@/intelia/initiatives/components/initiative-required-reason";
 import {
   type DuplicateRequest,
   useDuplicateAutomationStore,
@@ -18,29 +21,73 @@ import {
 import { useAutomationDraft } from "../use-automation-draft";
 import { AutomationCreateFields } from "./automation-create-fields";
 import "../i18n";
-
+import "@/intelia/initiatives/i18n";
 function DuplicateAutomationForm({ request }: { request: DuplicateRequest }) {
   const { t } = useTranslation();
   const close = useDuplicateAutomationStore((state) => state.close);
   const automation = useAutomationDraft();
+  const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const { mutate, isPending } = useDuplicateTask();
 
-  const confirm = () => {
-    if (!automation.input || isPending) return;
-    mutate({ ...request, automation: automation.input }, { onSuccess: close });
-  };
+  const needsAutomation = request.missingAutomation ?? true;
+  const needsInitiative = request.missingInitiative ?? false;
 
+  const canConfirm =
+    (!needsAutomation || automation.isValid) &&
+    (!needsInitiative || Boolean(initiativeId));
+
+  const confirm = () => {
+    if (!canConfirm || isPending) return;
+    mutate(
+      {
+        taskId: request.taskId,
+        title: request.title,
+        ...(needsAutomation && automation.input
+          ? { automation: automation.input }
+          : {}),
+        ...(needsInitiative && initiativeId ? { initiativeId } : {}),
+      },
+      { onSuccess: close },
+    );
+  };
   return (
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogPopup className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{t("intelia:automation.duplicate.title")}</DialogTitle>
+          <DialogTitle>
+            {needsInitiative && !needsAutomation
+              ? t("intelia:initiative.duplicateTitle")
+              : t("intelia:automation.duplicate.title")}
+          </DialogTitle>
           <DialogDescription>
-            {t("intelia:automation.duplicate.description")}
+            {needsInitiative && !needsAutomation
+              ? t("intelia:initiative.required")
+              : t("intelia:automation.duplicate.description")}
           </DialogDescription>
         </DialogHeader>
-        <DialogPanel>
-          <AutomationCreateFields control={automation} disabled={isPending} />
+        <DialogPanel className="space-y-4">
+          {needsAutomation && (
+            <AutomationCreateFields control={automation} disabled={isPending} />
+          )}
+          {needsInitiative && (
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="duplicate-initiative-picker"
+                className="text-xs font-medium text-foreground"
+              >
+                {t("intelia:initiative.title")}
+              </label>
+              <InitiativePicker
+                id="duplicate-initiative-picker"
+                projectId={request.projectId}
+                value={initiativeId}
+                onChange={setInitiativeId}
+                disabled={isPending}
+                invalid={!initiativeId}
+              />
+              <InitiativeRequiredReason show={!initiativeId} />
+            </div>
+          )}
         </DialogPanel>
         <DialogFooter>
           <DialogClose render={<Button type="button" variant="outline" />}>
@@ -50,7 +97,7 @@ function DuplicateAutomationForm({ request }: { request: DuplicateRequest }) {
             type="button"
             onClick={confirm}
             loading={isPending}
-            disabled={!automation.isValid}
+            disabled={!canConfirm}
           >
             {t("intelia:automation.duplicate.confirm")}
           </Button>

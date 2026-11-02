@@ -20,8 +20,12 @@ const mocks = vi.hoisted(() => ({
   createRelation: vi.fn(),
   getRelations: vi.fn(),
   navigate: vi.fn(),
+  parentInitiative: {
+    taskId: "parent-1",
+    initiativeId: "init-1",
+    initiativeName: "Parent Initiative",
+  } as { taskId: string; initiativeId: string; initiativeName: string } | null,
 }));
-
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
 }));
@@ -32,6 +36,13 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
   initReactI18next: { type: "3rdParty", init: vi.fn() },
 }));
+vi.mock("@/intelia/initiatives/api", () => ({
+  useTaskInitiative: () => ({
+    data: mocks.parentInitiative,
+    isLoading: false,
+  }),
+}));
+vi.mock("@/intelia/initiatives/i18n", () => ({}));
 vi.mock("@/hooks/mutations/task/use-create-task", () => ({
   default: () => ({ mutateAsync: mocks.createTask, isPending: false }),
 }));
@@ -79,6 +90,11 @@ vi.mock("@/lib/toast", () => ({
 }));
 
 beforeEach(() => {
+  mocks.parentInitiative = {
+    taskId: "parent-1",
+    initiativeId: "init-1",
+    initiativeName: "Parent Initiative",
+  };
   mocks.getRelations.mockReturnValue({ data: [] });
   mocks.createTask.mockResolvedValue({ id: "subtask-1" });
   mocks.createRelation.mockResolvedValue({});
@@ -135,6 +151,7 @@ describe("TaskSubtasks automation", () => {
     expect(mocks.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
         automation: { level: "arranque", verification: false },
+        initiative: { parentTaskId: "parent-1" },
       }),
     );
   });
@@ -214,5 +231,42 @@ describe("TaskSubtasks automation", () => {
     fireEvent.keyDown(manual, { key: "Enter" });
 
     expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it("shows inherits from parent and sends { parentTaskId }", async () => {
+    const input = openAddRow();
+    fireEvent.change(input, { target: { value: "Child subtask" } });
+    expect(
+      screen.getByText("intelia:initiative.inheritsFromParent"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(radio("intelia:automation.levels.manual"));
+    fireEvent.click(radio("intelia:automation.yes"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "tasks:subtasks.addAction" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          initiative: { parentTaskId: "parent-1" },
+        }),
+      ),
+    );
+  });
+
+  it("blocks subtask creation when parent task has no initiative", () => {
+    mocks.parentInitiative = null;
+    const input = openAddRow();
+    fireEvent.change(input, { target: { value: "Orphan subtask" } });
+    fireEvent.click(radio("intelia:automation.levels.manual"));
+    fireEvent.click(radio("intelia:automation.yes"));
+
+    expect(
+      screen.getByText("intelia:initiative.parentWithout"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "tasks:subtasks.addAction" }),
+    ).toBeDisabled();
   });
 });

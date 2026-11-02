@@ -190,6 +190,7 @@ it("duplicates using the localized title suffix", () => {
   );
   expect(duplicateTask).toHaveBeenCalledWith({
     taskId: task.id,
+    projectId: task.projectId,
     title: `tasks:duplicate.titleSuffix|${task.title}`,
   });
 });

@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Upload, UploadIcon } from "lucide-react";
-import { type ChangeEvent, type DragEvent, useRef } from "react";
+import { type ChangeEvent, type DragEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   isJsonFile,
@@ -20,8 +20,9 @@ import {
 import useImportTasks from "@/hooks/mutations/task/use-import-tasks";
 import { ImportAutomationFields } from "@/intelia/automation/components/import-automation-fields";
 import { useAutomationDraft } from "@/intelia/automation/use-automation-draft";
+import { InitiativePicker } from "@/intelia/initiatives/components/initiative-picker";
+import "@/intelia/initiatives/i18n";
 import { toast } from "@/lib/toast";
-
 const EXAMPLE_FORMAT = `{
   "tasks": [
     {
@@ -52,11 +53,11 @@ export function ImportTasksDialog({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { mutateAsync: importTasks, isPending } = useImportTasks();
   const automation = useAutomationDraft();
+  const [initiativeId, setInitiativeId] = useState<string | null>(null);
 
   const importFile = async (file: File) => {
     const input = automation.input;
-    if (!input) return;
-
+    if (!input || !initiativeId) return;
     try {
       const tasks = parseTasksImport(await file.text());
 
@@ -67,13 +68,17 @@ export function ImportTasksDialog({
 
       toast.loading(t("settings:tasksImportExport.importing"));
 
-      const result = await importTasks({ projectId, tasks, automation: input });
-
+      const result = await importTasks({
+        projectId,
+        tasks,
+        automation: input,
+        initiativeId,
+      });
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
 
       onOpenChange(false);
       automation.reset();
-      toast.dismiss();
+      setInitiativeId(null);
       toast.success(
         t("settings:tasksImportExport.importSuccess", {
           count: result.results.successful,
@@ -119,7 +124,16 @@ export function ImportTasksDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (!next) {
+          automation.reset();
+          setInitiativeId(null);
+        }
+      }}
+    >
       <DialogPopup className="max-w-md">
         <DialogHeader>
           <DialogTitle>
@@ -139,6 +153,25 @@ export function ImportTasksDialog({
             </pre>
           </div>
           <ImportAutomationFields control={automation} disabled={isPending} />
+          <div className="space-y-1.5">
+            <label
+              htmlFor="import-initiative-picker"
+              className="text-xs font-medium text-foreground"
+            >
+              {t("intelia:initiative.title")}
+            </label>
+            <InitiativePicker
+              id="import-initiative-picker"
+              projectId={projectId}
+              value={initiativeId}
+              onChange={setInitiativeId}
+              disabled={isPending}
+              invalid={!initiativeId}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("intelia:initiative.importHint")}
+            </p>
+          </div>
           <div
             className="flex flex-col items-center gap-3 rounded-lg border border-border bg-muted/30 px-6 py-8 text-center transition-colors hover:border-ring"
             onDrop={handleDrop}
@@ -156,7 +189,7 @@ export function ImportTasksDialog({
               variant="outline"
               size="sm"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isPending || !automation.isValid}
+              disabled={isPending || !automation.isValid || !initiativeId}
             >
               {isPending ? <Loader2 className="animate-spin" /> : null}
               {t("settings:tasksImportExport.selectFile")}
