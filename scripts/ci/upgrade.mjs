@@ -142,6 +142,16 @@ if (mode === "seed") {
       fixture.task[field],
       `Task ${field} changed during upgrade`,
     );
+  // Intelia: the one-off backfill leaves the open task in manual with
+  // verification (README-INTELIA.md, «Nivel de automatización de las tareas»).
+  const automation = await client.json(
+    `/api/intelia/task/${task.id}/automation`,
+  );
+  assert.deepEqual(
+    [automation.level, automation.verification, automation.source],
+    ["manual", true, "migration"],
+    "Open task was not backfilled with manual and verification",
+  );
   const comments = await client.json(`/api/comment/${task.id}`);
   assert.ok(
     comments.some(

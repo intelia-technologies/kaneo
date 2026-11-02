@@ -60,6 +60,7 @@ import getInstanceStatus from "./instance/controllers/get-instance-status";
 import invitation from "./invitation";
 import intelia from "./intelia";
 import { migrateInteliaSchema } from "./intelia/migrate";
+import { isGatewayRequest } from "./intelia/task-automation/gateway";
 import label from "./label";
 import mattermostIntegration from "./mattermost-integration";
 import mcpRoutes, { mcpWellKnownRoutes } from "./mcp";
@@ -781,7 +782,8 @@ export function createApp() {
     if (
       path.startsWith("/api/mcp") ||
       path.startsWith("/api/.well-known/") ||
-      path === "/api/billing/webhook"
+      path === "/api/billing/webhook" ||
+      isGatewayRequest(c)
     ) {
       return next();
     }

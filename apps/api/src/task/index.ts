@@ -25,6 +25,10 @@ import {
   validateTaskAssetUploadInput,
   verifyTaskAssetUpload,
 } from "../storage/s3";
+import {
+  automationOnCreateBy,
+  testAutomationDefault,
+} from "../intelia/task-automation/on-create";
 import { normalizeApiServerUrl } from "../utils/openapi-spec";
 import {
   hasWorkspacePermission,
@@ -294,6 +298,7 @@ const createTaskRoute = createRoute({
     workspaceAccess.fromProject("projectId"),
     requireWorkspacePermission({ task: ["create"] }),
     requireEntitlement,
+    testAutomationDefault,
   ] as const,
   request: {
     params: projectIdParam,
@@ -304,7 +309,9 @@ const createTaskRoute = createRoute({
   },
   responses: {
     200: jsonResponse("The created task", taskSchema),
-    400: errorResponse("Invalid body, or a repeating task in a final column"),
+    400: errorResponse(
+      "Invalid body (including a missing `automation`, or `completa` without verification), or a repeating task in a final column",
+    ),
     403: errorResponse(
       "No access to the project, or missing task:create permission",
     ),
@@ -942,6 +949,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       recurrence,
       customFields,
       draftAssetIds,
+      automation,
     } = c.req.valid("json");
 
     const parsedStartDate =
@@ -968,6 +976,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       recurrence,
       customFields,
       draftAssetIds,
+      automation: automationOnCreateBy(c, automation),
     });
 
     return c.json(task, 200);

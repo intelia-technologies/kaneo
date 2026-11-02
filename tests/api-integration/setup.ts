@@ -102,6 +102,9 @@ process.env.CUSTOM_OAUTH_NAME = "";
 process.env.CUSTOM_OAUTH_MANAGED_PROFILE_FIELDS = "";
 process.env.CUSTOM_OAUTH_ACCOUNT_URL = "";
 process.env.DEVICE_AUTH_CLIENT_IDS = "kaneo-cli";
+// Intelia fork: upstream's tests create tasks without the automation level;
+// intelia-task-automation.test.ts stubs this off to test the rule.
+process.env.INTELIA_TASK_AUTOMATION_OPTIONAL = "true";
 
 afterEach(() => {
   vi.restoreAllMocks();

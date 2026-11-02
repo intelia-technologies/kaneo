@@ -5924,6 +5924,153 @@
           "closedAt",
           "createdAt"
         ]
+      },
+      "TaskAutomation": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "arranque",
+              "completa"
+            ]
+          },
+          "verification": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "session",
+              "api_key",
+              "gateway",
+              "migration"
+            ],
+            "description": "session: a person in Kaneo. api_key: set when creating the task with an API key. gateway: the factory's gateway, for `actor`. migration: the one-off backfill of open tasks."
+          },
+          "setByUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "setByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "setByActor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Graph id the gateway acted for; null otherwise."
+          },
+          "setAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "taskId",
+          "level",
+          "verification",
+          "source",
+          "setByUserId",
+          "setByName",
+          "setByActor",
+          "setAt"
+        ]
+      },
+      "TaskAutomationChange": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "previousLevel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "manual",
+              "arranque",
+              "completa",
+              null
+            ]
+          },
+          "previousVerification": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "arranque",
+              "completa"
+            ]
+          },
+          "verification": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "session",
+              "api_key",
+              "gateway",
+              "migration"
+            ],
+            "description": "session: a person in Kaneo. api_key: set when creating the task with an API key. gateway: the factory's gateway, for `actor`. migration: the one-off backfill of open tasks."
+          },
+          "changedByUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changedByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changedByActor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "taskId",
+          "previousLevel",
+          "previousVerification",
+          "level",
+          "verification",
+          "source",
+          "changedByUserId",
+          "changedByName",
+          "changedByActor",
+          "changedAt"
+        ]
       }
     },
     "parameters": {}
@@ -11840,13 +11987,63 @@
                         "value"
                       ]
                     }
+                  },
+                  "automation": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "completa"
+                            ],
+                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
+                          },
+                          "verification": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ],
+                            "description": "Whether the verifier checks the task when the worker ends."
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "verification"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "manual",
+                              "arranque"
+                            ],
+                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
+                          },
+                          "verification": {
+                            "type": "boolean",
+                            "description": "Whether the verifier checks the task when the worker ends."
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "verification"
+                        ]
+                      }
+                    ],
+                    "description": "The task's automation level and verification (Intelia fork). Required when creating a task, with no default. `completa` requires verification."
                   }
                 },
                 "required": [
                   "title",
                   "description",
                   "priority",
-                  "status"
+                  "status",
+                  "automation"
                 ]
               }
             }
@@ -11864,7 +12061,7 @@
             }
           },
           "400": {
-            "description": "Invalid body, or a repeating task in a final column",
+            "description": "Invalid body (including a missing `automation`, or `completa` without verification), or a repeating task in a final column",
             "content": {
               "application/json": {
                 "schema": {
@@ -26135,6 +26332,364 @@
           },
           "404": {
             "description": "Task or routine not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/task/{taskId}/automation": {
+      "get": {
+        "operationId": "getTaskAutomation",
+        "tags": [
+          "Task Automation"
+        ],
+        "summary": "Get task automation level",
+        "description": "The task's automation level and verification, with who set them and when. Also with the gateway's service token (`X-Service-Token`).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "taskId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The task's automation level",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskAutomation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found or level not set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putTaskAutomation",
+        "tags": [
+          "Task Automation"
+        ],
+        "summary": "Set task automation level",
+        "description": "Set or change the task's level and verification; each change goes to the change log. Only a person's session (with task:update) or the gateway's service token (`X-Service-Token`, with `actor`); API keys get 403. `completa` requires verification.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "taskId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "completa"
+                            ],
+                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
+                          },
+                          "verification": {
+                            "type": "boolean",
+                            "enum": [
+                              true
+                            ],
+                            "description": "Whether the verifier checks the task when the worker ends."
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "verification"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "manual",
+                              "arranque"
+                            ],
+                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
+                          },
+                          "verification": {
+                            "type": "boolean",
+                            "description": "Whether the verifier checks the task when the worker ends."
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "verification"
+                        ]
+                      }
+                    ],
+                    "description": "The task's automation level and verification (Intelia fork). Required when creating a task, with no default. `completa` requires verification."
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "actor": {
+                        "type": "string",
+                        "pattern": "^[a-z]+:[A-Za-z0-9._@-]{1,200}$",
+                        "description": "Only with the gateway's service token, and then required: the graph id the gateway acts for (agent:…, person:…). A session always acts as its own user.",
+                        "example": "agent:orq-jaime"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The task's automation level",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskAutomation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid level, `completa` without verification, or `actor` missing (gateway) or present (session)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "An API key, no access to the project, or missing task:update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/task/{taskId}/automation/history": {
+      "get": {
+        "operationId": "listTaskAutomationChanges",
+        "tags": [
+          "Task Automation"
+        ],
+        "summary": "Get task automation change log",
+        "description": "Every setting and change of the level, newest first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "taskId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "description": "Maximum number of changes, newest first."
+            },
+            "required": false,
+            "description": "Maximum number of changes, newest first.",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Changes of the level",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskAutomationChange"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/project/{projectId}/automation": {
+      "get": {
+        "operationId": "listProjectTaskAutomation",
+        "tags": [
+          "Task Automation"
+        ],
+        "summary": "List project automation levels",
+        "description": "The level of every task in the project that has one, by task number. Tasks without a level are absent.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Levels of the project's tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskAutomation"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
             "content": {
               "application/json": {
                 "schema": {
