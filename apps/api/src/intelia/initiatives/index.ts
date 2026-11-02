@@ -4,10 +4,13 @@ import {
   errorResponse,
   jsonResponse,
 } from "../../openapi";
-import { initiativeAccess, initiativeWriter } from "./access";
+import { initiativeAccess, initiativeReader, initiativeWriter } from "./access";
+import { getInitiativeDetail, listInitiativesWithCounters } from "./read";
 import {
   initiativeChangeListSchema,
+  initiativeDetailSchema,
   initiativeSchema,
+  projectInitiativesSchema,
   taskInitiativeChangeListSchema,
   taskInitiativeSchema,
 } from "./response";
@@ -116,6 +119,43 @@ const closePlanRouteDef = createRoute({
   },
 });
 
+// Reads (design 19 §6): the same authorization as the rest of Kaneo, with one
+// filter of readable projects for counters, tasks and dependencies.
+const READERS =
+  "Needs task:read and access to the project. Tasks of projects the caller cannot read are left out of every count, list and dependency, without any of their data.";
+
+const listRouteDef = createRoute({
+  method: "get",
+  operationId: "listProjectInitiatives",
+  path: "/project/{projectId}/initiatives",
+  tags,
+  summary: "List a project's initiatives with their counters",
+  description: `Every initiative of the project, oldest first, with its derived state, counters (active, done, cancelled, blocked; plan, added and unrecorded) and its Blocked tasks with their reason, plus the tasks without initiative. One call for the whole listing. ${READERS}`,
+  middleware: initiativeAccess.readOnProject(),
+  request: { params: projectIdParam },
+  responses: {
+    200: jsonResponse("The project's initiatives", projectInitiativesSchema),
+    403: errorResponse("No access to the project or missing read permission"),
+    404: errorResponse("Project not found"),
+  },
+});
+
+const detailRouteDef = createRoute({
+  method: "get",
+  operationId: "getInitiativeDetail",
+  path: "/initiative/{initiativeId}",
+  tags,
+  summary: "Get an initiative with its tasks",
+  description: `The initiative, its counters and its tasks with origin, status, assignee, «no status change since» (from the activity log), block reason and \`blocks\` dependencies, the readable tasks outside it that they touch, and the longest pending chain. ${READERS} A pending task with a dependency left out marks the chain partial.`,
+  middleware: initiativeAccess.readOnInitiative(),
+  request: { params: initiativeIdParam },
+  responses: {
+    200: jsonResponse("The initiative and its tasks", initiativeDetailSchema),
+    403: errorResponse("No access to the project or missing read permission"),
+    404: errorResponse("Initiative not found"),
+  },
+});
+
 const initiativeHistoryRouteDef = createRoute({
   method: "get",
   operationId: "listInitiativeChanges",
@@ -193,6 +233,24 @@ const taskHistoryRouteDef = createRoute({
 });
 
 const initiatives = apiRouter()
+  .openapi(listRouteDef, async (c) =>
+    c.json(
+      await listInitiativesWithCounters(
+        c.req.valid("param").projectId,
+        initiativeReader(c),
+      ),
+      200,
+    ),
+  )
+  .openapi(detailRouteDef, async (c) =>
+    c.json(
+      await getInitiativeDetail(
+        c.req.valid("param").initiativeId,
+        initiativeReader(c),
+      ),
+      200,
+    ),
+  )
   .openapi(createRouteDef, async (c) => {
     const { actor, ...data } = c.req.valid("json");
     return c.json(

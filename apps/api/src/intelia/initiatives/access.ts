@@ -1,9 +1,10 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Context, Next } from "hono";
 import { HTTPException } from "hono/http-exception";
 import db, { schema } from "../../database";
 import { ApiError } from "../../errors/api-error";
 import { assertProjectAccess } from "../../project-access/assert-project-access";
+import { projectAccessCondition } from "../../project-access/project-access-condition";
 import { requireWorkspacePermission } from "../../utils/require-workspace-permission";
 import { validateWorkspaceAccess } from "../../utils/validate-workspace-access";
 import { workspaceAccess } from "../../utils/workspace-access-middleware";
@@ -48,6 +49,25 @@ export function callerInitiativeWriter(c: Context): InitiativeWriter {
   return initiativeWriter(c, undefined);
 }
 
+/** Who reads: the caller and the workspace its request resolved to. */
+export type InitiativeReader = { userId: string; workspaceId: string };
+
+export function initiativeReader(c: Context): InitiativeReader {
+  return { userId: c.get("userId"), workspaceId: c.get("workspaceId") };
+}
+
+// The one filter of readable projects for every initiative read (design 19
+// §6): listings, counters, detail and dependencies. The same rule as the rest
+// of Kaneo (the reader's workspace and its project access), nothing more. A
+// task of a project it rejects is not returned in any form. The query must
+// join `project` on the task's project.
+export function readableProject(reader: InitiativeReader) {
+  return and(
+    eq(schema.projectTable.workspaceId, reader.workspaceId),
+    projectAccessCondition(reader.userId, schema.projectTable.id),
+  );
+}
+
 // Workspace and project access from the initiative in the path, the way
 // upstream's lookups resolve a task or a project.
 function fromInitiativeId(idKey = "initiativeId") {
@@ -89,6 +109,10 @@ export const initiativeAccess = {
   writeOnProject: () => [
     workspaceAccess.fromProjectId("projectId"),
     requireWorkspacePermission(INITIATIVE_WRITE_PERMISSION),
+  ],
+  readOnProject: () => [
+    workspaceAccess.fromProjectId("projectId"),
+    requireWorkspacePermission(INITIATIVE_READ_PERMISSION),
   ],
   writeOnInitiative: () => [
     fromInitiativeId(),

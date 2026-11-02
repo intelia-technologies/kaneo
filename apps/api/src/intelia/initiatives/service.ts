@@ -1,4 +1,4 @@
-import { and, desc, eq, getTableColumns, max } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, max } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
@@ -116,6 +116,16 @@ export async function getInitiative(initiativeId: string) {
   if (!initiative)
     throw new HTTPException(404, { message: "Initiative not found" });
   return initiative;
+}
+
+/** The project's initiatives, oldest first. */
+export function listProjectInitiatives(projectId: string) {
+  return db
+    .select({ ...initiativeColumns, createdByName: createdBy.name })
+    .from(initiativeTable)
+    .leftJoin(createdBy, eq(initiativeTable.createdByUserId, createdBy.id))
+    .where(eq(initiativeTable.projectId, projectId))
+    .orderBy(asc(initiativeTable.createdAt), asc(initiativeTable.id));
 }
 
 // Locks the initiative row for the rest of the transaction: plan closing and
