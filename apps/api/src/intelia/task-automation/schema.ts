@@ -5,54 +5,45 @@ export const taskIdParam = z.object({ taskId: z.string() });
 
 export const projectIdParam = z.object({ projectId: z.string() });
 
-export const automationLevel = z.enum(AUTOMATION_LEVELS).openapi({
-  description:
-    "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes.",
-});
+const LEVEL_DESCRIPTION =
+  "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes.";
+const VERIFICATION_DESCRIPTION =
+  "Whether the verifier checks the task when the worker ends.";
 
 export const COMPLETA_NEEDS_VERIFICATION =
   "`completa` requires verification: true";
 
 // The level and the verification switch, always together (design 18 §3).
+// A union by level, so the published contract and the inferred input type
+// both say what the API accepts: `completa` only with verification.
+const automationVariants = [
+  z.object({
+    level: z.literal("completa").openapi({ description: LEVEL_DESCRIPTION }),
+    verification: z
+      .literal(true, { error: COMPLETA_NEEDS_VERIFICATION })
+      .openapi({ description: VERIFICATION_DESCRIPTION }),
+  }),
+  z.object({
+    level: z
+      .enum(AUTOMATION_LEVELS)
+      .exclude(["completa"])
+      .openapi({ description: LEVEL_DESCRIPTION }),
+    verification: z
+      .boolean()
+      .openapi({ description: VERIFICATION_DESCRIPTION }),
+  }),
+] as const;
+
 export const automationInput = z
-  .object({
-    level: automationLevel,
-    verification: z.boolean().openapi({
-      description: "Whether the verifier checks the task when the worker ends.",
-    }),
-  })
-  .refine((value) => value.level !== "completa" || value.verification, {
-    message: COMPLETA_NEEDS_VERIFICATION,
-    path: ["verification"],
-  });
-
-// Upstream's API test suite and CI smoke create tasks without Intelia's field;
-// they set this to "true" and a missing `automation` becomes manual with
-// verification. Never set in a deployment (design 18 §3, decision 7: no
-// default level).
-export const AUTOMATION_OPTIONAL_ENV = "INTELIA_TASK_AUTOMATION_OPTIONAL";
-
-// `automation` in the body of upstream's `POST /api/task/{projectId}`:
-// required, and published as required in the OpenAPI document.
-export const automationOnCreate = z
-  .preprocess(
-    (value) =>
-      value === undefined && process.env[AUTOMATION_OPTIONAL_ENV] === "true"
-        ? { level: "manual", verification: true }
-        : value,
-    automationInput,
-  )
+  .discriminatedUnion("level", automationVariants)
   .openapi({
     description:
-      "Required, with no default: the task's automation level and verification (Intelia fork). `completa` requires verification.",
+      "The task's automation level and verification (Intelia fork). Required when creating a task, with no default. `completa` requires verification.",
   });
 
-export const putAutomationInput = z
-  .object({
-    level: automationLevel,
-    verification: z.boolean().openapi({
-      description: "Whether the verifier checks the task when the worker ends.",
-    }),
+export const putAutomationInput = z.intersection(
+  automationInput,
+  z.object({
     actor: z
       .string()
       .trim()
@@ -63,11 +54,8 @@ export const putAutomationInput = z
           "Only with the gateway's service token, and then required: the graph id the gateway acts for (agent:…, person:…). A session always acts as its own user.",
         example: "agent:orq-jaime",
       }),
-  })
-  .refine((value) => value.level !== "completa" || value.verification, {
-    message: COMPLETA_NEEDS_VERIFICATION,
-    path: ["verification"],
-  });
+  }),
+);
 
 export const automationHistoryQuery = z.object({
   limit: pagingNumber(1, 200, 50).openapi({

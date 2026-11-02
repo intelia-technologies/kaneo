@@ -1,4 +1,4 @@
-import { automationOnCreate } from "../intelia/task-automation/schema";
+import { automationInput } from "../intelia/task-automation/schema";
 import { pagingNumber, z } from "../openapi";
 import { MAX_TASK_POSITION } from "./controllers/next-task-position";
 import { taskRecurrenceSchema } from "./recurrence/schema";
@@ -91,7 +91,7 @@ export const createTaskBody = z.object({
     .array(z.object({ fieldId: z.string(), value: z.string() }))
     .optional(),
   // Intelia fork: required automation level (README-INTELIA.md).
-  automation: automationOnCreate,
+  automation: automationInput,
 });
 
 export const updateTaskBody = z.object({

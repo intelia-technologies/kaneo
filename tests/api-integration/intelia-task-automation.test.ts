@@ -168,6 +168,24 @@ describe("API integration: Intelia task automation level", () => {
       expect(await taskCount()).toBe(0);
     });
 
+    it("with the test exception on, defaults a missing level to manual and still validates a given one", async () => {
+      const { app, project } = await setup();
+      vi.stubEnv("INTELIA_TASK_AUTOMATION_OPTIONAL", "true");
+
+      const missing = await createTask(app, project.id, {});
+      const invalid = await createTask(app, project.id, {
+        automation: { level: "completa", verification: false },
+      });
+
+      expect(missing.status).toBe(200);
+      const { id } = (await missing.json()) as { id: string };
+      expect(await stored(id)).toEqual([
+        expect.objectContaining({ level: "manual", verification: true }),
+      ]);
+      expect(invalid.status).toBe(400);
+      expect(await taskCount()).toBe(1);
+    });
+
     it("stores the level of a person's task and logs it as the first change", async () => {
       const { app, project, user } = await setup();
 
