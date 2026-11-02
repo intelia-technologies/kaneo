@@ -327,7 +327,7 @@ const NO_AUTHOR: Author = { userId: null, actor: null };
 
 // The automatic close when a task reaches In progress runs in the database,
 // inside the transaction that changes the task's status: the trigger
-// `intelia.close_plan_on_start` (migration 0004), for every path that writes
+// `intelia_close_plan_on_start` (../task-hooks.ts), for every path that writes
 // `task.status` (API, bulk, reorder, integrations, routines). It takes the
 // initiative's row lock like the code here, so an assignment never races it.
 

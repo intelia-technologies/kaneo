@@ -159,7 +159,7 @@ Reglas:
 
 - Nuestras tablas viven en un **esquema de PostgreSQL propio, `intelia`**, con **su propio diario y su propio migrador**, que corre al arrancar la API después del de upstream.
 - **Nunca se añaden migraciones a `apps/api/drizzle/` ni a su `meta/_journal.json`.**
-- **Nunca alteramos tablas de upstream** (columnas, restricciones, índices). Las nuestras pueden referenciarlas (por ejemplo, con `ON DELETE CASCADE` hacia el id de un comentario). **Única excepción, un trigger:** `intelia_close_plan_on_start` sobre `public.task` (migración `0004`, función en el esquema `intelia`), que cierra el plan de una iniciativa en la misma transacción que pasa una tarea a In progress (ver «Iniciativas»). No añade columnas ni restricciones y no choca con las migraciones de upstream; si upstream recreara la tabla `task`, habría que volver a crearlo.
+- **Nunca alteramos tablas de upstream** (columnas, restricciones, índices). Las nuestras pueden referenciarlas (por ejemplo, con `ON DELETE CASCADE` hacia el id de un comentario). **Única excepción, un trigger** (aceptada en la revisión de IN-01): `intelia_close_plan_on_start` sobre `public.task`, que cierra el plan de una iniciativa en la misma transacción que pasa una tarea a In progress (ver «Iniciativas»). No añade columnas ni restricciones. No vive en una migración: lo reinstala cada arranque (ver «Ganchos sobre `public.task`»).
 
 ### Migrador del esquema `intelia`
 
@@ -168,7 +168,7 @@ Reglas:
 | Tablas (Drizzle) | `apps/api/src/intelia/schema.ts`, con `inteliaSchema.table(...)` |
 | Migraciones y su diario | `apps/api/drizzle-intelia/` y `apps/api/drizzle-intelia/meta/_journal.json` |
 | Registro de aplicadas | tabla `intelia.__intelia_migrations` (la de upstream es `drizzle.__drizzle_migrations`) |
-| Migrador | `migrateInteliaSchema` en `apps/api/src/intelia/migrate.ts`, llamado en `runStartupTasks` (`apps/api/src/index.ts`) justo después del de upstream |
+| Migrador | `migrateInteliaSchema` en `apps/api/src/intelia/migrate.ts`, llamado en `runStartupTasks` (`apps/api/src/index.ts`) justo después del de upstream; al terminar, reinstala y comprueba los ganchos sobre `public.task` (`apps/api/src/intelia/task-hooks.ts`) |
 | Configuración de drizzle-kit | `apps/api/drizzle-intelia.config.ts` |
 
 Para generar una migración nueva, tras cambiar `apps/api/src/intelia/schema.ts`:
@@ -181,6 +181,32 @@ pnpm exec drizzle-kit generate --config drizzle-intelia.config.ts --name <nombre
 Nunca con `pnpm db:generate` ni con `drizzle.config.ts`: esos escriben en el diario de upstream. La primera migración (`0000_intelia_schema`) es `CREATE SCHEMA IF NOT EXISTS`, porque el migrador crea el esquema antes para guardar su registro.
 
 El test `tests/api-integration/intelia-schema-migrations.test.ts` reproduce el arranque en una base de datos aparte y simula el merge de una versión de upstream con una migración nueva: se aplican las de los dos.
+
+### Ganchos sobre `public.task`
+
+Dependemos de la tabla de upstream `public.task` de dos formas: el trigger `intelia_close_plan_on_start` (con su función `intelia.close_plan_on_start`) y **siete claves ajenas** de nuestras tablas a `task(id)`: `comment_reaction`, `routine`, `task_automation`, `task_automation_change`, `initiative_change` (`ON DELETE SET NULL`), `task_initiative` y `task_initiative_change` (las demás, `ON DELETE CASCADE`). Una migración de upstream que **recree** `task` (`DROP TABLE … CASCADE` y `CREATE TABLE`) se lleva el trigger y las siete claves sin ningún error; el diario de migraciones `intelia` no lo ve, porque nuestras migraciones ya están aplicadas.
+
+- **En cada arranque**, después de los dos migradores (`task-hooks.ts`):
+  1. `installTaskHooks` reinstala la función y el trigger en una transacción (`CREATE OR REPLACE FUNCTION`, `DROP TRIGGER IF EXISTS` y `CREATE TRIGGER`, con un cerrojo consultivo para varias réplicas a la vez). Es re-ejecutable: dos arranques dejan lo mismo.
+  2. `assertTaskHooks` mira el catálogo (`pg_trigger`, `pg_constraint`) y, si falta el trigger o alguna de las claves que declara el esquema de Drizzle, **el arranque falla antes de admitir tráfico** con un mensaje que nombra cada pieza que falta: `Intelia: public.task lacks foreign key …, foreign key …`. Las claves no se reparan solas porque dependen de los datos.
+
+#### Si upstream recrea `public.task`
+
+Señal: el arranque de Kaneo falla con `Intelia: public.task lacks …` (en el log, como causa de `Database migrations failed`). También se ve antes, al revisar las migraciones de upstream en la adopción: una que haga `DROP TABLE "task"` o la recree.
+
+1. **Antes de adoptar la versión**, copia de seguridad del esquema y de la tabla: `pg_dump -n intelia -t public.task …`. Si las migraciones de upstream **cambian los ids de las tareas**, no se sigue: nuestras filas apuntan a los ids viejos y no hay forma de reasignarlas sin una migración propia. Se para la adopción y se abre tarea.
+2. **Comprobar** (solo lectura): `apps/api/drizzle-intelia/repair/task-references-check.sql`. Por cada columna que apunta a `task`: filas, filas huérfanas (su tarea ya no existe) y si la clave está. Con los ids conservados, las huérfanas son solo tareas que upstream haya borrado al recrear; si salen muchas, volver al paso 1.
+3. **Reparar**: `apps/api/drizzle-intelia/repair/task-references-repair.sql`, en una transacción. Para cada clave que falta, aplica a las huérfanas lo que habría hecho su clave (`CASCADE`: se borran; `SET NULL`: se vacía la columna) y vuelve a crear la clave como la crearon las migraciones; avisa por `NOTICE` de cuántas filas tocó. Las claves que ya están no se tocan: ejecutarlo dos veces no cambia nada la segunda.
+
+   ```sh
+   # En el servidor, contra la base de Kaneo (los ficheros van en la imagen, en apps/api/drizzle-intelia/repair/)
+   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f task-references-check.sql
+   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f task-references-repair.sql
+   ```
+
+4. **Arrancar Kaneo**: el arranque reinstala el trigger (el paso 3 no lo toca) y la comprobación pasa. Si sigue fallando, el mensaje nombra lo que falta.
+
+Probado en `tests/api-integration/intelia-task-hooks.test.ts`, en una base aparte con datos: dos arranques dejan el mismo catálogo y los mismos datos; tras recrear `task` como lo haría upstream (con sus datos y los mismos ids) y perder una tarea, el arranque reinstala el trigger y falla nombrando las siete claves; la comprobación muestra la huérfana; la reparación borra sus filas, vacía la columna del diario, restaura las claves (que vuelven a rechazar una tarea inexistente) y el siguiente arranque pasa; repetir la reparación no cambia nada y el trigger vuelve a cerrar el plan. Si se añade una clave a `task` en el esquema, hay que añadirla a los dos ficheros de `repair/` (si falta en el de reparación, ese test falla).
 
 ## Reacciones en comentarios y tarjetas
 
@@ -361,7 +387,7 @@ Una **iniciativa** agrupa las tareas de un mismo esfuerzo dentro de **un solo pr
   - **Clientes que reciben 400 hasta que manden la iniciativa**, los mismos que con `automation` (ver «Nivel de automatización»), y además, hasta IN-05, la web: el formulario de creación, las subtareas, la importación JSON y el proyecto de ejemplo del alta. Por eso esta imagen se despliega junto con IN-05 e IN-06 (diseño 19 §7 y §9), nunca sola.
   - `INTELIA_TASK_INITIATIVE_OPTIONAL=true`: si falta la iniciativa al crear o al importar, un middleware anterior a la validación la rellena con la iniciativa «Pruebas de upstream» del proyecto (la crea si falta); al duplicar un origen sin iniciativa, la copia queda sin ella. No toca el esquema ni `apps/docs/openapi.json`. Solo para la suite de integración y las pruebas de humo de upstream; nunca en un despliegue.
 - **Plan o añadido:** al asignar una tarea a una iniciativa (al crearla, al importarla, al copiarla o con `PUT …/initiative`), con la fila de la iniciativa bloqueada (`FOR UPDATE`), el origen es `plan` si `plan_closed_at` es nulo y `añadido` si no. Nadie lo escribe a mano y no se corrige después. **Mover una tarea a otra iniciativa** (`PUT …/initiative`) bloquea antes la fila de la tarea, el mismo bloqueo que toma su traslado a otro proyecto, así que el proyecto con el que se valida la iniciativa no puede quedar obsoleto; recalcula el origen frente a la nueva y queda en el diario; ponerla en la que ya tiene no cambia nada.
-- **Cierre del plan:** a mano (`POST …/close-plan`) o **solo**, cuando una tarea de la iniciativa pasa a la columna `in-progress`, **dentro de la transacción que hace ese cambio**, venga de donde venga (API, cambios masivos, reordenar, integraciones, rutinas): el trigger `intelia_close_plan_on_start` bloquea la fila de la iniciativa, cierra el plan y deja la fila `plan_closed` con `source: auto` y la tarea. No depende del estado observado después: una tarea que pasa por In progress y sale enseguida cierra el plan igual, y una asignación concurrente queda ordenada antes (es `plan`) o después (es `añadido`) del cierre. Una tarea que llega a In progress al trasladarse a otro proyecto no cierra el plan del proyecto que deja. Una tarea que entra ya en In progress en una iniciativa (al crearla o con `PUT …/initiative`) la cierra en esa misma transacción. La tarea que cierra el plan conserva su origen.
+- **Cierre del plan:** a mano (`POST …/close-plan`) o **solo**, cuando una tarea de la iniciativa pasa a la columna `in-progress`, **dentro de la transacción que hace ese cambio**, venga de donde venga (API, cambios masivos, reordenar, integraciones, rutinas): el trigger `intelia_close_plan_on_start` (que reinstala cada arranque) bloquea la fila de la iniciativa, cierra el plan y deja la fila `plan_closed` con `source: auto` y la tarea. No depende del estado observado después: una tarea que pasa por In progress y sale enseguida cierra el plan igual, y una asignación concurrente queda ordenada antes (es `plan`) o después (es `añadido`) del cierre. Una tarea que llega a In progress al trasladarse a otro proyecto no cierra el plan del proyecto que deja. Una tarea que entra ya en In progress en una iniciativa (al crearla o con `PUT …/initiative`) la cierra en esa misma transacción. La tarea que cierra el plan conserva su origen.
 - **API** (OpenAPI, etiqueta `Initiatives`):
   - `POST /api/intelia/project/{projectId}/initiatives` (`{ name, designUrl?, approvedBy?, approvedAt?, actor? }`): 201 con la iniciativa; un nombre que ya existe en el proyecto sin distinguir mayúsculas, tildes ni espacios, 409 `INITIATIVE_NAME_TAKEN`.
   - `PATCH /api/intelia/initiative/{initiativeId}` (`{ name?, designUrl?, approvedBy?, approvedAt?, actor? }`, al menos un dato): cambia los datos; sin cambios no deja fila.
@@ -370,7 +396,8 @@ Una **iniciativa** agrupa las tareas de un mismo esfuerzo dentro de **un solo pr
   - Lectura (`task:read`): `GET /api/intelia/initiative/{initiativeId}/history`, `GET /api/intelia/task/{taskId}/initiative` (404 si no tiene) y `GET /api/intelia/task/{taskId}/initiative/history`. El listado con contadores y el detalle son de IN-02.
 - **Quién escribe** (decisión de Forja del 02-nov, mismo contrato que AU-02c; comprobación en `initiatives/access.ts`): la sesión de una persona o la API key de una cuenta, en ambos casos con `task:update` en el espacio (y en el alcance de la clave). Sin credenciales o con una clave desconocida, 401; una cuenta `viewer` o una clave sin `task:update`, 403; una cuenta de otro espacio, 404. **No hay token de servicio:** `X-Service-Token` no autentica. `actor` (solo con API key) es informativo, con la misma regla que en el nivel: inválido se ignora; con sesión, un `actor` válido da 400. Kaneo no consulta el grafo: las reglas finas (`member`, creador o `lead`, `can_set_automation`) las comprueba el gateway antes de llamar (IN-06).
 - **Defensa perdida, por decisión** (la misma que en el nivel): quien tenga la API key de una cuenta con `task:update` puede crear y editar iniciativas, cerrar planes y mover tareas de iniciativa directamente contra Kaneo, sin pasar por el gateway.
-- **Tests:** `tests/api-integration/intelia-initiatives.test.ts`.
+- **Límite conocido, interbloqueo en el primer cierre** (aceptado en la revisión): dos cambios de estado concurrentes que pasan a In progress, en orden inverso, tareas de **varias** iniciativas con el plan abierto (por ejemplo, dos cambios masivos) pueden interbloquearse en `initiative … FOR UPDATE` dentro del trigger; Postgres aborta uno con `40P01` y el cliente debe reintentarlo. Es transitorio y solo ocurre en el cierre inicial de cada iniciativa: con el plan cerrado, el trigger no bloquea nada. Coste del trigger medido en la revisión: un cambio masivo de 1000 tareas, 10,9 ms frente a 3,5 ms sin él.
+- **Tests:** `tests/api-integration/intelia-initiatives.test.ts` y, para el trigger y las claves a `task`, `intelia-task-hooks.test.ts` (ver «Ganchos sobre `public.task`»).
 
 ## Vista «Dependencias»
 
