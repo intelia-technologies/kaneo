@@ -20,6 +20,14 @@ export type AutomationWriter =
   | { source: "session" | "api_key"; userId: string }
   | { source: "gateway"; actor: string };
 
+/** A level and who writes it (at creation, the task's creator). */
+export type AutomationChange = {
+  value: AutomationValue;
+  writer: AutomationWriter;
+};
+
+type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 const setBy = alias(userTable, "automation_set_by");
 const changedBy = alias(userTable, "automation_changed_by");
 
@@ -53,18 +61,65 @@ export function listProjectAutomation(projectId: string) {
 }
 
 /**
- * Sets the task's level and logs the change. Writes of the same value are not
- * changes: nothing is logged and the stored row (with its author) stays.
+ * Writes the level and its change-log row inside the caller's transaction:
+ * upstream's task creation calls it before committing the task, so the task,
+ * its level and the first log row commit or roll back together. Writes of the
+ * same value are not changes: nothing is logged and the stored row (with its
+ * author) stays.
  */
-export async function setAutomation(
+export async function writeAutomation(
+  tx: Transaction,
   taskId: string,
-  value: AutomationValue,
-  writer: AutomationWriter,
+  { value, writer }: AutomationChange,
 ) {
   const userId = writer.source === "gateway" ? null : writer.userId;
   const actor = writer.source === "gateway" ? writer.actor : null;
   const source: AutomationSource = writer.source;
 
+  const [current] = await tx
+    .select()
+    .from(taskAutomationTable)
+    .where(eq(taskAutomationTable.taskId, taskId))
+    .limit(1);
+  if (
+    current?.level === value.level &&
+    current.verification === value.verification
+  ) {
+    return;
+  }
+
+  const now = new Date();
+  const row = {
+    level: value.level,
+    verification: value.verification,
+    setByUserId: userId,
+    setByActor: actor,
+    source,
+    setAt: now,
+  };
+  await tx
+    .insert(taskAutomationTable)
+    .values({ taskId, ...row })
+    .onConflictDoUpdate({ target: taskAutomationTable.taskId, set: row });
+  await tx.insert(taskAutomationChangeTable).values({
+    taskId,
+    previousLevel: current?.level ?? null,
+    previousVerification: current?.verification ?? null,
+    level: value.level,
+    verification: value.verification,
+    changedByUserId: userId,
+    changedByActor: actor,
+    source,
+    changedAt: now,
+  });
+}
+
+/** Changes an existing task's level (PUT …/automation). */
+export async function setAutomation(
+  taskId: string,
+  value: AutomationValue,
+  writer: AutomationWriter,
+) {
   await db.transaction(async (tx) => {
     // One writer per task at a time, without locking upstream's task row.
     await tx.execute(
@@ -76,43 +131,7 @@ export async function setAutomation(
       .where(eq(taskTable.id, taskId))
       .limit(1);
     if (!task) throw new HTTPException(404, { message: "Task not found" });
-
-    const [current] = await tx
-      .select()
-      .from(taskAutomationTable)
-      .where(eq(taskAutomationTable.taskId, taskId))
-      .limit(1);
-    if (
-      current?.level === value.level &&
-      current.verification === value.verification
-    ) {
-      return;
-    }
-
-    const now = new Date();
-    const row = {
-      level: value.level,
-      verification: value.verification,
-      setByUserId: userId,
-      setByActor: actor,
-      source,
-      setAt: now,
-    };
-    await tx
-      .insert(taskAutomationTable)
-      .values({ taskId, ...row })
-      .onConflictDoUpdate({ target: taskAutomationTable.taskId, set: row });
-    await tx.insert(taskAutomationChangeTable).values({
-      taskId,
-      previousLevel: current?.level ?? null,
-      previousVerification: current?.verification ?? null,
-      level: value.level,
-      verification: value.verification,
-      changedByUserId: userId,
-      changedByActor: actor,
-      source,
-      changedAt: now,
-    });
+    await writeAutomation(tx, taskId, { value, writer });
   });
 
   return getAutomation(taskId);

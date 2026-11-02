@@ -19,6 +19,10 @@ import {
 } from "../../custom-field/choice-options";
 import { publishEvent } from "../../events";
 import {
+  type AutomationChange,
+  writeAutomation,
+} from "../../intelia/task-automation/service";
+import {
   assertAssignableUser,
   getProjectWorkspaceId,
 } from "../../utils/assert-assignable-user";
@@ -65,6 +69,7 @@ async function createTask({
   recurrence,
   customFields,
   draftAssetIds,
+  automation,
 }: {
   projectId: string;
   currentUserId: string;
@@ -78,6 +83,8 @@ async function createTask({
   recurrence?: TaskRecurrence;
   customFields?: CustomFieldInput[];
   draftAssetIds?: string[];
+  // Intelia: the task's level, committed with the task (before task.created).
+  automation?: AutomationChange;
 }) {
   const resolvedStatus = status || "to-do";
   const resolvedPriority = priority || "no-priority";
@@ -234,6 +241,8 @@ async function createTask({
         })),
       );
     }
+
+    if (task && automation) await writeAutomation(tx, task.id, automation);
 
     return task;
   });

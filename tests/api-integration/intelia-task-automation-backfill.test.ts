@@ -130,12 +130,30 @@ it("leaves every open task in manual with verification, logged as the migration,
       isFinal: column.isFinal,
     });
   }
-  const statuses = ["to-do", "in-progress", "blocked-unknown-column", "done"];
+  // A legacy project without columns: upstream's migrateColumns() gives it the
+  // default ones (only `done` final) after this migration has run.
+  const [legacy] = await db
+    .insert(schema.projectTable)
+    .values({
+      workspaceId: "workspace-1",
+      name: "Legacy",
+      icon: "Folder",
+      slug: "legacy",
+    })
+    .returning();
+  const seeded = [
+    { projectId: project!.id, status: "to-do" },
+    { projectId: project!.id, status: "in-progress" },
+    { projectId: project!.id, status: "blocked-unknown-column" },
+    { projectId: project!.id, status: "done" },
+    { projectId: legacy!.id, status: "to-do" },
+    { projectId: legacy!.id, status: "done" },
+  ];
   const tasks = await db
     .insert(schema.taskTable)
     .values(
-      statuses.map((status, index) => ({
-        projectId: project!.id,
+      seeded.map(({ projectId, status }, index) => ({
+        projectId,
         title: status,
         number: index + 1,
         status,
@@ -143,8 +161,10 @@ it("leaves every open task in manual with verification, logged as the migration,
       })),
     )
     .returning();
-  const idOf = (status: string) =>
-    tasks.find((task) => task.status === status)!.id;
+  const idOf = (projectId: string, status: string) =>
+    tasks.find(
+      (task) => task.projectId === projectId && task.status === status,
+    )!.id;
 
   // The upgrade: the backfill runs once, at startup.
   writeFileSync(journalPath, fullJournal);
@@ -153,7 +173,12 @@ it("leaves every open task in manual with verification, logged as the migration,
 
   const levels = await db.select().from(taskAutomationTable);
   expect(levels.map((row) => row.taskId).sort()).toEqual(
-    [idOf("to-do"), idOf("in-progress"), idOf("blocked-unknown-column")].sort(),
+    [
+      idOf(project!.id, "to-do"),
+      idOf(project!.id, "in-progress"),
+      idOf(project!.id, "blocked-unknown-column"),
+      idOf(legacy!.id, "to-do"),
+    ].sort(),
   );
   for (const row of levels) {
     expect(row).toMatchObject({
@@ -165,7 +190,7 @@ it("leaves every open task in manual with verification, logged as the migration,
     });
   }
   const log = await db.select().from(taskAutomationChangeTable);
-  expect(log).toHaveLength(3);
+  expect(log).toHaveLength(4);
   for (const row of log) {
     expect(row).toMatchObject({
       previousLevel: null,

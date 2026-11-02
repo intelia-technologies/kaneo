@@ -11987,13 +11987,37 @@
                         "value"
                       ]
                     }
+                  },
+                  "automation": {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "manual",
+                          "arranque",
+                          "completa"
+                        ],
+                        "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
+                      },
+                      "verification": {
+                        "type": "boolean",
+                        "description": "Whether the verifier checks the task when the worker ends."
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "verification"
+                    ],
+                    "description": "Required, with no default: the task's automation level and verification (Intelia fork). `completa` requires verification."
                   }
                 },
                 "required": [
                   "title",
                   "description",
                   "priority",
-                  "status"
+                  "status",
+                  "automation"
                 ]
               }
             }
@@ -12011,7 +12035,7 @@
             }
           },
           "400": {
-            "description": "Invalid body, or a repeating task in a final column",
+            "description": "Invalid body (including a missing `automation`, or `completa` without verification), or a repeating task in a final column",
             "content": {
               "application/json": {
                 "schema": {

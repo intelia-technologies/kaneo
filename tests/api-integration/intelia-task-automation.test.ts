@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   afterEach,
   beforeEach,
@@ -9,6 +9,7 @@ import {
 } from "vite-plus/test";
 import { auth } from "../../apps/api/src/auth";
 import db, { schema } from "../../apps/api/src/database";
+import { subscribeToEvent } from "../../apps/api/src/events";
 import { createApp } from "../../apps/api/src/index";
 import {
   taskAutomationChangeTable,
@@ -26,8 +27,19 @@ type App = ReturnType<typeof createApp>["app"];
 
 const GATEWAY_TOKEN = "gateway-service-token-with-32-chars-or-more";
 
+// Every task.created, with whether the task's level was already committed
+// when the event went out.
+const createdEvents: Array<{ taskId: string; levelCommitted: boolean }> = [];
+await subscribeToEvent<{ taskId: string }>("task.created", async (data) => {
+  createdEvents.push({
+    taskId: data.taskId,
+    levelCommitted: (await stored(data.taskId)).length === 1,
+  });
+});
+
 beforeEach(async () => {
   await resetTestDatabase();
+  createdEvents.length = 0;
   vi.stubEnv("INTELIA_TASK_AUTOMATION_OPTIONAL", "");
   vi.stubEnv("INTELIA_GATEWAY_TOKEN", GATEWAY_TOKEN);
 });
@@ -206,6 +218,53 @@ describe("API integration: Intelia task automation level", () => {
         }),
       ]);
     });
+
+    it.each([
+      ["the level", "task_automation"],
+      ["the change log", "task_automation_change"],
+    ])(
+      "rolls the task back when %s cannot be written, publishes nothing, and a retry creates one task",
+      async (_what, table) => {
+        const { app, project } = await setup();
+        const body = { automation: { level: "arranque", verification: true } };
+        await db.execute(
+          sql.raw(`CREATE OR REPLACE FUNCTION intelia.au02_test_fail() RETURNS trigger
+            LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected failure'; END $$`),
+        );
+        await db.execute(
+          sql.raw(`CREATE TRIGGER au02_test_fail BEFORE INSERT ON intelia.${table}
+            FOR EACH ROW EXECUTE FUNCTION intelia.au02_test_fail()`),
+        );
+        let failed: Response;
+        try {
+          failed = await createTask(app, project.id, body);
+        } finally {
+          await db.execute(
+            sql.raw(
+              `DROP TRIGGER au02_test_fail ON intelia.${table}; DROP FUNCTION intelia.au02_test_fail()`,
+            ),
+          );
+        }
+
+        expect(failed.status).toBe(500);
+        expect(await taskCount()).toBe(0);
+        expect(await db.select().from(taskAutomationTable)).toEqual([]);
+        expect(await db.select().from(taskAutomationChangeTable)).toEqual([]);
+
+        const retry = await createTask(app, project.id, body);
+
+        expect(retry.status).toBe(200);
+        const { id } = (await retry.json()) as { id: string };
+        expect(await taskCount()).toBe(1);
+        expect(await stored(id)).toHaveLength(1);
+        expect(await changes(id)).toHaveLength(1);
+        // Only the retry's event, sent after its level was committed: an event
+        // from the failed attempt would be listed too.
+        await vi.waitFor(() =>
+          expect(createdEvents).toEqual([{ taskId: id, levelCommitted: true }]),
+        );
+      },
+    );
   });
 
   describe("changing the level", () => {

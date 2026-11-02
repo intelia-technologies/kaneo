@@ -26,6 +26,27 @@ export const automationInput = z
     path: ["verification"],
   });
 
+// Upstream's API test suite and CI smoke create tasks without Intelia's field;
+// they set this to "true" and a missing `automation` becomes manual with
+// verification. Never set in a deployment (design 18 §3, decision 7: no
+// default level).
+export const AUTOMATION_OPTIONAL_ENV = "INTELIA_TASK_AUTOMATION_OPTIONAL";
+
+// `automation` in the body of upstream's `POST /api/task/{projectId}`:
+// required, and published as required in the OpenAPI document.
+export const automationOnCreate = z
+  .preprocess(
+    (value) =>
+      value === undefined && process.env[AUTOMATION_OPTIONAL_ENV] === "true"
+        ? { level: "manual", verification: true }
+        : value,
+    automationInput,
+  )
+  .openapi({
+    description:
+      "Required, with no default: the task's automation level and verification (Intelia fork). `completa` requires verification.",
+  });
+
 export const putAutomationInput = z
   .object({
     level: automationLevel,

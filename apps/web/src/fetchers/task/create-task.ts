@@ -7,6 +7,13 @@ export type CreateTaskRequest = InferRequestType<
 >["json"] &
   InferRequestType<(typeof client)["task"][":projectId"]["$post"]>["param"];
 
+// Intelia fork: the API requires `automation` (README-INTELIA.md, «Nivel de
+// automatización de las tareas»). The creation form and the subtask input do
+// not ask for it yet (AU-12), so it stays optional here and a create without
+// it fails before the request.
+export type CreateTaskInput = Omit<CreateTaskRequest, "automation"> &
+  Partial<Pick<CreateTaskRequest, "automation">>;
+
 async function createTask(
   title: string,
   description: string,
@@ -19,9 +26,13 @@ async function createTask(
   customFields?: { fieldId: string; value: string }[],
   draftAssetIds?: string[],
   recurrence?: CreateTaskRequest["recurrence"],
+  automation?: CreateTaskRequest["automation"],
 ) {
   if (!projectId) {
     throw new Error("No project selected for task creation");
+  }
+  if (!automation) {
+    throw new Error("Choose the task's automation level and verification");
   }
 
   const response = await client.task[":projectId"].$post({
@@ -36,6 +47,7 @@ async function createTask(
       recurrence,
       customFields,
       draftAssetIds,
+      automation,
     },
     param: { projectId },
   });
