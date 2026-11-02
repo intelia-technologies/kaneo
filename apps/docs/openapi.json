@@ -5591,6 +5591,225 @@
           "createdAt"
         ]
       },
+      "ProjectInitiatives": {
+        "type": "object",
+        "properties": {
+          "initiatives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InitiativeSummary"
+            }
+          },
+          "withoutInitiative": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskWithoutInitiative"
+            },
+            "description": "Tasks of the project that belong to no initiative."
+          }
+        },
+        "required": [
+          "initiatives",
+          "withoutInitiative"
+        ]
+      },
+      "InitiativeSummary": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Initiative"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "in_flight",
+                  "finished",
+                  "no_tasks",
+                  "all_cancelled"
+                ],
+                "description": "Derived, never stored. in_flight: some active task not Done. finished: active tasks, all Done. no_tasks: none. all_cancelled: tasks, all Cancelled."
+              },
+              "counters": {
+                "$ref": "#/components/schemas/InitiativeCounters"
+              },
+              "blockedTasks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/InitiativeBlockedTask"
+                }
+              }
+            },
+            "required": [
+              "state",
+              "counters",
+              "blockedTasks"
+            ]
+          }
+        ]
+      },
+      "InitiativeCounters": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "active": {
+            "type": "integer",
+            "description": "Every task but the Cancelled ones: the progress base."
+          },
+          "done": {
+            "type": "integer",
+            "description": "Only Done counts."
+          },
+          "cancelled": {
+            "type": "integer"
+          },
+          "blocked": {
+            "type": "integer"
+          },
+          "plan": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "active": {
+                "type": "integer",
+                "description": "Not Cancelled."
+              },
+              "done": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "active",
+              "done"
+            ]
+          },
+          "added": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "active": {
+                "type": "integer",
+                "description": "Not Cancelled."
+              },
+              "done": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "active",
+              "done"
+            ],
+            "description": "Origin `añadido`."
+          },
+          "unrecorded": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "active": {
+                "type": "integer",
+                "description": "Not Cancelled."
+              },
+              "done": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "active",
+              "done"
+            ],
+            "description": "Origin `sin_registro` (migrated). They count in the progress but not in plan or added; with any, the initiative shows no growth."
+          }
+        },
+        "required": [
+          "total",
+          "active",
+          "done",
+          "cancelled",
+          "blocked",
+          "plan",
+          "added",
+          "unrecorded"
+        ],
+        "description": "Tasks of the initiative the caller can read. Cancelled tasks keep their origin and count in `total` and `cancelled`, never in `active` or `done`."
+      },
+      "InitiativeBlockedTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "assignee": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "statusSince": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last status change in the task's activity log, or its creation if it never changed: «sin cambios de estado desde»."
+          },
+          "blockReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `motivo_bloqueo` custom field of a Blocked task; null otherwise or when empty."
+          },
+          "blockReasonDetail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `motivo_bloqueo_detalle` custom field of a Blocked task; null otherwise, when empty or when the project lacks the field."
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "assignee",
+          "statusSince",
+          "blockReason",
+          "blockReasonDetail"
+        ]
+      },
       "Initiative": {
         "type": "object",
         "properties": {
@@ -5669,6 +5888,274 @@
           "source",
           "createdAt",
           "planClosedAt"
+        ]
+      },
+      "TaskWithoutInitiative": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "assignee": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "status",
+          "assignee"
+        ]
+      },
+      "InitiativeDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Initiative"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "in_flight",
+                  "finished",
+                  "no_tasks",
+                  "all_cancelled"
+                ],
+                "description": "Derived, never stored. in_flight: some active task not Done. finished: active tasks, all Done. no_tasks: none. all_cancelled: tasks, all Cancelled."
+              },
+              "counters": {
+                "$ref": "#/components/schemas/InitiativeCounters"
+              },
+              "tasks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/InitiativeTask"
+                }
+              },
+              "externalTasks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/InitiativeExternalTask"
+                }
+              },
+              "pendingChain": {
+                "$ref": "#/components/schemas/InitiativePendingChain"
+              }
+            },
+            "required": [
+              "state",
+              "counters",
+              "tasks",
+              "externalTasks",
+              "pendingChain"
+            ]
+          }
+        ]
+      },
+      "InitiativeTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "plan",
+              "añadido",
+              "sin_registro"
+            ],
+            "description": "plan: assigned while the initiative's plan was open. añadido: assigned after it closed. sin_registro: migrated from before initiatives existed. Set by the server, never by hand."
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the task joined the initiative."
+          },
+          "assignee": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "statusSince": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last status change in the task's activity log, or its creation if it never changed: «sin cambios de estado desde»."
+          },
+          "blockReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `motivo_bloqueo` custom field of a Blocked task; null otherwise or when empty."
+          },
+          "blockReasonDetail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `motivo_bloqueo_detalle` custom field of a Blocked task; null otherwise, when empty or when the project lacks the field."
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of the tasks that block this one (`blocks` relations), only the ones the caller can read: in `tasks` or `externalTasks`."
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of the tasks this one blocks, under the same rule."
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "status",
+          "origin",
+          "since",
+          "assignee",
+          "statusSince",
+          "blockReason",
+          "blockReasonDetail",
+          "dependsOn",
+          "blocks"
+        ]
+      },
+      "InitiativeExternalTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "projectSlug": {
+            "type": "string"
+          },
+          "projectName": {
+            "type": "string"
+          },
+          "initiativeId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "status",
+          "projectId",
+          "projectSlug",
+          "projectName",
+          "initiativeId"
+        ],
+        "description": "A readable task outside the initiative that one of its tasks depends on or blocks."
+      },
+      "InitiativePendingChain": {
+        "type": "object",
+        "properties": {
+          "taskIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The longest chain of pending (neither Done nor Cancelled) tasks linked by `blocks`, first blocker first. Empty with a cycle."
+          },
+          "partial": {
+            "type": "boolean",
+            "description": "A pending task of the initiative has a dependency the caller cannot read, left out without any of its data."
+          },
+          "cycle": {
+            "type": "boolean",
+            "description": "The pending dependencies form a cycle: no chain."
+          }
+        },
+        "required": [
+          "taskIds",
+          "partial",
+          "cycle"
         ]
       },
       "InitiativeChange": {
@@ -25827,6 +26314,69 @@
       }
     },
     "/intelia/project/{projectId}/initiatives": {
+      "get": {
+        "operationId": "listProjectInitiatives",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "List a project's initiatives with their counters",
+        "description": "Every initiative of the project, oldest first, with its derived state, counters (active, done, cancelled, blocked; plan, added and unrecorded) and its Blocked tasks with their reason, plus the tasks without initiative. One call for the whole listing. Needs task:read and access to the project. Tasks of projects the caller cannot read are left out of every count, list and dependency, without any of their data.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project's initiatives",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectInitiatives"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      },
       "post": {
         "operationId": "createInitiative",
         "tags": [
@@ -25966,6 +26516,69 @@
       }
     },
     "/intelia/initiative/{initiativeId}": {
+      "get": {
+        "operationId": "getInitiativeDetail",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "Get an initiative with its tasks",
+        "description": "The initiative, its counters and its tasks with origin, status, assignee, «no status change since» (from the activity log), block reason and `blocks` dependencies, the readable tasks outside it that they touch, and the longest pending chain. Needs task:read and access to the project. Tasks of projects the caller cannot read are left out of every count, list and dependency, without any of their data. A pending task with a dependency left out marks the chain partial.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "initiativeId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The initiative and its tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InitiativeDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Initiative not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      },
       "patch": {
         "operationId": "updateInitiative",
         "tags": [
