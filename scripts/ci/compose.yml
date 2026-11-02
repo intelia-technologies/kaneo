@@ -61,8 +61,10 @@ services:
       S3_SECRET_ACCESS_KEY: local-test-secret-only
       S3_REGION: us-east-1
       S3_FORCE_PATH_STYLE: "true"
-      # Intelia: upstream's browser and HTTP smoke create tasks without level.
+      # Intelia: upstream's browser and HTTP smoke create tasks without level
+      # or initiative.
       INTELIA_TASK_AUTOMATION_OPTIONAL: "true"
+      INTELIA_TASK_INITIATIVE_OPTIONAL: "true"
     ports: ["127.0.0.1:55173:5173"]
     depends_on:
       postgres: {condition: service_healthy}

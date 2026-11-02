@@ -5591,6 +5591,328 @@
           "createdAt"
         ]
       },
+      "Initiative": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "designUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "approvedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "approvedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "createdByUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdByActor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "session",
+              "api_key",
+              "migration"
+            ],
+            "description": "session: a person in Kaneo. api_key: an account's API key, with the `actor` its caller declared, if any. migration: a data migration."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "planClosedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the plan closed: by hand, or when a task of the initiative first reached In progress. Null while planning."
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "name",
+          "designUrl",
+          "approvedBy",
+          "approvedAt",
+          "createdByUserId",
+          "createdByName",
+          "createdByActor",
+          "source",
+          "createdAt",
+          "planClosedAt"
+        ]
+      },
+      "InitiativeChange": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "initiativeId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "created",
+              "updated",
+              "plan_closed"
+            ]
+          },
+          "previous": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {}
+          },
+          "value": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "taskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The task whose start closed the plan (`auto`)."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "session",
+              "api_key",
+              "auto",
+              "migration"
+            ],
+            "description": "As in Initiative, plus auto: the plan closed when a task reached In progress."
+          },
+          "changedByUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changedByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changedByActor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "initiativeId",
+          "kind",
+          "previous",
+          "value",
+          "taskId",
+          "source",
+          "changedByUserId",
+          "changedByName",
+          "changedByActor",
+          "changedAt"
+        ]
+      },
+      "TaskInitiative": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string"
+          },
+          "initiativeId": {
+            "type": "string"
+          },
+          "initiativeName": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "plan",
+              "añadido",
+              "sin_registro"
+            ],
+            "description": "plan: assigned while the initiative's plan was open. añadido: assigned after it closed. sin_registro: migrated from before initiatives existed. Set by the server, never by hand."
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "setByUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "setByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "setByActor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "session",
+              "api_key",
+              "migration"
+            ],
+            "description": "session: a person in Kaneo. api_key: an account's API key, with the `actor` its caller declared, if any. migration: a data migration."
+          }
+        },
+        "required": [
+          "taskId",
+          "initiativeId",
+          "initiativeName",
+          "origin",
+          "since",
+          "setByUserId",
+          "setByName",
+          "setByActor",
+          "source"
+        ]
+      },
+      "TaskInitiativeChange": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "previousInitiativeId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previousOrigin": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "plan",
+              "añadido",
+              "sin_registro",
+              null
+            ],
+            "description": "plan: assigned while the initiative's plan was open. añadido: assigned after it closed. sin_registro: migrated from before initiatives existed. Set by the server, never by hand."
+          },
+          "initiativeId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null when the task lost its initiative by leaving the project."
+          },
+          "origin": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "plan",
+              "añadido",
+              "sin_registro",
+              null
+            ],
+            "description": "plan: assigned while the initiative's plan was open. añadido: assigned after it closed. sin_registro: migrated from before initiatives existed. Set by the server, never by hand."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "session",
+              "api_key",
+              "project_move",
+              "migration"
+            ],
+            "description": "As in TaskInitiative, plus project_move: the task moved to another project and lost its initiative."
+          },
+          "changedByUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changedByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changedByActor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "taskId",
+          "previousInitiativeId",
+          "previousOrigin",
+          "initiativeId",
+          "origin",
+          "source",
+          "changedByUserId",
+          "changedByName",
+          "changedByActor",
+          "changedAt"
+        ]
+      },
       "Reaction": {
         "type": "object",
         "properties": {
@@ -12036,6 +12358,39 @@
                       }
                     ],
                     "description": "The task's automation level and verification (Intelia fork). Required when creating a task, with no default. `completa` requires verification."
+                  },
+                  "initiative": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "An initiative of the task's project."
+                          }
+                        },
+                        "required": [
+                          "id"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "parentTaskId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "The parent of a subtask: the new task takes the parent's initiative, which must belong to the same project."
+                          }
+                        },
+                        "required": [
+                          "parentTaskId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ],
+                    "description": "The task's initiative (Intelia fork). Required, with no default: `{ id }` or, for a subtask, `{ parentTaskId }`."
                   }
                 },
                 "required": [
@@ -12043,7 +12398,8 @@
                   "description",
                   "priority",
                   "status",
-                  "automation"
+                  "automation",
+                  "initiative"
                 ]
               }
             }
@@ -12061,7 +12417,7 @@
             }
           },
           "400": {
-            "description": "Invalid body (including a missing `automation`, or `completa` without verification), or a repeating task in a final column",
+            "description": "Invalid body (including a missing `automation` or `initiative`, or `completa` without verification), an initiative that does not exist or belongs to another project, or a repeating task in a final column",
             "content": {
               "application/json": {
                 "schema": {
@@ -12182,6 +12538,11 @@
                       }
                     ],
                     "description": "The copy's automation level and verification. Omit to copy the source's; a source without a level then needs this field."
+                  },
+                  "initiativeId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "An initiative of the project for the copy. Omit to copy the source's; a source without initiative then needs this field."
                   }
                 }
               }
@@ -12200,7 +12561,7 @@
             }
           },
           "400": {
-            "description": "Invalid task fields or request, or no level to copy",
+            "description": "Invalid task fields or request, no level or initiative to copy, or an initiative of another project",
             "content": {
               "application/json": {
                 "schema": {
@@ -12945,11 +13306,17 @@
                       }
                     ],
                     "description": "The automation level and verification of every imported task. Required, with no default."
+                  },
+                  "initiativeId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "An initiative of the project, for every imported task. Required, with no default."
                   }
                 },
                 "required": [
                   "tasks",
-                  "automation"
+                  "automation",
+                  "initiativeId"
                 ]
               }
             }
@@ -12967,7 +13334,7 @@
             }
           },
           "400": {
-            "description": "Invalid body, or no `automation`",
+            "description": "Invalid body, no `automation` or `initiativeId`, or an initiative of another project",
             "content": {
               "application/json": {
                 "schema": {
@@ -25445,6 +25812,701 @@
           },
           "404": {
             "description": "Workspace not found or not a member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/project/{projectId}/initiatives": {
+      "post": {
+        "operationId": "createInitiative",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "Create an initiative",
+        "description": "A new initiative of the project, with its plan open. A person's session or an account's API key, with task:update. Kaneo does not check who may write beyond that: the factory's gateway does, before calling (design 19 §3). With an API key, `actor` names who the caller acts for (informative, logged as given).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Unique within the project, ignoring case, accents and repeated spaces."
+                  },
+                  "designUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2000,
+                    "format": "uri",
+                    "description": "Link to the design document."
+                  },
+                  "approvedBy": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Who approved the plan."
+                  },
+                  "approvedAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time",
+                    "description": "When the plan was approved."
+                  },
+                  "actor": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
+                    "example": "agent:orq-jaime"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new initiative",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Initiative"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, or `actor` from a session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing task:update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The project already has an initiative with that name (INITIATIVE_NAME_TAKEN)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/initiative/{initiativeId}": {
+      "patch": {
+        "operationId": "updateInitiative",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "Edit an initiative",
+        "description": "Changes its name, design link or approval; each real change goes to the change log. A person's session or an account's API key, with task:update. Kaneo does not check who may write beyond that: the factory's gateway does, before calling (design 19 §3). With an API key, `actor` names who the caller acts for (informative, logged as given).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "initiativeId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Unique within the project, ignoring case, accents and repeated spaces."
+                  },
+                  "designUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 2000,
+                    "format": "uri",
+                    "description": "Link to the design document."
+                  },
+                  "approvedBy": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Who approved the plan."
+                  },
+                  "approvedAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time",
+                    "description": "When the plan was approved."
+                  },
+                  "actor": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
+                    "example": "agent:orq-jaime"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The initiative",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Initiative"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, or `actor` from a session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing task:update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Initiative not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The project already has an initiative with that name (INITIATIVE_NAME_TAKEN)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/initiative/{initiativeId}/close-plan": {
+      "post": {
+        "operationId": "closeInitiativePlan",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "Close an initiative's plan",
+        "description": "From now on, tasks put in the initiative are `añadido`. Closing a closed plan changes nothing. The plan also closes on its own when a task of the initiative reaches In progress. A person's session or an account's API key, with task:update. Kaneo does not check who may write beyond that: the factory's gateway does, before calling (design 19 §3). With an API key, `actor` names who the caller acts for (informative, logged as given).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "initiativeId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "actor": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
+                    "example": "agent:orq-jaime"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The initiative",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Initiative"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`actor` from a session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing task:update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Initiative not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/initiative/{initiativeId}/history": {
+      "get": {
+        "operationId": "listInitiativeChanges",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "Get an initiative's change log",
+        "description": "Creation, edits and plan closing, newest first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "initiativeId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "description": "Maximum number of changes, newest first."
+            },
+            "required": false,
+            "description": "Maximum number of changes, newest first.",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Changes of the initiative",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InitiativeChange"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Initiative not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/task/{taskId}/initiative": {
+      "put": {
+        "operationId": "putTaskInitiative",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "Set a task's initiative",
+        "description": "Puts the task in an initiative of its project. The server sets its origin against that initiative's plan (`plan` while open, `añadido` once closed) and logs the move. Its current initiative changes nothing. A person's session or an account's API key, with task:update. Kaneo does not check who may write beyond that: the factory's gateway does, before calling (design 19 §3). With an API key, `actor` names who the caller acts for (informative, logged as given).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "taskId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "initiativeId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "actor": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
+                    "example": "agent:orq-jaime"
+                  }
+                },
+                "required": [
+                  "initiativeId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The task's initiative",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskInitiative"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, `actor` from a session, an unknown initiative (INITIATIVE_NOT_FOUND) or one of another project (INITIATIVE_NOT_IN_PROJECT)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing task:update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getTaskInitiative",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "Get a task's initiative",
+        "description": "The task's initiative and origin, with who set them and when.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "taskId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The task's initiative",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskInitiative"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found or without initiative",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/task/{taskId}/initiative/history": {
+      "get": {
+        "operationId": "listTaskInitiativeChanges",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "Get a task's initiative change log",
+        "description": "Every assignment, move and removal, newest first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "taskId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "description": "Maximum number of changes, newest first."
+            },
+            "required": false,
+            "description": "Maximum number of changes, newest first.",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Changes of the task's initiative",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskInitiativeChange"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
             "content": {
               "application/json": {
                 "schema": {

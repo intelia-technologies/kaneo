@@ -11,6 +11,7 @@ import {
   taskTable,
 } from "../../database/schema";
 import { publishEvent } from "../../events";
+import { dropTaskInitiativeOnProjectMove } from "../../intelia/initiatives/service";
 import { assertProjectAccess } from "../../project-access/assert-project-access";
 import { filterUsersWithProjectAccess } from "../../project-access/filter-users-with-project-access";
 import { claimTaskNumber } from "./claim-task-numbers";
@@ -219,6 +220,9 @@ async function moveTask({
       .update(assetTable)
       .set({ projectId: destinationProjectId })
       .where(eq(assetTable.taskId, taskId));
+
+    // Intelia: an initiative belongs to one project; the task leaves it.
+    await dropTaskInitiativeOnProjectMove(tx, taskId, currentUserId);
 
     return movedTask;
   });

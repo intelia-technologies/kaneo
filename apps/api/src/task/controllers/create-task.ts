@@ -18,6 +18,12 @@ import {
   readOptions,
 } from "../../custom-field/choice-options";
 import { publishEvent } from "../../events";
+import type { InitiativeWriter } from "../../intelia/initiatives/access";
+import type { InitiativeOnCreate } from "../../intelia/initiatives/schema";
+import {
+  assignOnCreate,
+  resolveInitiativeOnCreate,
+} from "../../intelia/initiatives/service";
 import {
   type AutomationChange,
   writeAutomation,
@@ -70,6 +76,7 @@ async function createTask({
   customFields,
   draftAssetIds,
   automation,
+  initiative,
 }: {
   projectId: string;
   currentUserId: string;
@@ -85,6 +92,8 @@ async function createTask({
   draftAssetIds?: string[];
   // Intelia: the task's level, committed with the task (before task.created).
   automation?: AutomationChange;
+  // Intelia: the task's initiative, committed with the task.
+  initiative?: { input: InitiativeOnCreate; writer: InitiativeWriter };
 }) {
   const resolvedStatus = status || "to-do";
   const resolvedPriority = priority || "no-priority";
@@ -167,6 +176,10 @@ async function createTask({
       message: "Create the task in an open column to make it repeat",
     });
 
+  const initiativeId = initiative
+    ? await resolveInitiativeOnCreate(projectId, initiative.input)
+    : null;
+
   const createdTask = await db.transaction(async (tx) => {
     const taskNumber = await claimTaskNumber(projectId, tx);
     const nextPosition = await nextTaskPosition(
@@ -243,6 +256,8 @@ async function createTask({
     }
 
     if (task && automation) await writeAutomation(tx, task.id, automation);
+    if (task && initiative && initiativeId)
+      await assignOnCreate(tx, task, initiativeId, initiative.writer);
 
     return task;
   });

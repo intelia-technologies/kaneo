@@ -25,6 +25,11 @@ import {
   validateTaskAssetUploadInput,
   verifyTaskAssetUpload,
 } from "../storage/s3";
+import { callerInitiativeWriter } from "../intelia/initiatives/access";
+import {
+  testImportInitiativeDefault,
+  testInitiativeDefault,
+} from "../intelia/initiatives/on-create";
 import {
   automationOnCreateBy,
   callerWriter,
@@ -300,6 +305,7 @@ const createTaskRoute = createRoute({
     requireWorkspacePermission({ task: ["create"] }),
     requireEntitlement,
     testAutomationDefault,
+    testInitiativeDefault,
   ] as const,
   request: {
     params: projectIdParam,
@@ -311,7 +317,7 @@ const createTaskRoute = createRoute({
   responses: {
     200: jsonResponse("The created task", taskSchema),
     400: errorResponse(
-      "Invalid body (including a missing `automation`, or `completa` without verification), or a repeating task in a final column",
+      "Invalid body (including a missing `automation` or `initiative`, or `completa` without verification), an initiative that does not exist or belongs to another project, or a repeating task in a final column",
     ),
     403: errorResponse(
       "No access to the project, or missing task:create permission",
@@ -342,7 +348,9 @@ const duplicateTaskRoute = createRoute({
   },
   responses: {
     200: jsonResponse("The duplicated task", taskSchema),
-    400: errorResponse("Invalid task fields or request, or no level to copy"),
+    400: errorResponse(
+      "Invalid task fields or request, no level or initiative to copy, or an initiative of another project",
+    ),
     401: errorResponse("Unauthorized"),
     403: errorResponse(
       "No access to the project, missing task:create, or missing task:update when copying parent links",
@@ -491,6 +499,7 @@ const importTasksRoute = createRoute({
     requireWorkspacePermission({ task: ["create"] }),
     requireEntitlement,
     testAutomationDefault,
+    testImportInitiativeDefault,
   ] as const,
   request: {
     params: projectIdParam,
@@ -501,7 +510,9 @@ const importTasksRoute = createRoute({
   },
   responses: {
     200: jsonResponse("Per-task import outcome", taskImportResultSchema),
-    400: errorResponse("Invalid body, or no `automation`"),
+    400: errorResponse(
+      "Invalid body, no `automation` or `initiativeId`, or an initiative of another project",
+    ),
     403: errorResponse(
       "No access to the project, or missing task:create permission",
     ),
@@ -952,6 +963,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       customFields,
       draftAssetIds,
       automation,
+      initiative,
     } = c.req.valid("json");
 
     const parsedStartDate =
@@ -979,13 +991,14 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       customFields,
       draftAssetIds,
       automation: automationOnCreateBy(c, automation),
+      initiative: { input: initiative, writer: callerInitiativeWriter(c) },
     });
 
     return c.json(task, 200);
   })
   .openapi(duplicateTaskRoute, async (c) => {
     const { id } = c.req.valid("param");
-    const { title, automation } = c.req.valid("json");
+    const { title, automation, initiativeId } = c.req.valid("json");
     return c.json(
       await duplicateTask({
         taskId: id,
@@ -993,6 +1006,10 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
         currentUserId: c.get("userId"),
         canUpdateTasks: await hasWorkspacePermission(c, { task: ["update"] }),
         automation: { explicit: automation, writer: callerWriter(c) },
+        initiative: {
+          explicit: initiativeId,
+          writer: callerInitiativeWriter(c),
+        },
       }),
       200,
     );
@@ -1086,11 +1103,14 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
   })
   .openapi(importTasksRoute, async (c) => {
     const { projectId } = c.req.valid("param");
-    const { tasks, automation } = c.req.valid("json");
+    const { tasks, automation, initiativeId } = c.req.valid("json");
     const currentUserId = c.get("userId");
 
     const change = automationOnCreateBy(c, automation);
-    const result = await importTasks(projectId, tasks, currentUserId, change);
+    const result = await importTasks(projectId, tasks, currentUserId, change, {
+      initiativeId,
+      writer: callerInitiativeWriter(c),
+    });
 
     return c.json(result, 200);
   })

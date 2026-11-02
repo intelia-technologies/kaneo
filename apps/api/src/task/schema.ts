@@ -1,3 +1,4 @@
+import { initiativeOnCreateInput } from "../intelia/initiatives/schema";
 import { automationInput } from "../intelia/task-automation/schema";
 import { pagingNumber, z } from "../openapi";
 import { MAX_TASK_POSITION } from "./controllers/next-task-position";
@@ -90,8 +91,9 @@ export const createTaskBody = z.object({
   customFields: z
     .array(z.object({ fieldId: z.string(), value: z.string() }))
     .optional(),
-  // Intelia fork: required automation level (README-INTELIA.md).
+  // Intelia fork: required automation level and initiative (README-INTELIA.md).
   automation: automationInput,
+  initiative: initiativeOnCreateInput,
 });
 
 export const updateTaskBody = z.object({
@@ -138,6 +140,11 @@ export const importTasksBody = z.object({
   automation: automationInput.openapi({
     description:
       "The automation level and verification of every imported task. Required, with no default.",
+  }),
+  // Intelia fork: required initiative, the same for every imported task.
+  initiativeId: z.string().min(1).openapi({
+    description:
+      "An initiative of the project, for every imported task. Required, with no default.",
   }),
 });
 
@@ -194,6 +201,11 @@ export const duplicateTaskBody = z.object({
   automation: automationInput.optional().openapi({
     description:
       "The copy's automation level and verification. Omit to copy the source's; a source without a level then needs this field.",
+  }),
+  // Intelia fork: README-INTELIA.md, «Iniciativas».
+  initiativeId: z.string().min(1).optional().openapi({
+    description:
+      "An initiative of the project for the copy. Omit to copy the source's; a source without initiative then needs this field.",
   }),
 });
 

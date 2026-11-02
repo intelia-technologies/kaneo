@@ -4,12 +4,18 @@ import {
   boolean,
   check,
   index,
+  jsonb,
   pgSchema,
   text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { activityTable, taskTable, userTable } from "../database/schema";
+import {
+  activityTable,
+  projectTable,
+  taskTable,
+  userTable,
+} from "../database/schema";
 
 // Intelia fork: our tables live in their own PostgreSQL schema, never in
 // upstream's. See README-INTELIA.md («Base de datos»).
@@ -219,5 +225,209 @@ export const taskAutomationChangeTable = inteliaSchema.table(
     ),
     check("task_automation_change_level_check", levelCheck("level")),
     check("task_automation_change_source_check", sourceCheck("source")),
+  ],
+);
+
+// Initiatives (README-INTELIA.md, «Iniciativas»; design 19 §3 and §4): a
+// group of tasks of one project, with a plan that closes once.
+export const TASK_ORIGINS = ["plan", "añadido", "sin_registro"] as const;
+export type TaskOrigin = (typeof TASK_ORIGINS)[number];
+
+// Who wrote an initiative or a task's membership: a person's session, an
+// account's API key, the rule that closes a plan on its own (`auto`), a task
+// leaving its project (`project_move`) or a migration.
+export const INITIATIVE_SOURCES = ["session", "api_key", "migration"] as const;
+export type InitiativeSource = (typeof INITIATIVE_SOURCES)[number];
+export const INITIATIVE_CHANGE_SOURCES = [
+  "session",
+  "api_key",
+  "auto",
+  "migration",
+] as const;
+export type InitiativeChangeSource = (typeof INITIATIVE_CHANGE_SOURCES)[number];
+export const INITIATIVE_CHANGE_KINDS = [
+  "created",
+  "updated",
+  "plan_closed",
+] as const;
+export type InitiativeChangeKind = (typeof INITIATIVE_CHANGE_KINDS)[number];
+export const TASK_INITIATIVE_CHANGE_SOURCES = [
+  "session",
+  "api_key",
+  "project_move",
+  "migration",
+] as const;
+export type TaskInitiativeChangeSource =
+  (typeof TASK_INITIATIVE_CHANGE_SOURCES)[number];
+
+const inCheck = (column: string, values: readonly string[]) =>
+  sql.raw(`"${column}" in (${values.map((v) => `'${v}'`).join(", ")})`);
+
+export const initiativeTable = inteliaSchema.table(
+  "initiative",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projectTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    name: text("name").notNull(),
+    // The name without case, accents or repeated spaces: unique per project.
+    nameKey: text("name_key").notNull(),
+    designUrl: text("design_url"),
+    approvedBy: text("approved_by"),
+    approvedAt: timestamp("approved_at", { mode: "date" }),
+    createdByUserId: text("created_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    createdByActor: text("created_by_actor"),
+    source: text("source").$type<InitiativeSource>().notNull(),
+    createdAt: timestamp("created_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+    // Null while the plan is being made; set once, by hand or by the first
+    // task of the initiative that reaches In progress.
+    planClosedAt: timestamp("plan_closed_at", { mode: "date" }),
+  },
+  (table) => [
+    uniqueIndex("initiative_project_name_key_idx").on(
+      table.projectId,
+      table.nameKey,
+    ),
+    check("initiative_source_check", inCheck("source", INITIATIVE_SOURCES)),
+  ],
+);
+
+// Change log of an initiative: creation, edits of its data, plan closing.
+export const initiativeChangeTable = inteliaSchema.table(
+  "initiative_change",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    initiativeId: text("initiative_id")
+      .notNull()
+      .references(() => initiativeTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    kind: text("kind").$type<InitiativeChangeKind>().notNull(),
+    // The changed fields before (null on creation) and after.
+    previous: jsonb("previous").$type<Record<string, unknown>>(),
+    value: jsonb("value").$type<Record<string, unknown>>().notNull(),
+    // The task whose start closed the plan (`auto`); null otherwise.
+    taskId: text("task_id").references(() => taskTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    changedByUserId: text("changed_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    changedByActor: text("changed_by_actor"),
+    source: text("source").$type<InitiativeChangeSource>().notNull(),
+    changedAt: timestamp("changed_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+  },
+  (table) => [
+    index("initiative_change_initiative_id_idx").on(
+      table.initiativeId,
+      table.changedAt,
+    ),
+    check(
+      "initiative_change_kind_check",
+      inCheck("kind", INITIATIVE_CHANGE_KINDS),
+    ),
+    check(
+      "initiative_change_source_check",
+      inCheck("source", INITIATIVE_CHANGE_SOURCES),
+    ),
+  ],
+);
+
+// The initiative of each task, with its origin against the plan.
+export const taskInitiativeTable = inteliaSchema.table(
+  "task_initiative",
+  {
+    taskId: text("task_id")
+      .primaryKey()
+      .references(() => taskTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    initiativeId: text("initiative_id")
+      .notNull()
+      .references(() => initiativeTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    origin: text("origin").$type<TaskOrigin>().notNull(),
+    since: timestamp("since", { mode: "date" }).default(utcNow).notNull(),
+    setByUserId: text("set_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    setByActor: text("set_by_actor"),
+    source: text("source").$type<InitiativeSource>().notNull(),
+  },
+  (table) => [
+    index("task_initiative_initiative_id_idx").on(table.initiativeId),
+    check("task_initiative_origin_check", inCheck("origin", TASK_ORIGINS)),
+    check(
+      "task_initiative_source_check",
+      inCheck("source", INITIATIVE_SOURCES),
+    ),
+  ],
+);
+
+// Change log of a task's initiative: first assignment, moves and removal.
+export const taskInitiativeChangeTable = inteliaSchema.table(
+  "task_initiative_change",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => taskTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    previousInitiativeId: text("previous_initiative_id").references(
+      () => initiativeTable.id,
+      { onDelete: "set null", onUpdate: "cascade" },
+    ),
+    previousOrigin: text("previous_origin").$type<TaskOrigin>(),
+    // Null when the task lost its initiative (it left the project).
+    initiativeId: text("initiative_id").references(() => initiativeTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    origin: text("origin").$type<TaskOrigin>(),
+    changedByUserId: text("changed_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    changedByActor: text("changed_by_actor"),
+    source: text("source").$type<TaskInitiativeChangeSource>().notNull(),
+    changedAt: timestamp("changed_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+  },
+  (table) => [
+    index("task_initiative_change_task_id_idx").on(
+      table.taskId,
+      table.changedAt,
+    ),
+    check(
+      "task_initiative_change_source_check",
+      inCheck("source", TASK_INITIATIVE_CHANGE_SOURCES),
+    ),
   ],
 );

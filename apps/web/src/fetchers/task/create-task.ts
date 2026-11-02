@@ -2,9 +2,14 @@ import { client } from "@kaneo/libs";
 import type { InferRequestType } from "hono/client";
 import { HttpError } from "@/lib/http-error";
 
-export type CreateTaskRequest = InferRequestType<
+type CreateTaskJson = InferRequestType<
   (typeof client)["task"][":projectId"]["$post"]
->["json"] &
+>["json"];
+
+// Intelia fork: the API requires `initiative` (README-INTELIA.md,
+// «Iniciativas»). The creation form and the subtask input do not ask for it
+// yet (IN-05), so it is not part of the web's request type.
+export type CreateTaskRequest = Omit<CreateTaskJson, "initiative"> &
   InferRequestType<(typeof client)["task"][":projectId"]["$post"]>["param"];
 
 export type CreateTaskInput = CreateTaskRequest;
@@ -40,6 +45,11 @@ async function createTask(
       customFields,
       draftAssetIds,
       automation,
+      // Without an initiative (form and subtasks until IN-05) the field is
+      // left out of the JSON and the API decides: 400 in a deployment, the
+      // test default in upstream's CI smoke. Only this field skips the type
+      // check.
+      initiative: undefined as unknown as CreateTaskJson["initiative"],
     },
     param: { projectId },
   });

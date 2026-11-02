@@ -17,8 +17,12 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client, Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vite-plus/test";
 import { schema } from "../../apps/api/src/database";
-import { migrateInteliaSchema } from "../../apps/api/src/intelia/migrate";
 import {
+  INTELIA_MIGRATIONS_TABLE,
+  migrateInteliaSchema,
+} from "../../apps/api/src/intelia/migrate";
+import {
+  INTELIA_SCHEMA,
   taskAutomationChangeTable,
   taskAutomationTable,
 } from "../../apps/api/src/intelia/schema";
@@ -95,7 +99,13 @@ it("leaves every open task in manual with verification, logged as the migration,
   journal.entries = journal.entries.slice(0, backfillIndex);
   writeFileSync(journalPath, JSON.stringify(journal));
   await migrate(db, { migrationsFolder: join(apiDir, "drizzle") });
-  await migrateInteliaSchema(db, inteliaFolder);
+  // The migrator of that release: only the migrations, without today's
+  // startup check, which expects the hooks of every migration.
+  await migrate(db, {
+    migrationsFolder: inteliaFolder,
+    migrationsSchema: INTELIA_SCHEMA,
+    migrationsTable: INTELIA_MIGRATIONS_TABLE,
+  });
 
   const [user] = await db
     .insert(schema.userTable)
