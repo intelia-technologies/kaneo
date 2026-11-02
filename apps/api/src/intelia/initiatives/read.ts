@@ -1,8 +1,7 @@
-import { and, asc, eq, inArray, isNull, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import db from "../../database";
 import {
-  activityTable,
   customFieldDefinitionTable,
   customFieldValueTable,
   projectTable,
@@ -15,6 +14,7 @@ import {
   type TaskOrigin,
   taskInitiativeTable,
 } from "../schema";
+import { statusSince } from "../status-since";
 import { type InitiativeReader, readableProject } from "./access";
 import { getInitiative, listProjectInitiatives } from "./service";
 
@@ -31,13 +31,6 @@ const BLOCK_REASON_FIELD = "motivo_bloqueo";
 const BLOCK_REASON_DETAIL_FIELD = "motivo_bloqueo_detalle";
 
 const assigneeUser = alias(userTable, "initiative_task_assignee");
-
-// Last status change in the activity log, or the creation when there is none.
-const statusSince = sql<Date>`coalesce(
-  (select max(${activityTable.createdAt}) from ${activityTable}
-    where ${activityTable.taskId} = ${taskTable.id}
-      and ${activityTable.type} = 'status_changed'),
-  ${taskTable.createdAt})`.mapWith(taskTable.createdAt);
 
 /** Tasks in initiatives matching `where`, only of projects the reader can read. */
 function readableMemberTasks(reader: InitiativeReader, where: SQL) {
