@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["../../tests/api-integration/**/*.test.ts"],
+    globalSetup: ["../../tests/api-integration/global-setup.ts"],
     setupFiles: ["../../tests/api-integration/setup.ts"],
     fileParallelism: false,
     maxWorkers: 1,
