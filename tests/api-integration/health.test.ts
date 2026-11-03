@@ -11,3 +11,5 @@ describe("API integration: health", () => {
     await expect(response.json()).resolves.toEqual({ status: "ok" });
   });
 });
+
+// SF-558 probe: a test-only change must trigger intelia-integration.yml.
