@@ -26,6 +26,7 @@ container="kaneo-test-pg-${id}"
 password="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
 database="kaneo_test"
 
+# shellcheck disable=SC2317 # only reached through the EXIT trap
 cleanup() {
   local status=$?
   trap - EXIT INT TERM
