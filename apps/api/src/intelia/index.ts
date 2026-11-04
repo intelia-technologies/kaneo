@@ -6,6 +6,7 @@ import relations from "./relations";
 import routines from "./routines";
 import statusAge from "./status-age";
 import taskAutomation from "./task-automation";
+import taskMove from "./task-move";
 import userAvatar from "./user-avatar";
 
 // Everything the fork serves under /api/intelia, mounted once in
@@ -18,6 +19,7 @@ const intelia = apiRouter()
   .route("/", routines)
   .route("/", statusAge)
   .route("/", taskAutomation)
+  .route("/", taskMove)
   .route("/", userAvatar);
 
 export default intelia;

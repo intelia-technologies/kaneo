@@ -2,7 +2,7 @@
 
 Este repositorio es el fork de [Kaneo](https://github.com/usekaneo/kaneo) que mantiene Intelia (`intelia-technologies/kaneo`). Desplegamos Kaneo desde nuestras imágenes, no desde las públicas. Diseño de referencia: [diseño 11: fork de Kaneo](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-fork-kaneo.md) en `intelia-technologies/software-factory`.
 
-Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas», «Relaciones por proyecto», «Foto de perfil con API key», «Rutinas programadas» y «Nivel de automatización de las tareas»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
+Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas», «Relaciones por proyecto», «Foto de perfil con API key», «Rutinas programadas», «Nivel de automatización de las tareas» y «Mover una tarea de proyecto con alias»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
 
 **Este repositorio es público.** Aquí no va nada interno de Intelia: ni secretos, ni hostnames o IPs, ni configuración de despliegue, ni datos de clientes o de la factory. Todo eso vive en `software-factory`, que es privado. Código propietario dentro de Kaneo, solo tras hablarlo antes. Secret scanning y push protection están activados.
 
@@ -51,6 +51,7 @@ Kaneo se distribuye bajo licencia MIT. Se conservan [`LICENSE`](LICENSE) y el av
   - `apps/web/src/components/project/views/project-views.ts`, `project-scope-toggle.tsx`, `store/user-preferences.ts` y `hooks/use-project-websocket.ts`: el registro, los enlaces de la barra del proyecto y el tiempo real de las vistas «Dependencias» e «Iniciativas».
   - `apps/web/src/components/list-view/task-row-body.tsx`, `components/kanban-board/task-card/task-card-content.tsx`, `components/project/display/card-field-toggles.tsx` y `store/user-preferences.ts`: el chip de tiempo en estado en la fila y la tarjeta, y su preferencia `showStatusAge` en «Display».
   - `apps/web/src/hooks/mutations/custom-field/use-set-custom-field-value.ts`: al guardar un campo personalizado (por ejemplo `motivo_bloqueo`) relee las iniciativas en pantalla.
+  - `apps/api/src/search/controllers/global-search.ts` y `apps/api/src/task/controllers/get-task-by-ticket-id.ts`: el número antiguo de una tarea movida (`task_alias`) la encuentra en la búsqueda por clave y en la consulta por ticket. `apps/web/src/components/task/task-details-content.tsx`: «antes SF-745» en el detalle.
   - `tests/api-integration/helpers/database.ts`: migrador `intelia` en los tests de integración. `tests/api-integration/setup.ts` y `scripts/ci/compose.yml`: `INTELIA_TASK_AUTOMATION_OPTIONAL=true` e `INTELIA_TASK_INITIATIVE_OPTIONAL=true`, para que los tests y las pruebas de humo de upstream creen tareas sin conocer el nivel ni la iniciativa. `tests/api-integration/setup.ts`, además, no lee el `.env` de desarrollo ni cae a `localhost:5432`: exige el servidor marcado de «Tests de integración».
   - `scripts/ci/upgrade.sh`: versión de partida configurable para la prueba de actualización. `scripts/ci/upgrade.mjs`: comprueba el relleno del nivel tras actualizar. `scripts/ci/browser.mjs`: elige `arranque` sin verificación en el formulario de creación y comprueba que se guarda. `scripts/ci/http.mjs`: la tarea de la semilla de `realtime.mjs` y `upgrade.mjs` lleva nivel.
   - Generados o de datos: `apps/docs/openapi.json` (regenerado) y las claves `activity.reactions.*`, `tasks.statusAge.*` y `tasks.display.statusAge` en `i18n/*.json` (en es-ES y en-US traducidas; en los demás idiomas, el inglés que pone `pnpm i18n:check:fix`).
@@ -187,7 +188,7 @@ El test `tests/api-integration/intelia-schema-migrations.test.ts` reproduce el a
 
 ### Ganchos sobre `public.task`
 
-Dependemos de la tabla de upstream `public.task` de dos formas: el trigger `intelia_close_plan_on_start` (con su función `intelia.close_plan_on_start`) y **siete claves ajenas** de nuestras tablas a `task(id)`: `comment_reaction`, `routine`, `task_automation`, `task_automation_change`, `initiative_change` (`ON DELETE SET NULL`), `task_initiative` y `task_initiative_change` (las demás, `ON DELETE CASCADE`). Una migración de upstream que **recree** `task` (`DROP TABLE … CASCADE` y `CREATE TABLE`) se lleva el trigger y las siete claves sin ningún error; el diario de migraciones `intelia` no lo ve, porque nuestras migraciones ya están aplicadas.
+Dependemos de la tabla de upstream `public.task` de dos formas: el trigger `intelia_close_plan_on_start` (con su función `intelia.close_plan_on_start`) y **ocho claves ajenas** de nuestras tablas a `task(id)`: `comment_reaction`, `routine`, `task_automation`, `task_automation_change`, `initiative_change` (`ON DELETE SET NULL`), `task_initiative`, `task_initiative_change` y `task_alias` (las demás, `ON DELETE CASCADE`). Una migración de upstream que **recree** `task` (`DROP TABLE … CASCADE` y `CREATE TABLE`) se lleva el trigger y las ocho claves sin ningún error; el diario de migraciones `intelia` no lo ve, porque nuestras migraciones ya están aplicadas.
 
 - **En cada arranque**, después de los dos migradores (`task-hooks.ts`):
   1. `installTaskHooks` reinstala la función y el trigger en una transacción (`CREATE OR REPLACE FUNCTION`, `DROP TRIGGER IF EXISTS` y `CREATE TRIGGER`, con un cerrojo consultivo para varias réplicas a la vez). Es re-ejecutable: dos arranques dejan lo mismo.
@@ -209,7 +210,7 @@ Señal: el arranque de Kaneo falla con `Intelia: public.task lacks …` (en el l
 
 4. **Arrancar Kaneo**: el arranque reinstala el trigger (el paso 3 no lo toca) y la comprobación pasa. Si sigue fallando, el mensaje nombra lo que falta.
 
-Probado en `tests/api-integration/intelia-task-hooks.test.ts`, en una base aparte con datos: dos arranques dejan el mismo catálogo y los mismos datos; tras recrear `task` como lo haría upstream (con sus datos y los mismos ids) y perder una tarea, el arranque reinstala el trigger y falla nombrando las siete claves; la comprobación muestra la huérfana; la reparación borra sus filas, vacía la columna del diario, restaura las claves (que vuelven a rechazar una tarea inexistente) y el siguiente arranque pasa; repetir la reparación no cambia nada y el trigger vuelve a cerrar el plan. Si se añade una clave a `task` en el esquema, hay que añadirla a los dos ficheros de `repair/` (si falta en el de reparación, ese test falla).
+Probado en `tests/api-integration/intelia-task-hooks.test.ts`, en una base aparte con datos: dos arranques dejan el mismo catálogo y los mismos datos; tras recrear `task` como lo haría upstream (con sus datos y los mismos ids) y perder una tarea, el arranque reinstala el trigger y falla nombrando las ocho claves; la comprobación muestra la huérfana; la reparación borra sus filas, vacía la columna del diario, restaura las claves (que vuelven a rechazar una tarea inexistente) y el siguiente arranque pasa; repetir la reparación no cambia nada y el trigger vuelve a cerrar el plan. Si se añade una clave a `task` en el esquema, hay que añadirla a los dos ficheros de `repair/` (si falta en el de reparación, ese test falla).
 
 ## Reacciones en comentarios y tarjetas
 
@@ -249,6 +250,33 @@ Reacciones con emoji en los comentarios y en la propia tarea (la tarjeta), con a
   - **Preferencia** `showStatusAge` (activa por defecto) en «Display» → «Time in status», como el resto de chips; con ella apagada no se pide nada.
   - **Tests:** `status-age-chip.test.tsx`, `status-age-placement.test.tsx` y `api.test.tsx`.
 - **Test:** `tests/api-integration/intelia-status-age.test.ts`.
+
+## Mover una tarea de proyecto con alias
+
+`POST /api/intelia/task/{taskId}/move` (OpenAPI, etiqueta `Tasks`; código en `apps/api/src/intelia/task-move/`) mueve una tarea a otro proyecto del mismo espacio de trabajo conservando su identidad ([anexo del diseño 11: mover tareas](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-anexo-mover-tareas.md) §1 a §3). El `PUT /api/task/move/{id}` de upstream, que sigue igual, cae a la primera columna si falta la de la tarea y le quita la iniciativa; este no cae a nada: o se remapea todo o no cambia nada.
+
+- **Cuerpo:** `{ projectId, dryRun?, discardFields?, actor? }`. Permisos: `task:update` en el espacio de trabajo y acceso a los dos proyectos, con sesión o con API key; `actor`, solo con API key (informativo, como en las iniciativas).
+- **Autorización bajo cerrojo:** el middleware autoriza la tarea tal como está antes de bloquearla. Con la tarea y los dos proyectos ya bloqueados (en orden de id; el origen `FOR SHARE`, para que un traslado del proyecto a otro espacio espere, y el destino `FOR UPDATE`, el que toma `claimTaskNumber`), se vuelve a comprobar todo en la misma transacción:
+  - si el proyecto origen ya no está en el espacio de trabajo autorizado, 409 `TASK_MOVED_CONCURRENTLY`;
+  - si quien llama ya no ve el origen o el destino, 403.
+  En los dos casos no cambia nada.
+- **Se conservan** (cuelgan del id): título, descripción, asignado, prioridad, fechas, comentarios, reacciones, actividad, adjuntos, relaciones (también con otros proyectos), `recurrence`, la rutina y el nivel de automatización.
+- **Cambia el número** al siguiente del destino (`claimTaskNumber`); el antiguo queda en `intelia.task_alias` (migración `0005_task_alias`: tarea, proyecto que deja, número, quién y cuándo; único por proyecto y número, que upstream nunca reutiliza).
+- **Remapeo**, en la transacción de la tarea (con su cerrojo):
+  - **Columna** por slug. Si el destino no la tiene, falla.
+  - **Campos personalizados** por nombre (sin mayúsculas ni espacios de más), mismo tipo y, en `dropdown` y `multiselect`, con las opciones del valor. Los valores de la tarea, sus definiciones y las del destino quedan bloqueados (`FOR SHARE`) hasta confirmar, así que una edición del valor, del tipo o de las opciones espera. Si falta alguno, falla, salvo que su nombre vaya en `discardFields`: entonces se borra su valor.
+  - **Etiquetas:** son del espacio de trabajo, que la tarea no deja, así que se quedan como están.
+  - **Iniciativa:** la del destino con el mismo nombre (la regla de unicidad de las iniciativas); si no hay, se crea con el mismo diseño y aprobación, con su entrada `created` en el diario, y la pertenencia nueva queda en `task_initiative_change`.
+  - **Asignado:** se conserva. Si no tiene acceso al destino, falla (a diferencia de upstream, que lo desasigna).
+  - Como en upstream: se borran los enlaces de integraciones del origen y los adjuntos pasan al destino; tras confirmar se publica `task.moved`.
+- **Fallo:** 409 `TASK_MOVE_UNMAPPABLE` con todos los problemas en `issues` (`column`, `customFields.<nombre>`, `assignee`), sin cambios.
+- **`dryRun`:** hace el movimiento entero en la transacción y la deshace; devuelve lo mismo que el real (número nuevo, columna, campos, etiquetas, iniciativa) sin escribir nada ni publicar eventos.
+- **Alias:**
+  - `GET /api/intelia/task/{taskId}/aliases` (`task:read`): los números antiguos, el primer movimiento antes.
+  - La búsqueda (`GET /api/search`, por clave `SF-745`) y `GET /api/task/by-ticket-id/SF-745` encuentran la tarea movida, con los mismos permisos sobre su proyecto actual. La clave se compara como en upstream (NFKC, sin mayúsculas). La consulta por ticket solo cae al alias si ninguna tarea legible tiene hoy ese número, y resuelve el id de la tarea del alias, con las mismas condiciones de espacio de trabajo y acceso que una tarea viva: nunca vuelve a buscar por el ticket actual.
+  - El detalle de la tarea muestra «antes SF-745» encima del título (`apps/web/src/intelia/aliases/`). Su consulta cuelga de `["task", id]`, así que cualquier evento en tiempo real de la tarea, `TASK_MOVED` incluido, la refresca.
+- **Fuera del fork** (KP-02, gateway): quién puede mover, la tupla `project` del grafo, el comentario en la tarea y no mover tareas con un worker vivo.
+- **Tests:** `tests/api-integration/intelia-task-move.test.ts` y `apps/web/src/intelia/aliases/components/task-aliases.test.tsx`.
 
 ## Foto de perfil con API key
 

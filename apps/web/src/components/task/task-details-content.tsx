@@ -18,6 +18,7 @@ import { ReactionBar } from "../intelia/reaction-bar";
 import { TaskRoutinePanel } from "@/intelia/routines/components/routine-panel";
 import { TaskAutomationPanel } from "@/intelia/automation/components/automation-panel";
 import { TaskInitiativePanel } from "@/intelia/initiatives/components/initiative-panel";
+import { TaskAliases } from "@/intelia/aliases/components/task-aliases";
 
 type TaskDetailsContentProps = {
   taskId: string | undefined;
@@ -76,6 +77,7 @@ export default function TaskDetailsContent({
             </span>
           </button>
         )}
+        <TaskAliases taskId={taskId} />
         <TaskTitle taskId={taskId} size={variant === "page" ? "lg" : "md"} />
         <ReactionBar taskId={taskId} commentId={null} />
       </div>
