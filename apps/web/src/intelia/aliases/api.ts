@@ -27,8 +27,10 @@ export async function getTaskAliases(taskId: string): Promise<TaskAlias[]> {
   return data.aliases;
 }
 
+// Under the task's own key: every realtime event of the task (TASK_MOVED
+// included) invalidates ["task", id] and, with it, its former numbers.
 export const taskAliasesKey = (taskId: string) =>
-  ["intelia-aliases", "task", taskId] as const;
+  ["task", taskId, "intelia-aliases"] as const;
 
 export function useTaskAliases(taskId: string | undefined) {
   return useQuery({

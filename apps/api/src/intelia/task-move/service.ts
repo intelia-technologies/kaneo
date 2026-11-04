@@ -1,7 +1,6 @@
 import { and, asc, eq, inArray, isNotNull, notInArray, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { HTTPException } from "hono/http-exception";
-import createActivities from "../../activity/controllers/create-activities";
 import {
   isChoiceType,
   parseChoiceValue,
@@ -23,6 +22,7 @@ import { ApiError, type ApiErrorIssue } from "../../errors/api-error";
 import { publishEvent } from "../../events";
 import { assertProjectAccess } from "../../project-access/assert-project-access";
 import { filterUsersWithProjectAccess } from "../../project-access/filter-users-with-project-access";
+import { projectAccessCondition } from "../../project-access/project-access-condition";
 import { claimTaskNumber } from "../../task/controllers/claim-task-numbers";
 import { nextTaskPosition } from "../../task/controllers/next-task-position";
 import type { InitiativeWriter } from "../initiatives/access";
@@ -73,7 +73,7 @@ export type MoveResult = {
   customFields: FieldPlan[];
   labels: { name: string; action: "kept" }[];
   initiative: MovedInitiative | null;
-  assignee: { userId: string | null; kept: boolean };
+  assignee: { userId: string | null };
   kept: string[];
 };
 
@@ -118,10 +118,13 @@ async function planCustomFields(
     .orderBy(asc(customFieldDefinitionTable.position));
   if (values.length === 0) return [];
 
+  // Shared lock on the destination's definitions until commit: an edit of a
+  // field's options waits, so the checks below hold when the values move.
   const destinationFields = await tx
     .select()
     .from(customFieldDefinitionTable)
-    .where(eq(customFieldDefinitionTable.projectId, destinationProjectId));
+    .where(eq(customFieldDefinitionTable.projectId, destinationProjectId))
+    .for("share");
   const byName = new Map(
     destinationFields.map((field) => [nameKey(field.name), field]),
   );
@@ -203,6 +206,10 @@ async function applyMove(
   ) {
     throw new HTTPException(404, { message: "Project not found" });
   }
+  // The request was authorized on the project the task was in before its
+  // lock; a concurrent move may have taken it elsewhere since. Check the
+  // caller's access to the project it is in now.
+  await assertProjectAccess(writer.userId, source.id);
 
   const issues: ApiErrorIssue[] = [];
 
@@ -231,6 +238,24 @@ async function applyMove(
     request.discardFields,
     issues,
   );
+
+  // The assignee is kept (annex §1): one without access to the destination
+  // makes the move fail instead of being dropped.
+  if (
+    task.userId &&
+    !(
+      await filterUsersWithProjectAccess(
+        [task.userId],
+        destinationProjectId,
+        tx,
+      )
+    ).has(task.userId)
+  ) {
+    issues.push({
+      path: "assignee",
+      message: "The assignee has no access to the destination project",
+    });
+  }
 
   if (issues.length > 0 || !column) {
     throw new ApiError(409, {
@@ -312,38 +337,8 @@ async function applyMove(
     writer,
   );
 
-  // What upstream's move also does: an assignee without access to the
-  // destination is unassigned, links of the source's integrations and the
-  // task's assets follow the project.
-  let assigneeKept = true;
-  if (
-    moved.userId &&
-    !(
-      await filterUsersWithProjectAccess(
-        [moved.userId],
-        destinationProjectId,
-        tx,
-      )
-    ).has(moved.userId)
-  ) {
-    assigneeKept = false;
-    await tx
-      .update(taskTable)
-      .set({ userId: null })
-      .where(eq(taskTable.id, taskId));
-    await createActivities(
-      [
-        {
-          taskId,
-          type: "unassigned",
-          userId: writer.userId,
-          content: null,
-          eventData: {},
-        },
-      ],
-      tx,
-    );
-  }
+  // What upstream's move also does: links of the source's integrations go and
+  // the task's assets follow the project.
   await tx
     .delete(externalLinkTable)
     .where(
@@ -390,7 +385,7 @@ async function applyMove(
     customFields: fields,
     labels: labels.map((label) => ({ name: label.name, action: "kept" })),
     initiative,
-    assignee: { userId: task.userId, kept: assigneeKept },
+    assignee: { userId: task.userId },
     // Kept as they are: they hang from the task's id.
     kept: ["comments", "relations", "recurrence", "routine", "automation"],
   };
@@ -470,64 +465,69 @@ export async function listTaskAliases(taskId: string) {
   };
 }
 
+// The alias's project key matches like upstream's ticket keys: NFKC and no
+// case on both sides, so a full-width key finds its project too.
+const aliasKeyMatches = (projectKey: string) =>
+  sql`lower(normalize(${aliasProject.slug}, NFKC)) = lower(${projectKey.normalize("NFKC")})`;
+
 /**
  * Ids of the tasks that had `key-number` before moving, as a subquery for the
- * search. The key compares like upstream's short-id search (no case).
+ * search.
  */
 export function aliasedTaskIds(projectKey: string, number: number) {
   return db
     .select({ id: taskAliasTable.taskId })
     .from(taskAliasTable)
     .innerJoin(aliasProject, eq(taskAliasTable.projectId, aliasProject.id))
-    .where(
-      and(
-        eq(taskAliasTable.number, number),
-        sql`lower(${aliasProject.slug}) = lower(${projectKey.normalize("NFKC")})`,
-      ),
-    );
+    .where(and(eq(taskAliasTable.number, number), aliasKeyMatches(projectKey)));
 }
 
 /**
- * The lookup by ticket id of a task that no longer has it: the current ticket
- * of each task that had it, looked up again with every access check of
- * upstream's lookup. 404 when none is readable; 409 when several are.
+ * The tasks that had `key-number` before moving (in `projectId`, when given),
+ * for the lookup by ticket id: each with its own id and its current project,
+ * filtered on that project with the conditions of upstream's live lookup
+ * (`get-task-by-ticket-id.ts`); the caller applies the workspace grants.
  */
-export async function findMovedTicket<T>(
+export function movedTaskCandidates(
   projectKey: string,
   number: number,
-  projectId: string | undefined,
-  lookup: (currentTicketId: string) => Promise<T>,
-): Promise<T> {
-  const current = alias(projectTable, "task_alias_current_project");
-  const rows = await db
-    .select({ slug: current.slug, number: taskTable.number })
+  scope: {
+    projectId?: string;
+    workspaceId?: string;
+    slugWorkspaceIds?: string[];
+    /** Undefined for an instance admin. */
+    readableWorkspaceIds?: string[];
+    userId: string;
+  },
+) {
+  return db
+    .select({
+      id: taskTable.id,
+      workspaceId: projectTable.workspaceId,
+      slug: projectTable.slug,
+      archivedAt: projectTable.archivedAt,
+    })
     .from(taskAliasTable)
     .innerJoin(aliasProject, eq(taskAliasTable.projectId, aliasProject.id))
     .innerJoin(taskTable, eq(taskAliasTable.taskId, taskTable.id))
-    .innerJoin(current, eq(taskTable.projectId, current.id))
+    .innerJoin(projectTable, eq(taskTable.projectId, projectTable.id))
     .where(
       and(
         eq(taskAliasTable.number, number),
-        sql`lower(${aliasProject.slug}) = lower(${projectKey.normalize("NFKC")})`,
-        projectId ? eq(taskAliasTable.projectId, projectId) : undefined,
+        aliasKeyMatches(projectKey),
+        scope.projectId
+          ? eq(taskAliasTable.projectId, scope.projectId)
+          : undefined,
+        scope.workspaceId
+          ? eq(projectTable.workspaceId, scope.workspaceId)
+          : undefined,
+        scope.slugWorkspaceIds
+          ? inArray(projectTable.workspaceId, scope.slugWorkspaceIds)
+          : undefined,
+        scope.readableWorkspaceIds
+          ? inArray(projectTable.workspaceId, scope.readableWorkspaceIds)
+          : undefined,
+        projectAccessCondition(scope.userId, projectTable.id),
       ),
     );
-
-  const found: T[] = [];
-  for (const row of rows) {
-    try {
-      found.push(await lookup(`${row.slug}-${row.number}`));
-    } catch (error) {
-      if (error instanceof HTTPException && error.status === 404) continue;
-      throw error;
-    }
-  }
-  const [match, other] = found;
-  if (!match) throw new HTTPException(404, { message: "Task not found" });
-  if (other) {
-    throw new HTTPException(409, {
-      message: "Task ticket ID matches multiple accessible tasks",
-    });
-  }
-  return match;
 }

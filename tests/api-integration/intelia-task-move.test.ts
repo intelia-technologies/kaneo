@@ -1,6 +1,6 @@
 // Moving a task to another project keeping its identity (design 11, annex
 // «Mover tareas»): only the number changes, and the old one stays an alias.
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   afterEach,
   beforeEach,
@@ -25,6 +25,8 @@ import {
   createProjectFixture,
   createWorkspaceMember,
 } from "./helpers/fixtures";
+import { addWorkspaceMember } from "./helpers/project-access/add-workspace-member";
+import { restrictToProjects } from "./helpers/project-access/restrict-to-projects";
 
 type App = ReturnType<typeof createApp>["app"];
 
@@ -250,7 +252,7 @@ describe("POST /api/intelia/task/{taskId}/move", () => {
       ],
       labels: [{ name: "infra", action: "kept" }],
       initiative: { name: "Infraestructura base", created: true },
-      assignee: { kept: true },
+      assignee: { userId: task.userId },
     });
 
     const after = await snapshot(task.id);
@@ -411,7 +413,83 @@ describe("POST /api/intelia/task/{taskId}/move", () => {
     });
     expect(await snapshot(task.id)).toEqual(before);
   });
+
+  it("fails without changing anything when the assignee cannot see the destination", async () => {
+    const { app, task, workspace, sf, infra } = await setup();
+    const assignee = await addWorkspaceMember(workspace.id);
+    await restrictToProjects(workspace.id, assignee.id, [sf.project.id]);
+    await db
+      .update(schema.taskTable)
+      .set({ userId: assignee.id })
+      .where(eq(schema.taskTable.id, task.id));
+    const before = await snapshot(task.id);
+
+    const response = await move(app, task.id, { projectId: infra.project.id });
+    expect(response.status).toBe(409);
+    expect((await readErrorBody(response)).issues).toEqual([
+      { path: "assignee", message: expect.any(String) },
+    ]);
+    expect(await snapshot(task.id)).toEqual(before);
+  });
+
+  it("checks access to the project the task is in once locked, not the one authorized", async () => {
+    const { app, task, workspace, sf, infra, dependency } = await setup();
+    const member = await addWorkspaceMember(workspace.id);
+    await restrictToProjects(workspace.id, member.id, [
+      sf.project.id,
+      infra.project.id,
+    ]);
+    mockAuthenticatedSession(member);
+    const hidden = dependency.projectId;
+
+    // Someone else holds the task while the request passes its middleware on
+    // SF, then moves it to a project the caller cannot see.
+    const locked = Promise.withResolvers<void>();
+    const released = Promise.withResolvers<void>();
+    const holder = db.transaction(async (tx) => {
+      await tx
+        .select({ id: schema.taskTable.id })
+        .from(schema.taskTable)
+        .where(eq(schema.taskTable.id, task.id))
+        .for("update");
+      locked.resolve();
+      await released.promise;
+      await tx
+        .update(schema.taskTable)
+        .set({ projectId: hidden, number: 4 })
+        .where(eq(schema.taskTable.id, task.id));
+    });
+    await locked.promise;
+
+    const request = move(app, task.id, { projectId: infra.project.id });
+    await waitForLockWaiter();
+    released.resolve();
+    await holder;
+
+    const response = await request;
+    expect(response.status).toBe(403);
+    const [after] = await db
+      .select()
+      .from(schema.taskTable)
+      .where(eq(schema.taskTable.id, task.id));
+    expect(after).toMatchObject({ projectId: hidden, number: 4 });
+    expect(await db.select().from(taskAliasTable)).toEqual([]);
+  });
 });
+
+// Until another session waits on a row lock (the move, on the task's). The
+// database exposes no event for that, so it is polled.
+async function waitForLockWaiter() {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const result = await db.execute(
+      sql`select count(*)::int as waiting from pg_stat_activity where wait_event_type = 'Lock' and datname = current_database()`,
+    );
+    const [row] = result.rows as { waiting: number }[];
+    if ((row?.waiting ?? 0) > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error("The move never waited on the task's lock");
+}
 
 describe("finding a moved task by its former number", () => {
   it("search, ticket lookup and the alias list answer to SF-745", async () => {
@@ -446,5 +524,81 @@ describe("finding a moved task by its former number", () => {
         }),
       ],
     });
+  });
+
+  it("resolves the alias to the moved task itself, not to whatever has its new number", async () => {
+    const { app, task, infra, user } = await setup();
+    expect(
+      (await move(app, task.id, { projectId: infra.project.id })).status,
+    ).toBe(200);
+
+    // Another workspace the caller reads, with its own INFRA-12.
+    const { workspace: second } = await createWorkspaceMember();
+    await db.insert(schema.workspaceUserTable).values({
+      workspaceId: second.id,
+      userId: user.id,
+      role: "member",
+      joinedAt: new Date(),
+    });
+    const secondInfra = await createProjectFixture({
+      workspaceId: second.id,
+      slug: "INFRA",
+    });
+    await seedTask(secondInfra.project, 12, { status: "to-do" });
+
+    const byTicket = await app.request("/api/task/by-ticket-id/SF-745");
+    expect(byTicket.status).toBe(200);
+    expect(await byTicket.json()).toMatchObject({ id: task.id });
+    const elsewhere = await app.request(
+      `/api/task/by-ticket-id/SF-745?workspaceId=${second.id}`,
+    );
+    expect(elsewhere.status).toBe(404);
+  });
+
+  it("answers 404 to aliases that point at each other across workspaces the caller cannot read", async () => {
+    const caller = await createWorkspaceMember();
+    mockAuthenticatedSession(caller.user);
+    // In each foreign workspace a task now in one project had the other
+    // project's key: A-1 → B-1 in one, B-1 → A-1 in the other.
+    for (const [from, to] of [
+      ["A", "B"],
+      ["B", "A"],
+    ] as const) {
+      const { workspace } = await createWorkspaceMember();
+      const left = await createProjectFixture({
+        workspaceId: workspace.id,
+        slug: from,
+      });
+      const right = await createProjectFixture({
+        workspaceId: workspace.id,
+        slug: to,
+      });
+      const moved = await seedTask(right.project, 1, { status: "to-do" });
+      await db.insert(taskAliasTable).values({
+        taskId: moved.id,
+        projectId: left.project.id,
+        number: 1,
+      });
+    }
+
+    const response = await createApp().app.request(
+      "/api/task/by-ticket-id/A-1",
+    );
+    expect(response.status).toBe(404);
+  });
+
+  it("finds a former number of a project with a full-width key", async () => {
+    const { app, task, sf, infra } = await setup();
+    await db
+      .update(schema.projectTable)
+      .set({ slug: "ＳＦ" })
+      .where(eq(schema.projectTable.id, sf.project.id));
+    expect(
+      (await move(app, task.id, { projectId: infra.project.id })).status,
+    ).toBe(200);
+
+    const byTicket = await app.request("/api/task/by-ticket-id/sf-745");
+    expect(byTicket.status).toBe(200);
+    expect(await byTicket.json()).toMatchObject({ id: task.id });
   });
 });

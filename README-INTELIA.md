@@ -255,21 +255,22 @@ Reacciones con emoji en los comentarios y en la propia tarea (la tarjeta), con a
 
 `POST /api/intelia/task/{taskId}/move` (OpenAPI, etiqueta `Tasks`; código en `apps/api/src/intelia/task-move/`) mueve una tarea a otro proyecto del mismo espacio de trabajo conservando su identidad ([anexo del diseño 11: mover tareas](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-anexo-mover-tareas.md) §1 a §3). El `PUT /api/task/move/{id}` de upstream, que sigue igual, cae a la primera columna si falta la de la tarea y le quita la iniciativa; este no cae a nada: o se remapea todo o no cambia nada.
 
-- **Cuerpo:** `{ projectId, dryRun?, discardFields?, actor? }`. Permisos: `task:update` y acceso a los dos proyectos, con sesión o con API key; `actor`, solo con API key (informativo, como en las iniciativas).
+- **Cuerpo:** `{ projectId, dryRun?, discardFields?, actor? }`. Permisos: `task:update` y acceso a los dos proyectos, con sesión o con API key; `actor`, solo con API key (informativo, como en las iniciativas). El acceso al origen se comprueba otra vez con la tarea ya bloqueada: si otro movimiento la llevó a un proyecto que quien llama no ve mientras esperaba, 403 sin cambios.
 - **Se conservan** (cuelgan del id): título, descripción, asignado, prioridad, fechas, comentarios, reacciones, actividad, adjuntos, relaciones (también con otros proyectos), `recurrence`, la rutina y el nivel de automatización.
 - **Cambia el número** al siguiente del destino (`claimTaskNumber`); el antiguo queda en `intelia.task_alias` (migración `0005_task_alias`: tarea, proyecto que deja, número, quién y cuándo; único por proyecto y número, que upstream nunca reutiliza).
 - **Remapeo**, en la transacción de la tarea (con su cerrojo):
   - **Columna** por slug. Si el destino no la tiene, falla.
-  - **Campos personalizados** por nombre (sin mayúsculas ni espacios de más), mismo tipo y, en `dropdown` y `multiselect`, con las opciones del valor. Si falta alguno, falla, salvo que su nombre vaya en `discardFields`: entonces se borra su valor.
+  - **Campos personalizados** por nombre (sin mayúsculas ni espacios de más), mismo tipo y, en `dropdown` y `multiselect`, con las opciones del valor. Las definiciones del destino quedan bloqueadas (`FOR SHARE`) hasta confirmar, así que un cambio de opciones espera. Si falta alguno, falla, salvo que su nombre vaya en `discardFields`: entonces se borra su valor.
   - **Etiquetas:** son del espacio de trabajo, que la tarea no deja, así que se quedan como están.
   - **Iniciativa:** la del destino con el mismo nombre (la regla de unicidad de las iniciativas); si no hay, se crea con el mismo diseño y aprobación, con su entrada `created` en el diario, y la pertenencia nueva queda en `task_initiative_change`.
-  - Como en upstream: el asignado sin acceso al destino se desasigna (`assignee.kept: false`), se borran los enlaces de integraciones del origen y los adjuntos pasan al destino; tras confirmar se publica `task.moved`.
-- **Fallo:** 409 `TASK_MOVE_UNMAPPABLE` con todos los problemas en `issues` (`column`, `customFields.<nombre>`), sin cambios.
+  - **Asignado:** se conserva. Si no tiene acceso al destino, falla (a diferencia de upstream, que lo desasigna).
+  - Como en upstream: se borran los enlaces de integraciones del origen y los adjuntos pasan al destino; tras confirmar se publica `task.moved`.
+- **Fallo:** 409 `TASK_MOVE_UNMAPPABLE` con todos los problemas en `issues` (`column`, `customFields.<nombre>`, `assignee`), sin cambios.
 - **`dryRun`:** hace el movimiento entero en la transacción y la deshace; devuelve lo mismo que el real (número nuevo, columna, campos, etiquetas, iniciativa) sin escribir nada ni publicar eventos.
 - **Alias:**
   - `GET /api/intelia/task/{taskId}/aliases` (`task:read`): los números antiguos, el primer movimiento antes.
-  - La búsqueda (`GET /api/search`, por clave `SF-745`) y `GET /api/task/by-ticket-id/SF-745` encuentran la tarea movida, con los mismos permisos sobre su proyecto actual; el de la clave solo cae al alias si ninguna tarea tiene hoy ese número.
-  - El detalle de la tarea muestra «antes SF-745» encima del título (`apps/web/src/intelia/aliases/`).
+  - La búsqueda (`GET /api/search`, por clave `SF-745`) y `GET /api/task/by-ticket-id/SF-745` encuentran la tarea movida, con los mismos permisos sobre su proyecto actual. La clave se compara como en upstream (NFKC, sin mayúsculas). La consulta por ticket solo cae al alias si ninguna tarea legible tiene hoy ese número, y resuelve el id de la tarea del alias, con las mismas condiciones de espacio de trabajo y acceso que una tarea viva: nunca vuelve a buscar por el ticket actual.
+  - El detalle de la tarea muestra «antes SF-745» encima del título (`apps/web/src/intelia/aliases/`). Su consulta cuelga de `["task", id]`, así que cualquier evento en tiempo real de la tarea, `TASK_MOVED` incluido, la refresca.
 - **Fuera del fork** (KP-02, gateway): quién puede mover, la tupla `project` del grafo, el comentario en la tarea y no mover tareas con un worker vivo.
 - **Tests:** `tests/api-integration/intelia-task-move.test.ts` y `apps/web/src/intelia/aliases/components/task-aliases.test.tsx`.
 

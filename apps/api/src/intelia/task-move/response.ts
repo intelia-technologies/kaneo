@@ -52,10 +52,9 @@ export const moveTaskResultSchema = z
       })
       .nullable(),
     assignee: z.object({
-      userId: z.string().nullable(),
-      kept: z.boolean().openapi({
+      userId: z.string().nullable().openapi({
         description:
-          "False when the assignee has no access to the destination and is unassigned, as upstream's move does.",
+          "Kept as it is; an assignee without access to the destination makes the move fail.",
       }),
     }),
     kept: z.array(z.string()).openapi({

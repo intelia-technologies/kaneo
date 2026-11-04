@@ -7132,16 +7132,12 @@
                 "type": [
                   "string",
                   "null"
-                ]
-              },
-              "kept": {
-                "type": "boolean",
-                "description": "False when the assignee has no access to the destination and is unassigned, as upstream's move does."
+                ],
+                "description": "Kept as it is; an assignee without access to the destination makes the move fail."
               }
             },
             "required": [
-              "userId",
-              "kept"
+              "userId"
             ]
           },
           "kept": {

@@ -2,7 +2,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
 import { projectTable, taskTable, workspaceTable } from "../../database/schema";
-import { findMovedTicket } from "../../intelia/task-move/service";
+import { movedTaskCandidates } from "../../intelia/task-move/service";
 import {
   isSameProjectKey,
   mayMatchProjectKey,
@@ -91,28 +91,27 @@ export default async function getTaskByTicketId(
 
   const rank = (candidate: { archivedAt: Date | null }) =>
     candidate.archivedAt?.getTime() ?? Number.POSITIVE_INFINITY;
-  const [matchedTask, nextMatch] = candidates
+  const live = candidates
     .filter((candidate) => grants.allows(candidate.workspaceId, taskRead))
-    .filter((candidate) => isSameProjectKey(candidate.slug, projectKey))
-    .sort((a, b) => (rank(a) === rank(b) ? 0 : rank(a) > rank(b) ? -1 : 1));
+    .filter((candidate) => isSameProjectKey(candidate.slug, projectKey));
+  // Intelia: with no live task, a moved one answers to its former number.
+  const [matchedTask, nextMatch] = (
+    live.length > 0
+      ? live
+      : (
+          await movedTaskCandidates(projectKey, number, {
+            projectId,
+            workspaceId,
+            slugWorkspaceIds,
+            readableWorkspaceIds: grants.isInstanceAdmin
+              ? undefined
+              : readableWorkspaceIds,
+            userId,
+          })
+        ).filter((candidate) => grants.allows(candidate.workspaceId, taskRead))
+  ).sort((a, b) => (rank(a) === rank(b) ? 0 : rank(a) > rank(b) ? -1 : 1));
   if (!matchedTask) {
-    // Intelia: a moved task answers to its former number.
-    return findMovedTicket(
-      projectKey,
-      number,
-      projectId,
-      (
-        ticket,
-      ): Promise<
-        Awaited<ReturnType<typeof getTask>> & { workspaceId: string }
-      > =>
-        getTaskByTicketId(
-          ticket,
-          userId,
-          { workspaceId, workspaceSlug },
-          apiKeyPermissions,
-        ),
-    );
+    throw new HTTPException(404, { message: "Task not found" });
   }
   if (nextMatch && rank(nextMatch) === rank(matchedTask)) {
     throw new HTTPException(409, {
