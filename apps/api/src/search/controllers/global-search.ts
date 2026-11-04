@@ -11,6 +11,7 @@ import {
 import { canAccessProject } from "../../project-access/can-access-project";
 import { projectAccessCondition } from "../../project-access/project-access-condition";
 import { escapeLikePattern } from "../like-pattern";
+import { aliasedTaskIds } from "../../intelia/task-move/service";
 import { TASK_SHORT_ID_PATTERN } from "../task-short-id";
 
 type SearchParams = {
@@ -208,8 +209,14 @@ async function globalSearch(params: SearchParams): Promise<{
             // character", so `DE_-23` would also match a task in `DEP` and the
             // `limit(1)` below would pick whichever came back first. Escaping
             // keeps the case-insensitive comparison and drops the wildcards.
-            ilike(projectTable.slug, escapeLikePattern(slug)),
-            eq(taskTable.number, taskNumber),
+            or(
+              and(
+                ilike(projectTable.slug, escapeLikePattern(slug)),
+                eq(taskTable.number, taskNumber),
+              ),
+              // Intelia: a moved task also answers to its former number.
+              inArray(taskTable.id, aliasedTaskIds(slug, taskNumber)),
+            ),
           ),
         )
         .limit(1);

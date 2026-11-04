@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   index,
+  integer,
   jsonb,
   pgSchema,
   text,
@@ -429,5 +430,45 @@ export const taskInitiativeChangeTable = inteliaSchema.table(
       "task_initiative_change_source_check",
       inCheck("source", TASK_INITIATIVE_CHANGE_SOURCES),
     ),
+  ],
+);
+
+// The numbers a task had before moving to another project (design 11, annex
+// «Mover tareas» §2): `SF-745` still finds the task after it becomes
+// `INFRA-12`. Numbers are never reused within a project, so an old number
+// names one task.
+export const taskAliasTable = inteliaSchema.table(
+  "task_alias",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    taskId: text("task_id")
+      .notNull()
+      .references(() => taskTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    // The project the task left and its number there.
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projectTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    number: integer("number").notNull(),
+    movedByUserId: text("moved_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    movedByActor: text("moved_by_actor"),
+    movedAt: timestamp("moved_at", { mode: "date" }).default(utcNow).notNull(),
+  },
+  (table) => [
+    uniqueIndex("task_alias_project_number_idx").on(
+      table.projectId,
+      table.number,
+    ),
+    index("task_alias_task_id_idx").on(table.taskId, table.movedAt),
   ],
 );

@@ -6938,6 +6938,276 @@
           "changedByActor",
           "changedAt"
         ]
+      },
+      "InteliaMoveTaskResult": {
+        "type": "object",
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "from": {
+            "type": "object",
+            "properties": {
+              "projectId": {
+                "type": "string"
+              },
+              "projectSlug": {
+                "type": "string"
+              },
+              "projectName": {
+                "type": "string"
+              },
+              "number": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "ticketId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "example": "SF-745"
+              }
+            },
+            "required": [
+              "projectId",
+              "projectSlug",
+              "projectName",
+              "number",
+              "ticketId"
+            ]
+          },
+          "to": {
+            "type": "object",
+            "properties": {
+              "projectId": {
+                "type": "string"
+              },
+              "projectSlug": {
+                "type": "string"
+              },
+              "projectName": {
+                "type": "string"
+              },
+              "number": {
+                "type": "number"
+              },
+              "ticketId": {
+                "type": "string",
+                "example": "INFRA-12"
+              }
+            },
+            "required": [
+              "projectId",
+              "projectSlug",
+              "projectName",
+              "number",
+              "ticketId"
+            ]
+          },
+          "column": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "fromColumnId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "toColumnId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "slug",
+              "name",
+              "fromColumnId",
+              "toColumnId"
+            ]
+          },
+          "customFields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fromFieldId": {
+                  "type": "string"
+                },
+                "toFieldId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "kept",
+                    "discarded"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "value",
+                "fromFieldId",
+                "toFieldId",
+                "action"
+              ]
+            }
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "kept"
+                  ],
+                  "description": "Labels belong to the workspace, which a move never leaves: they stay as they are."
+                }
+              },
+              "required": [
+                "name",
+                "action"
+              ]
+            }
+          },
+          "initiative": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "fromInitiativeId": {
+                "type": "string"
+              },
+              "toInitiativeId": {
+                "type": "string",
+                "description": "In a dry run, an id that was rolled back if `created`."
+              },
+              "created": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "fromInitiativeId",
+              "toInitiativeId",
+              "created"
+            ]
+          },
+          "assignee": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kept": {
+                "type": "boolean",
+                "description": "False when the assignee has no access to the destination and is unassigned, as upstream's move does."
+              }
+            },
+            "required": [
+              "userId",
+              "kept"
+            ]
+          },
+          "kept": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What stays untouched because it hangs from the task's id."
+          }
+        },
+        "required": [
+          "dryRun",
+          "taskId",
+          "from",
+          "to",
+          "column",
+          "customFields",
+          "labels",
+          "initiative",
+          "assignee",
+          "kept"
+        ]
+      },
+      "InteliaTaskAliases": {
+        "type": "object",
+        "properties": {
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ticketId": {
+                  "type": "string",
+                  "example": "SF-745"
+                },
+                "projectId": {
+                  "type": "string"
+                },
+                "projectSlug": {
+                  "type": "string"
+                },
+                "projectName": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "number"
+                },
+                "movedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "ticketId",
+                "projectId",
+                "projectSlug",
+                "projectName",
+                "number",
+                "movedAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "aliases"
+        ]
       }
     },
     "parameters": {}
@@ -28588,6 +28858,198 @@
           },
           "404": {
             "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/task/{taskId}/move": {
+      "post": {
+        "operationId": "moveTaskWithAlias",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Move a task to another project, keeping its identity",
+        "description": "Moves the task to another project of the same workspace in one transaction (Intelia fork). The task keeps its id and everything that hangs from it (comments, reactions, activity, attachments, relations with any project, recurrence, routine, automation level); only its number changes, to the destination's next one, and the old number stays as an alias. The column is mapped by slug, custom fields by name (and type and options), and the initiative by name (created with the same data if the destination lacks it). Anything that cannot be mapped fails with 409 `TASK_MOVE_UNMAPPABLE`, listing every problem, and nothing changes. `dryRun` does it all and rolls it back. A session or an API key with task:update and access to the destination; with an API key, `actor` names who the caller acts for (informative).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "taskId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The destination project, in the same workspace."
+                  },
+                  "dryRun": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Do the whole move and roll it back: the response says what a move would do (new number, column, fields, labels, initiative) and nothing is written."
+                  },
+                  "discardFields": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxItems": 100,
+                    "default": [],
+                    "description": "Custom fields (by name) that may be dropped when the destination lacks them or their option. Without it, such a field makes the move fail."
+                  },
+                  "actor": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
+                    "example": "agent:orq-jaime"
+                  }
+                },
+                "required": [
+                  "projectId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the move did, or would do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InteliaMoveTaskResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, the task is already in that project, or `actor` from a session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to either project, or missing task:update permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task or destination project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The destination lacks the task's column, a custom field or an option (`TASK_MOVE_UNMAPPABLE`); nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/task/{taskId}/aliases": {
+      "get": {
+        "operationId": "listTaskAliases",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Former numbers of a task",
+        "description": "The numbers the task had in the projects it left (Intelia fork), oldest move first. The search and the lookup by ticket id find the task by any of them.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "taskId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The task's former numbers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InteliaTaskAliases"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
             "content": {
               "application/json": {
                 "schema": {

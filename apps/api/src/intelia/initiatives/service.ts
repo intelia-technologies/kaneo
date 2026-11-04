@@ -519,6 +519,100 @@ export async function setTaskInitiative(
   return getTaskInitiative(taskId);
 }
 
+/** Where a moved task's initiative went: matched by name, or created. */
+export type MovedInitiative = {
+  name: string;
+  fromInitiativeId: string;
+  toInitiativeId: string;
+  created: boolean;
+};
+
+/**
+ * A task that moves to another project keeping its identity (design 11, annex
+ * «Mover tareas» §1) joins the destination's initiative of the same name,
+ * created with the same data (design, approval) when there is none. Runs in
+ * the move's transaction, after the task row has its new project. Returns
+ * null when the task had no initiative.
+ */
+export async function moveTaskInitiative(
+  tx: Transaction,
+  task: { id: string; projectId: string; status: string },
+  writer: InitiativeWriter,
+): Promise<MovedInitiative | null> {
+  const [current] = await tx
+    .select(initiativeColumns)
+    .from(taskInitiativeTable)
+    .innerJoin(
+      initiativeTable,
+      eq(taskInitiativeTable.initiativeId, initiativeTable.id),
+    )
+    .where(eq(taskInitiativeTable.taskId, task.id))
+    .limit(1);
+  if (!current) return null;
+
+  const nameKey = initiativeNameKey(current.name);
+  const findTarget = async () => {
+    const [row] = await tx
+      .select({ id: initiativeTable.id })
+      .from(initiativeTable)
+      .where(
+        and(
+          eq(initiativeTable.projectId, task.projectId),
+          eq(initiativeTable.nameKey, nameKey),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  };
+
+  let target = await findTarget();
+  let created = false;
+  if (!target) {
+    const author = authorOf(writer);
+    const [inserted] = await tx
+      .insert(initiativeTable)
+      .values({
+        projectId: task.projectId,
+        name: current.name,
+        nameKey,
+        designUrl: current.designUrl,
+        approvedBy: current.approvedBy,
+        approvedAt: current.approvedAt,
+        createdByUserId: author.userId,
+        createdByActor: author.actor,
+        source: writer.source,
+      })
+      .onConflictDoNothing({
+        target: [initiativeTable.projectId, initiativeTable.nameKey],
+      })
+      .returning();
+    if (inserted) {
+      await logInitiativeChange(tx, inserted.id, {
+        kind: "created",
+        previous: null,
+        value: dataValue(inserted),
+        source: writer.source,
+        author,
+        at: inserted.createdAt,
+      });
+      target = inserted;
+      created = true;
+    } else {
+      // Created by someone else since the lookup: join that one.
+      target = await findTarget();
+      if (!target) throw nameTaken();
+    }
+  }
+
+  await assignTaskInitiative(tx, task, target.id, membershipWrite(writer));
+  return {
+    name: current.name,
+    fromInitiativeId: current.id,
+    toInitiativeId: target.id,
+    created,
+  };
+}
+
 /** Puts a just-created task in its initiative, signed by its creator. */
 export function assignOnCreate(
   tx: Transaction,
