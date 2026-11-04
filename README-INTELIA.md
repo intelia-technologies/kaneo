@@ -255,12 +255,16 @@ Reacciones con emoji en los comentarios y en la propia tarea (la tarjeta), con a
 
 `POST /api/intelia/task/{taskId}/move` (OpenAPI, etiqueta `Tasks`; código en `apps/api/src/intelia/task-move/`) mueve una tarea a otro proyecto del mismo espacio de trabajo conservando su identidad ([anexo del diseño 11: mover tareas](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-anexo-mover-tareas.md) §1 a §3). El `PUT /api/task/move/{id}` de upstream, que sigue igual, cae a la primera columna si falta la de la tarea y le quita la iniciativa; este no cae a nada: o se remapea todo o no cambia nada.
 
-- **Cuerpo:** `{ projectId, dryRun?, discardFields?, actor? }`. Permisos: `task:update` y acceso a los dos proyectos, con sesión o con API key; `actor`, solo con API key (informativo, como en las iniciativas). El acceso al origen se comprueba otra vez con la tarea ya bloqueada: si otro movimiento la llevó a un proyecto que quien llama no ve mientras esperaba, 403 sin cambios.
+- **Cuerpo:** `{ projectId, dryRun?, discardFields?, actor? }`. Permisos: `task:update` en el espacio de trabajo y acceso a los dos proyectos, con sesión o con API key; `actor`, solo con API key (informativo, como en las iniciativas).
+- **Autorización bajo cerrojo:** el middleware autoriza la tarea tal como está antes de bloquearla. Con la tarea y los dos proyectos ya bloqueados (en orden de id; el origen `FOR SHARE`, para que un traslado del proyecto a otro espacio espere, y el destino `FOR UPDATE`, el que toma `claimTaskNumber`), se vuelve a comprobar todo en la misma transacción:
+  - si el proyecto origen ya no está en el espacio de trabajo autorizado, 409 `TASK_MOVED_CONCURRENTLY`;
+  - si quien llama ya no ve el origen o el destino, 403.
+  En los dos casos no cambia nada.
 - **Se conservan** (cuelgan del id): título, descripción, asignado, prioridad, fechas, comentarios, reacciones, actividad, adjuntos, relaciones (también con otros proyectos), `recurrence`, la rutina y el nivel de automatización.
 - **Cambia el número** al siguiente del destino (`claimTaskNumber`); el antiguo queda en `intelia.task_alias` (migración `0005_task_alias`: tarea, proyecto que deja, número, quién y cuándo; único por proyecto y número, que upstream nunca reutiliza).
 - **Remapeo**, en la transacción de la tarea (con su cerrojo):
   - **Columna** por slug. Si el destino no la tiene, falla.
-  - **Campos personalizados** por nombre (sin mayúsculas ni espacios de más), mismo tipo y, en `dropdown` y `multiselect`, con las opciones del valor. Las definiciones del destino quedan bloqueadas (`FOR SHARE`) hasta confirmar, así que un cambio de opciones espera. Si falta alguno, falla, salvo que su nombre vaya en `discardFields`: entonces se borra su valor.
+  - **Campos personalizados** por nombre (sin mayúsculas ni espacios de más), mismo tipo y, en `dropdown` y `multiselect`, con las opciones del valor. Los valores de la tarea, sus definiciones y las del destino quedan bloqueados (`FOR SHARE`) hasta confirmar, así que una edición del valor, del tipo o de las opciones espera. Si falta alguno, falla, salvo que su nombre vaya en `discardFields`: entonces se borra su valor.
   - **Etiquetas:** son del espacio de trabajo, que la tarea no deja, así que se quedan como están.
   - **Iniciativa:** la del destino con el mismo nombre (la regla de unicidad de las iniciativas); si no hay, se crea con el mismo diseño y aprobación, con su entrada `created` en el diario, y la pertenencia nueva queda en `task_initiative_change`.
   - **Asignado:** se conserva. Si no tiene acceso al destino, falla (a diferencia de upstream, que lo desasigna).

@@ -475,6 +475,66 @@ describe("POST /api/intelia/task/{taskId}/move", () => {
     expect(after).toMatchObject({ projectId: hidden, number: 4 });
     expect(await db.select().from(taskAliasTable)).toEqual([]);
   });
+
+  it("refuses when the source project moves to another workspace while the request waits", async () => {
+    const { app, task, sf } = await setup();
+    // A workspace the caller is not a member of, with a destination project.
+    const { workspace: foreign } = await createWorkspaceMember();
+    const target = await createProjectFixture({
+      workspaceId: foreign.id,
+      slug: "FX",
+    });
+    // Unassigned and without custom fields, as in the reported case: no
+    // remapping problem stops it.
+    await db
+      .update(schema.taskTable)
+      .set({ userId: null })
+      .where(eq(schema.taskTable.id, task.id));
+    await db
+      .delete(schema.customFieldValueTable)
+      .where(eq(schema.customFieldValueTable.taskId, task.id));
+    const before = await snapshot(task.id);
+
+    // Someone else holds SF while the request passes its middleware in the
+    // caller's workspace, then moves SF to the foreign workspace.
+    const locked = Promise.withResolvers<void>();
+    const released = Promise.withResolvers<void>();
+    const holder = db.transaction(async (tx) => {
+      await tx
+        .select({ id: schema.projectTable.id })
+        .from(schema.projectTable)
+        .where(eq(schema.projectTable.id, sf.project.id))
+        .for("update");
+      locked.resolve();
+      await released.promise;
+      await tx
+        .update(schema.projectTable)
+        .set({ workspaceId: foreign.id })
+        .where(eq(schema.projectTable.id, sf.project.id));
+    });
+    await locked.promise;
+
+    const request = move(app, task.id, { projectId: target.project.id });
+    await waitForLockWaiter();
+    released.resolve();
+    await holder;
+
+    const response = await request;
+    expect(response.status).toBe(409);
+    expect((await readErrorBody(response)).code).toBe(
+      "TASK_MOVED_CONCURRENTLY",
+    );
+    const after = await snapshot(task.id);
+    expect(after.task).toEqual(before.task);
+    expect(after.aliases).toEqual([]);
+    const [destination] = await db
+      .select({ lastTaskNumber: schema.projectTable.lastTaskNumber })
+      .from(schema.projectTable)
+      .where(eq(schema.projectTable.id, target.project.id));
+    expect(destination?.lastTaskNumber).toBe(
+      before.projects.find((p) => p.id === target.project.id)?.lastTaskNumber,
+    );
+  });
 });
 
 // Until another session waits on a row lock (the move, on the task's). The

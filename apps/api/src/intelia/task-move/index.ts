@@ -1,6 +1,7 @@
 import { requireEntitlement } from "../../billing/require-entitlement-middleware";
 import {
   apiRouter,
+  type BaseVariables,
   createRoute,
   errorResponse,
   jsonResponse,
@@ -42,7 +43,7 @@ const moveTaskRoute = createRoute({
     ),
     404: errorResponse("Task or destination project not found"),
     409: errorResponse(
-      "The destination lacks the task's column, a custom field or an option (`TASK_MOVE_UNMAPPABLE`); nothing changed",
+      "The destination lacks the task's column, a custom field, an option or the assignee's access (`TASK_MOVE_UNMAPPABLE`), or the task's project moved to another workspace meanwhile (`TASK_MOVED_CONCURRENTLY`); nothing changed",
     ),
   },
 });
@@ -67,7 +68,7 @@ const listAliasesRoute = createRoute({
   },
 });
 
-const taskMove = apiRouter()
+const taskMove = apiRouter<BaseVariables & { workspaceId: string }>()
   .openapi(moveTaskRoute, async (c) => {
     const { projectId, dryRun, discardFields, actor } = c.req.valid("json");
     return c.json(
@@ -77,6 +78,7 @@ const taskMove = apiRouter()
         dryRun,
         discardFields,
         writer: initiativeWriter(c, actor),
+        workspaceId: c.get("workspaceId"),
       }),
       200,
     );

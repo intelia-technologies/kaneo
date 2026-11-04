@@ -28980,7 +28980,7 @@
             }
           },
           "409": {
-            "description": "The destination lacks the task's column, a custom field or an option (`TASK_MOVE_UNMAPPABLE`); nothing changed",
+            "description": "The destination lacks the task's column, a custom field, an option or the assignee's access (`TASK_MOVE_UNMAPPABLE`), or the task's project moved to another workspace meanwhile (`TASK_MOVED_CONCURRENTLY`); nothing changed",
             "content": {
               "application/json": {
                 "schema": {

@@ -20,7 +20,7 @@ import {
 } from "../../database/schema";
 import { ApiError, type ApiErrorIssue } from "../../errors/api-error";
 import { publishEvent } from "../../events";
-import { assertProjectAccess } from "../../project-access/assert-project-access";
+import { findInaccessibleProjectIds } from "../../project-access/find-inaccessible-project-ids";
 import { filterUsersWithProjectAccess } from "../../project-access/filter-users-with-project-access";
 import { projectAccessCondition } from "../../project-access/project-access-condition";
 import { claimTaskNumber } from "../../task/controllers/claim-task-numbers";
@@ -40,6 +40,8 @@ export type MoveRequest = {
   /** Custom fields (by name) the caller accepts to lose. */
   discardFields: string[];
   writer: InitiativeWriter;
+  /** The workspace whose task:update the request was authorized with. */
+  workspaceId: string;
 };
 
 export type FieldPlan = {
@@ -101,6 +103,8 @@ async function planCustomFields(
   discardFields: string[],
   issues: ApiErrorIssue[],
 ): Promise<FieldPlan[]> {
+  // Shared lock on the task's values and their definitions until commit: an
+  // edit of a value, or of its field's type or options, waits for the move.
   const values = await tx
     .select({
       valueId: customFieldValueTable.id,
@@ -115,7 +119,8 @@ async function planCustomFields(
       eq(customFieldValueTable.fieldId, customFieldDefinitionTable.id),
     )
     .where(eq(customFieldValueTable.taskId, taskId))
-    .orderBy(asc(customFieldDefinitionTable.position));
+    .orderBy(asc(customFieldDefinitionTable.position))
+    .for("share");
   if (values.length === 0) return [];
 
   // Shared lock on the destination's definitions until commit: an edit of a
@@ -191,25 +196,52 @@ async function applyMove(
     });
   }
 
-  const projects = await tx
-    .select()
-    .from(projectTable)
-    .where(inArray(projectTable.id, [task.projectId, destinationProjectId]))
-    .orderBy(asc(projectTable.id))
-    .for("key share");
-  const source = projects.find((p) => p.id === task.projectId);
-  const destination = projects.find((p) => p.id === destinationProjectId);
-  if (
-    !source ||
-    !destination ||
-    destination.workspaceId !== source.workspaceId
-  ) {
+  // Both projects locked in id order, so that crossed moves cannot deadlock.
+  // The source FOR SHARE, not KEY SHARE: its move to another workspace (an
+  // update of `workspace_id`) waits until this move commits. The destination
+  // FOR UPDATE, the lock claimTaskNumber takes next to give the number: two
+  // moves into it queue there instead of deadlocking on a lock upgrade.
+  const locked = new Map<string, typeof projectTable.$inferSelect>();
+  for (const id of [task.projectId, destinationProjectId].sort()) {
+    const [row] = await tx
+      .select()
+      .from(projectTable)
+      .where(eq(projectTable.id, id))
+      .for(id === destinationProjectId ? "update" : "share");
+    if (row) locked.set(id, row);
+  }
+  const source = locked.get(task.projectId);
+  const destination = locked.get(destinationProjectId);
+  if (!source || !destination) {
     throw new HTTPException(404, { message: "Project not found" });
   }
-  // The request was authorized on the project the task was in before its
-  // lock; a concurrent move may have taken it elsewhere since. Check the
-  // caller's access to the project it is in now.
-  await assertProjectAccess(writer.userId, source.id);
+  // The request was authorized on the task as it was before its lock: in that
+  // workspace, and in a project the caller sees. A concurrent move of the task
+  // or of its project may have changed both since, so they are checked again
+  // on the locked rows.
+  if (source.workspaceId !== request.workspaceId) {
+    throw new ApiError(409, {
+      message:
+        "The task or its project moved to another workspace meanwhile; nothing was changed",
+      code: "TASK_MOVED_CONCURRENTLY",
+    });
+  }
+  if (destination.workspaceId !== source.workspaceId) {
+    throw new HTTPException(404, { message: "Project not found" });
+  }
+  if (
+    (
+      await findInaccessibleProjectIds(
+        writer.userId,
+        [source.id, destination.id],
+        tx,
+      )
+    ).length > 0
+  ) {
+    throw new HTTPException(403, {
+      message: "You don't have access to this project",
+    });
+  }
 
   const issues: ApiErrorIssue[] = [];
 
@@ -409,11 +441,6 @@ async function applyMove(
 export async function moveTaskWithAlias(
   request: MoveRequest,
 ): Promise<MoveResult> {
-  await assertProjectAccess(
-    request.writer.userId,
-    request.destinationProjectId,
-  );
-
   let applied: AppliedMove;
   try {
     applied = await db.transaction(async (tx) => {
@@ -500,8 +527,10 @@ export function movedTaskCandidates(
     userId: string;
   },
 ) {
+  // Distinct: two former numbers (of two projects with equal keys) of one
+  // task are one candidate, not an ambiguity.
   return db
-    .select({
+    .selectDistinct({
       id: taskTable.id,
       workspaceId: projectTable.workspaceId,
       slug: projectTable.slug,
