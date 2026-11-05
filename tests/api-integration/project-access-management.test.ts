@@ -391,7 +391,8 @@ describe("invitations with project access", () => {
     );
   });
 
-  it("gives every project to an invitation without a selection", async () => {
+  // Intelia fork: invitations are closed unless they say otherwise.
+  it("keeps an invitation without a selection closed, before and after it's accepted", async () => {
     const ctx = await createInvitationWorkspace();
 
     const invited = await ctx.ownerRequest("/auth/organization/invite-member", {
@@ -400,6 +401,95 @@ describe("invitations with project access", () => {
         organizationId: ctx.workspaceId,
         email: "teammate@example.com",
         role: "member",
+      },
+    });
+    expect(invited.status).toBe(200);
+    const invitation = (await invited.json()) as { id: string };
+    const [stored] = await db
+      .select()
+      .from(schema.invitationTable)
+      .where(eq(schema.invitationTable.id, invitation.id));
+    expect(stored).toMatchObject({ projectAccess: "selected", projectIds: [] });
+
+    const invitee = await signUpWithSession(ctx.app, {
+      email: "teammate@example.com",
+      name: "Teammate",
+    });
+    const inviteeRequest = projectAccessApi({ cookie: invitee.cookies });
+    const before = await inviteeRequest(
+      `/project?workspaceId=${ctx.workspaceId}`,
+    );
+    expect(before.status).not.toBe(200);
+
+    expect(
+      (
+        await inviteeRequest("/auth/organization/accept-invitation", {
+          method: "POST",
+          body: { invitationId: invitation.id },
+        })
+      ).status,
+    ).toBe(200);
+
+    const rows = await readMemberAccessRows(ctx.workspaceId, invitee.userId);
+    expect(rows.rules.map((rule) => rule.projectAccess)).toEqual(["selected"]);
+    expect(rows.grants).toEqual([]);
+    const after = await inviteeRequest(
+      `/project?workspaceId=${ctx.workspaceId}`,
+    );
+    expect(after.status).toBe(200);
+    expect(await after.json()).toEqual([]);
+    const me = await inviteeRequest(
+      `/workspace/${ctx.workspaceId}/project-access/me`,
+    );
+    expect(await me.json()).toMatchObject({
+      projectAccess: "selected",
+      projectIds: [],
+    });
+  });
+
+  it("opens nothing when an accepted invitation has no valid choice", async () => {
+    const ctx = await createInvitationWorkspace();
+    const invited = await ctx.ownerRequest("/auth/organization/invite-member", {
+      method: "POST",
+      body: {
+        organizationId: ctx.workspaceId,
+        email: "legacy@example.com",
+        role: "member",
+        projectAccess: "all",
+      },
+    });
+    const invitation = (await invited.json()) as { id: string };
+    await db
+      .update(schema.invitationTable)
+      .set({ projectAccess: "unknown" })
+      .where(eq(schema.invitationTable.id, invitation.id));
+
+    const invitee = await signUpWithSession(ctx.app, {
+      email: "legacy@example.com",
+      name: "Legacy",
+    });
+    const inviteeRequest = projectAccessApi({ cookie: invitee.cookies });
+    await inviteeRequest("/auth/organization/accept-invitation", {
+      method: "POST",
+      body: { invitationId: invitation.id },
+    });
+
+    const projects = await inviteeRequest(
+      `/project?workspaceId=${ctx.workspaceId}`,
+    );
+    expect(await projects.json()).toEqual([]);
+  });
+
+  it("gives every project to an invitation that asks for it", async () => {
+    const ctx = await createInvitationWorkspace();
+
+    const invited = await ctx.ownerRequest("/auth/organization/invite-member", {
+      method: "POST",
+      body: {
+        organizationId: ctx.workspaceId,
+        email: "teammate@example.com",
+        role: "member",
+        projectAccess: "all",
       },
     });
     expect(invited.status).toBe(200);
@@ -423,6 +513,26 @@ describe("invitations with project access", () => {
       `/project?workspaceId=${ctx.workspaceId}`,
     );
     expect(await projects.json()).toHaveLength(2);
+  });
+
+  it("still opens every project to an owner invitation without a selection", async () => {
+    const ctx = await createInvitationWorkspace();
+
+    const invited = await ctx.ownerRequest("/auth/organization/invite-member", {
+      method: "POST",
+      body: {
+        organizationId: ctx.workspaceId,
+        email: "co-owner@example.com",
+        role: "owner",
+      },
+    });
+    expect(invited.status).toBe(200);
+    const invitation = (await invited.json()) as { id: string };
+    const [stored] = await db
+      .select()
+      .from(schema.invitationTable)
+      .where(eq(schema.invitationTable.id, invitation.id));
+    expect(stored?.projectAccess).toBe("all");
   });
 
   it("rejects an invitation for projects outside the workspace", async () => {

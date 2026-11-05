@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CheckboxGroup } from "@/components/ui/checkbox-group";
-import { Field, FieldError } from "@/components/ui/field";
+import { Field } from "@/components/ui/field";
 import { Fieldset, FieldsetLegend } from "@/components/ui/fieldset";
 import { Label } from "@/components/ui/label";
 import { Radio, RadioGroup } from "@/components/ui/radio-group";
@@ -18,7 +18,6 @@ type Props = {
   isLoadingProjects?: boolean;
   disabled?: boolean;
   allowAll?: boolean;
-  error?: string;
 };
 
 function ProjectAccessFields({
@@ -28,7 +27,6 @@ function ProjectAccessFields({
   isLoadingProjects = false,
   disabled = false,
   allowAll = true,
-  error,
 }: Props) {
   const { t } = useTranslation();
 
@@ -80,7 +78,7 @@ function ProjectAccessFields({
       </Fieldset>
 
       {value.projectAccess === "selected" ? (
-        <Field className="ps-7" invalid={Boolean(error)}>
+        <Field className="ps-7">
           <Fieldset
             className="max-w-none gap-3"
             render={
@@ -119,7 +117,6 @@ function ProjectAccessFields({
               ))
             )}
           </Fieldset>
-          {error ? <FieldError match>{error}</FieldError> : null}
         </Field>
       ) : null}
     </div>

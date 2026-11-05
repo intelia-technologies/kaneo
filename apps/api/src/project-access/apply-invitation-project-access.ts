@@ -7,8 +7,10 @@ export async function applyInvitationProjectAccess(
   invitation: InvitationProjectAccess,
   userId: string,
 ) {
+  // Intelia fork: only an explicit "all" opens every project; a missing or
+  // unknown choice stays closed.
   const restricted =
-    invitation.projectAccess === "selected" && !isOwnerRole(invitation.role);
+    invitation.projectAccess !== "all" && !isOwnerRole(invitation.role);
   const projectIds = Array.isArray(invitation.projectIds)
     ? invitation.projectIds.filter((id): id is string => typeof id === "string")
     : [];

@@ -143,9 +143,28 @@ describe("invitation project access", () => {
     );
   }
 
-  it("invites with access to every project by default", async () => {
+  it("invites without any project by default", async () => {
     render(<InviteTeamMemberModal open onClose={vi.fn()} />, { wrapper });
     await fillEmail();
+    expect(
+      screen.getByRole("radio", {
+        name: /team:projectAccess.selectedProjects/,
+      }),
+    ).toHaveAttribute("aria-checked", "true");
+    submit();
+    await waitFor(() =>
+      expect(inviteMember).toHaveBeenCalledWith(
+        expect.objectContaining({ projectAccess: "selected", projectIds: [] }),
+      ),
+    );
+  });
+
+  it("still lets an unlimited inviter give every project", async () => {
+    render(<InviteTeamMemberModal open onClose={vi.fn()} />, { wrapper });
+    await fillEmail();
+    fireEvent.click(
+      screen.getByRole("radio", { name: /team:projectAccess.allProjects/ }),
+    );
     submit();
     await waitFor(() =>
       expect(inviteMember).toHaveBeenCalledWith(
@@ -200,20 +219,9 @@ describe("invitation project access", () => {
     });
   });
 
-  it("requires a project before inviting with selected access", async () => {
+  it("invites with the selected projects", async () => {
     render(<InviteTeamMemberModal open onClose={vi.fn()} />, { wrapper });
     await fillEmail();
-    fireEvent.click(
-      screen.getByRole("radio", {
-        name: /team:projectAccess.selectedProjects/,
-      }),
-    );
-    submit();
-    expect(
-      await screen.findByText("team:projectAccess.selectAtLeastOne"),
-    ).toBeVisible();
-    expect(inviteMember).not.toHaveBeenCalled();
-
     fireEvent.click(screen.getByRole("checkbox", { name: "Beta" }));
     submit();
     await waitFor(() =>

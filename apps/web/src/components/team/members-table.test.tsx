@@ -309,7 +309,7 @@ describe("MembersTable project access", () => {
     );
   });
 
-  it("asks for a project instead of saving an empty selection", async () => {
+  it("saves an empty selection", async () => {
     render(
       <MembersTable
         workspaceId="workspace-1"
@@ -326,9 +326,13 @@ describe("MembersTable project access", () => {
       screen.getByRole("button", { name: "team:projectAccess.save" }),
     );
 
-    expect(
-      await screen.findByText("team:projectAccess.selectAtLeastOne"),
-    ).toBeVisible();
-    expect(updateProjectAccess).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(updateProjectAccess).toHaveBeenCalledWith({
+        workspaceId: "workspace-1",
+        userId: "restricted-user",
+        projectAccess: "selected",
+        projectIds: [],
+      }),
+    );
   });
 });

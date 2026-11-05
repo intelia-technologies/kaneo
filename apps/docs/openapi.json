@@ -9008,7 +9008,7 @@
                       "all",
                       "selected"
                     ],
-                    "description": "\"all\" (the default) gives access to every project. \"selected\" limits the new member to projectIds once they accept."
+                    "description": "\"all\" gives access to every project. \"selected\" (the default, with no projects unless projectIds says otherwise) limits the new member to projectIds once they accept. Owner invitations always get every project."
                   },
                   "projectIds": {
                     "type": "array",
