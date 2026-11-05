@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import {
-  estimateHours,
-  median,
-  parseManualHours,
-  remainingHours,
-  type Sample,
-} from "./estimate";
+import { estimateHours, median, remainingHours, type Sample } from "./estimate";
 
 const sample = (fields: Partial<Sample> & { hours: number }): Sample => ({
   projectId: "sf",
@@ -87,17 +81,9 @@ describe("remainingHours", () => {
   });
 });
 
-describe("median and parseManualHours", () => {
+describe("median", () => {
   it("takes the middle value or the mean of the two middle ones", () => {
     expect(median([5, 1, 3])).toBe(3);
     expect(median([4, 1, 3, 2])).toBe(2.5);
-  });
-
-  it("reads positive numbers, with a decimal comma too", () => {
-    expect(parseManualHours("6")).toBe(6);
-    expect(parseManualHours(" 2,5 ")).toBe(2.5);
-    for (const bad of [null, undefined, "", "0", "-1", "seis"]) {
-      expect(parseManualHours(bad)).toBeNull();
-    }
   });
 });

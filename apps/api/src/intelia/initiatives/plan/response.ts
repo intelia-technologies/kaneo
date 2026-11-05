@@ -15,7 +15,7 @@ const estimateSchema = z
   .object({
     hours: hours("Estimated hours of the whole task, to one decimal."),
     source: z.enum(ESTIMATE_SOURCES).openapi({
-      description: `manual: the task's \`estimacion_horas\` field. project: median of the finished tasks of the last 90 days of its project with the same automation level (${AUTOMATION_LEVELS.join(", ")} or none) and executor (ephemeral agent, persistent agent or person; any, when unassigned), from ${MIN_CASES} of them. org: the same median over every project of the workspace the caller can read, when its project has fewer. default: ${DEFAULT_HOURS} h, with fewer still.`,
+      description: `manual: the task's \`estimacion_horas\` (set through \`PUT /api/task/estimacion_horas/{id}\` or the task's create and update). project: median of the finished tasks of the last 90 days of its project with the same automation level (${AUTOMATION_LEVELS.join(", ")} or none) and executor (ephemeral agent, persistent agent or person; any, when unassigned), from ${MIN_CASES} of them. org: the same median over every project of the workspace the caller can read, when its project has fewer. default: ${DEFAULT_HOURS} h, with fewer still.`,
     }),
     cases: z.number().int().nonnegative().openapi({
       description:
@@ -100,7 +100,7 @@ export const initiativePlanSchema = z
         hours: hours("Remaining hours along the chain."),
         goalTaskId: z.string().nullable().openapi({
           description:
-            "The initiative's goal task, if it has one; the chain ends there while it is pending. Null until initiatives carry a goal (`objetivo`).",
+            "The initiative's goal task (`objetivo`), if it has one the caller can read; the chain ends there while it is pending, and at the task that ends last otherwise.",
         }),
         partial: z.boolean().openapi({
           description:

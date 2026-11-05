@@ -90,12 +90,3 @@ export function remainingHours(
   if (!started) return estimate;
   return Math.max(estimate - workedHours, MIN_REMAINING_HOURS);
 }
-
-/** `estimacion_horas` as stored (text): a positive number, or null. */
-export function parseManualHours(value: string | null | undefined) {
-  if (value === null || value === undefined) return null;
-  const hours = Number(value.trim().replace(",", "."));
-  return value.trim() !== "" && Number.isFinite(hours) && hours > 0
-    ? hours
-    : null;
-}

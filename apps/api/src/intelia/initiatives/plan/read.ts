@@ -2,8 +2,6 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import db from "../../../database";
 import {
   activityTable,
-  customFieldDefinitionTable,
-  customFieldValueTable,
   projectTable,
   taskTable,
   userTable,
@@ -12,16 +10,13 @@ import { boardSignalTable, taskAutomationTable } from "../../schema";
 import { columnStats } from "../../status-age/read";
 import { type InitiativeReader, readableProject } from "../access";
 import { blockReasons, getInitiativeDetail } from "../read";
-import { estimateHours, parseManualHours, remainingHours } from "./estimate";
+import { estimateHours, remainingHours } from "./estimate";
 import { executorKind } from "./executor";
 import { COLUMN_CHANGE_TYPES, type StatusChange, taskHistory } from "./history";
 import { planMark, type WorkerSignal } from "./mark";
 import { plainParagraph } from "./plain";
 import { workspaceSamples } from "./samples";
 import { buildSchedule, type ScheduleNode } from "./schedule";
-
-// The manual estimate (annex of design 19 §3.3), a custom field of the task.
-const MANUAL_ESTIMATE_FIELD = "estimacion_horas";
 
 const isPending = (status: string) =>
   status !== "done" && status !== "cancelled" && status !== "canceled";
@@ -61,8 +56,8 @@ async function freshWorkers(projectOf: Map<string, string>, now: Date) {
 // What the plan needs of each task beyond the initiative detail, for tasks
 // the detail already filtered as readable.
 async function taskFacts(ids: string[]) {
-  if (ids.length === 0) return { rows: [], manual: new Map(), changes: [] };
-  const [rows, manualRows, changes] = await Promise.all([
+  if (ids.length === 0) return { rows: [], changes: [] };
+  const [rows, changes] = await Promise.all([
     db
       .select({
         id: taskTable.id,
@@ -71,6 +66,8 @@ async function taskFacts(ids: string[]) {
         description: taskTable.description,
         email: userTable.email,
         level: taskAutomationTable.level,
+        // The manual estimate (GT-02): a column of the task, null when unset.
+        manualHours: taskTable.estimacion_horas,
       })
       .from(taskTable)
       .leftJoin(userTable, eq(taskTable.userId, userTable.id))
@@ -79,22 +76,6 @@ async function taskFacts(ids: string[]) {
         eq(taskAutomationTable.taskId, taskTable.id),
       )
       .where(inArray(taskTable.id, ids)),
-    db
-      .select({
-        taskId: customFieldValueTable.taskId,
-        value: customFieldValueTable.value,
-      })
-      .from(customFieldValueTable)
-      .innerJoin(
-        customFieldDefinitionTable,
-        eq(customFieldValueTable.fieldId, customFieldDefinitionTable.id),
-      )
-      .where(
-        and(
-          inArray(customFieldValueTable.taskId, ids),
-          eq(customFieldDefinitionTable.name, MANUAL_ESTIMATE_FIELD),
-        ),
-      ),
     db
       .select({
         taskId: activityTable.taskId,
@@ -110,12 +91,7 @@ async function taskFacts(ids: string[]) {
       )
       .orderBy(asc(activityTable.createdAt), asc(activityTable.id)),
   ]);
-  const manual = new Map<string, number>();
-  for (const row of manualRows) {
-    const hours = parseManualHours(row.value);
-    if (hours !== null) manual.set(row.taskId, hours);
-  }
-  return { rows, manual, changes };
+  return { rows, changes };
 }
 
 /** GET …/initiative/{initiativeId}/plan (annex of design 19 §3.1-§3.3). */
@@ -219,7 +195,7 @@ export async function getInitiativePlan(
         level: fact.level,
         kind: executorKind(fact.email),
       },
-      facts.manual.get(task.id) ?? null,
+      fact.manualHours,
       samples,
     );
     const started = history.actualStart !== null || history.workedHours > 0;
@@ -262,9 +238,13 @@ export async function getInitiativePlan(
     actualStart: p.history.actualStart,
     actualEnd: p.history.actualEnd,
   }));
-  // The initiative's goal arrives with GT-02 (`objetivo`); until then the
-  // path runs to the task that ends last.
-  const goalTaskId: string | null = null;
+  // The initiative's goal (`objetivo`, GT-02), only as one of its readable
+  // tasks: the path ends there while it is pending, else at the task that
+  // ends last.
+  const goalTaskId =
+    detail.objetivo && detail.tasks.some((t) => t.id === detail.objetivo)
+      ? detail.objetivo
+      : null;
   const schedule = buildSchedule(nodes, [...edges.values()], now, goalTaskId);
   const critical = new Set(schedule.critical?.taskIds ?? []);
 

@@ -179,21 +179,29 @@ async function seedInitiative(projectId: string) {
   return initiative;
 }
 
-async function manualEstimate(
-  projectId: string,
-  values: Record<string, string>,
-) {
-  const [field] = await db
-    .insert(schema.customFieldDefinitionTable)
-    .values({ projectId, name: "estimacion_horas", type: "number" })
-    .returning();
-  await db.insert(schema.customFieldValueTable).values(
-    Object.entries(values).map(([taskId, value]) => ({
-      taskId,
-      fieldId: field!.id,
-      value,
-    })),
+// Manual estimates through GT-02's API, as an orchestrator sets them.
+async function manualEstimate(app: App, values: Record<string, number>) {
+  for (const [taskId, hours] of Object.entries(values)) {
+    const response = await app.request(`/api/task/estimacion_horas/${taskId}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ estimacion_horas: hours }),
+    });
+    expect(response.status).toBe(200);
+  }
+}
+
+// The initiative's goal through GT-02's API.
+async function setGoal(app: App, initiativeId: string, taskId: string) {
+  const response = await app.request(
+    `/api/intelia/initiative/${initiativeId}`,
+    {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ objetivo: taskId }),
+    },
   );
+  expect(response.status).toBe(200);
 }
 
 function blocks(sourceTaskId: string, targetTaskId: string) {
@@ -304,7 +312,7 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
       ...alike,
       initiativeId: initiative.id,
     });
-    await manualEstimate(project.id, { [manual.id]: "6,5" });
+    await manualEstimate(app, { [manual.id]: 6.5 });
 
     const { task } = await plan(app, initiative.id);
     expect(task(widened.id).estimate).toEqual({
@@ -347,12 +355,12 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
     const done = await own({ status: "done", createdAt: ago(DAY) });
     await seedChange(done.id, "to-do", "in-progress", startedAt);
     await seedChange(done.id, "in-progress", "done", finishedAt);
-    await manualEstimate(project.id, {
-      [a.id]: "2",
-      [b.id]: "5",
-      [c.id]: "1",
-      [d.id]: "3",
-      [doing.id]: "4",
+    await manualEstimate(app, {
+      [a.id]: 2,
+      [b.id]: 5,
+      [c.id]: 1,
+      [d.id]: 3,
+      [doing.id]: 4,
     });
     await seedWorkers(project.id, {
       [doing.id]: { estado: "activo", trabajando: true },
@@ -398,6 +406,41 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
       remainingHours: 0,
       mark: null,
       critical: false,
+    });
+  });
+
+  it("ends the critical path at the initiative's goal, even with a longer independent branch", async () => {
+    const { app, project, initiative } = await setup();
+    const own = () => seedTask(project.id, { initiativeId: initiative.id });
+    // first (2 h) → goal (4 h): 6 h to the goal; alone (20 h) ends later.
+    const first = await own();
+    const goal = await own();
+    const alone = await own();
+    await blocks(first.id, goal.id);
+    await manualEstimate(app, { [first.id]: 2, [goal.id]: 4, [alone.id]: 20 });
+
+    const before = await plan(app, initiative.id);
+    expect(before.body.criticalPath).toMatchObject({
+      taskIds: [alone.id],
+      hours: 20,
+      goalTaskId: null,
+    });
+
+    await setGoal(app, initiative.id, goal.id);
+    const { body, task } = await plan(app, initiative.id);
+    const hoursFromNow = (value: string) =>
+      (new Date(value).getTime() - new Date(body.computedAt).getTime()) / HOUR;
+    expect(body.criticalPath).toMatchObject({
+      taskIds: [first.id, goal.id],
+      hours: 6,
+      goalTaskId: goal.id,
+    });
+    expect(hoursFromNow(body.estimatedEnd)).toBe(6);
+    expect(task(alone.id)).toMatchObject({ critical: false });
+    expect(task(goal.id).estimate).toEqual({
+      hours: 4,
+      source: "manual",
+      cases: 0,
     });
   });
 
