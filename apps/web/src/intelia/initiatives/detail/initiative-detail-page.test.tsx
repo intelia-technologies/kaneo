@@ -94,10 +94,24 @@ vi.mock("@/intelia/dependencies/components/initiative-tree", () => ({
 
 vi.mock("../api", () => ({
   useInitiative: (...args: unknown[]) => mocks.useInitiative(...args),
+  useInitiativePlan: () => ({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
   useInitiativeHistory: (...args: unknown[]) =>
     mocks.useInitiativeHistory(...args),
   useUpdateInitiative: (...args: unknown[]) =>
     mocks.useUpdateInitiative(...args),
+}));
+
+vi.mock("../use-external-plan-realtime", () => ({
+  useExternalPlanRealtime: () => {},
+}));
+
+vi.mock("@/hooks/queries/column/use-get-columns", () => ({
+  useGetColumns: () => ({ data: [] }),
 }));
 
 vi.mock("@/hooks/queries/project/use-get-project", () => ({

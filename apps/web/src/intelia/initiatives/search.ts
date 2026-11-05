@@ -20,8 +20,8 @@ export type InitiativesListSearch = {
   taskId?: string;
 };
 
-export type InitiativeTab = "tasks" | "tree";
-const TABS: readonly InitiativeTab[] = ["tasks", "tree"];
+export type InitiativeTab = "tasks" | "tree" | "plan";
+const TABS: readonly InitiativeTab[] = ["tasks", "tree", "plan"];
 
 export type InitiativeDetailSearch = {
   tab?: InitiativeTab;

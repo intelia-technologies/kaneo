@@ -29,6 +29,17 @@ vi.mock("../use-dependencies-graph", () => ({
   }),
 }));
 
+vi.mock("@/intelia/initiatives/api", () => ({
+  useInitiativePlan: () => ({
+    data: undefined,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}));
+vi.mock("@/intelia/initiatives/use-external-plan-realtime", () => ({
+  useExternalPlanRealtime: () => {},
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     children,

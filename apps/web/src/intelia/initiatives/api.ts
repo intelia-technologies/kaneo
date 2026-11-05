@@ -232,6 +232,10 @@ export type InitiativeSummary = ProjectInitiatives["initiatives"][number];
 export type TaskWithoutInitiative =
   ProjectInitiatives["withoutInitiative"][number];
 export type InitiativeDetail = InferResponseType<InitiativeRoute["$get"], 200>;
+export type InitiativePlan = InferResponseType<
+  InitiativeRoute["plan"]["$get"],
+  200
+>;
 export type InitiativeTask = InitiativeDetail["tasks"][number];
 export type InitiativeExternalTask = InitiativeDetail["externalTasks"][number];
 export type InitiativeCounters = InitiativeDetail["counters"];
@@ -260,6 +264,16 @@ export async function getInitiative(
   return response.json();
 }
 
+export async function getInitiativePlan(
+  initiativeId: string,
+): Promise<InitiativePlan> {
+  const response = await client.intelia.initiative[":initiativeId"].plan.$get({
+    param: { initiativeId },
+  });
+  if (!response.ok) throw await HttpError.fromResponse(response);
+  return response.json();
+}
+
 export async function patchInitiative(
   initiativeId: string,
   input: InitiativeUpdate,
@@ -281,6 +295,8 @@ export const projectInitiativesKey = (projectId: string) =>
   [...projectInitiativesRootKey(projectId), "list"] as const;
 export const initiativeKey = (projectId: string, initiativeId: string) =>
   [...projectInitiativesRootKey(projectId), "detail", initiativeId] as const;
+export const initiativePlanKey = (projectId: string, initiativeId: string) =>
+  [...projectInitiativesRootKey(projectId), "plan", initiativeId] as const;
 
 // The app's client turns refetchOnMount off; a read invalidated while its
 // page was closed (an edit in the detail, a socket event) must be read again
@@ -299,6 +315,19 @@ export function useInitiative(projectId: string, initiativeId: string) {
     queryKey: initiativeKey(projectId, initiativeId),
     queryFn: () => getInitiative(initiativeId),
     enabled: !!projectId && !!initiativeId,
+    refetchOnMount: true,
+  });
+}
+
+export function useInitiativePlan(
+  projectId: string,
+  initiativeId: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: initiativePlanKey(projectId, initiativeId),
+    queryFn: () => getInitiativePlan(initiativeId),
+    enabled: enabled && !!projectId && !!initiativeId,
     refetchOnMount: true,
   });
 }
