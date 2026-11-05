@@ -102,6 +102,8 @@ const initiativeColumns = {
   id: initiativeTable.id,
   projectId: initiativeTable.projectId,
   name: initiativeTable.name,
+  objetivo: initiativeTable.objetivo,
+  hitos_externos: initiativeTable.hitos_externos,
   designUrl: initiativeTable.designUrl,
   approvedBy: initiativeTable.approvedBy,
   approvedAt: initiativeTable.approvedAt,
@@ -177,6 +179,15 @@ async function logInitiativeChange(
 
 type InitiativeData = {
   name?: string;
+  objetivo?: string | null;
+  hitos_externos?:
+    | {
+        nombre: string;
+        enlace: string;
+        estado: "pendiente" | "hecho" | "bloqueado";
+        tarea?: string;
+      }[]
+    | null;
   designUrl?: string | null;
   approvedBy?: string | null;
   approvedAt?: string | null;
@@ -184,12 +195,23 @@ type InitiativeData = {
 
 function dataValue(row: {
   name: string;
+  objetivo: string | null;
+  hitos_externos:
+    | {
+        nombre: string;
+        enlace: string;
+        estado: "pendiente" | "hecho" | "bloqueado";
+        tarea?: string;
+      }[]
+    | null;
   designUrl: string | null;
   approvedBy: string | null;
   approvedAt: Date | null;
 }) {
   return {
     name: row.name,
+    objetivo: row.objetivo,
+    hitos_externos: row.hitos_externos,
     designUrl: row.designUrl,
     approvedBy: row.approvedBy,
     approvedAt: row.approvedAt?.toISOString() ?? null,
@@ -198,7 +220,7 @@ function dataValue(row: {
 
 export async function createInitiative(
   projectId: string,
-  data: InitiativeData & { name: string },
+  data: Omit<InitiativeData, "objetivo"> & { name: string; objetivo?: null },
   writer: InitiativeWriter,
 ) {
   const author = authorOf(writer);
@@ -209,6 +231,8 @@ export async function createInitiative(
         projectId,
         name: data.name,
         nameKey: initiativeNameKey(data.name),
+        objetivo: null,
+        hitos_externos: data.hitos_externos ?? null,
         designUrl: data.designUrl ?? null,
         approvedBy: data.approvedBy ?? null,
         approvedAt: data.approvedAt ? new Date(data.approvedAt) : null,
@@ -245,9 +269,32 @@ export async function updateInitiative(
       if (!current) {
         throw new HTTPException(404, { message: "Initiative not found" });
       }
+      if (data.objetivo != null) {
+        const [member] = await tx
+          .select({ taskId: taskInitiativeTable.taskId })
+          .from(taskInitiativeTable)
+          .where(
+            and(
+              eq(taskInitiativeTable.taskId, data.objetivo),
+              eq(taskInitiativeTable.initiativeId, initiativeId),
+            ),
+          )
+          .limit(1);
+        if (!member) {
+          throw new ApiError(400, {
+            message: "The objective must be a task of this initiative",
+            code: "OBJECTIVE_NOT_IN_INITIATIVE",
+          });
+        }
+      }
       const before = dataValue(current);
       const next = {
         name: data.name ?? before.name,
+        objetivo: data.objetivo === undefined ? before.objetivo : data.objetivo,
+        hitos_externos:
+          data.hitos_externos === undefined
+            ? before.hitos_externos
+            : data.hitos_externos,
         designUrl:
           data.designUrl === undefined ? before.designUrl : data.designUrl,
         approvedBy:
@@ -262,7 +309,7 @@ export async function updateInitiative(
       const previous: Record<string, unknown> = {};
       const value: Record<string, unknown> = {};
       for (const key of Object.keys(next) as (keyof typeof next)[]) {
-        if (next[key] !== before[key]) {
+        if (JSON.stringify(next[key]) !== JSON.stringify(before[key])) {
           previous[key] = before[key];
           value[key] = next[key];
         }
@@ -273,6 +320,8 @@ export async function updateInitiative(
         .set({
           name: next.name,
           nameKey: initiativeNameKey(next.name),
+          objetivo: next.objetivo,
+          hitos_externos: next.hitos_externos,
           designUrl: next.designUrl,
           approvedBy: next.approvedBy,
           approvedAt: next.approvedAt ? new Date(next.approvedAt) : null,

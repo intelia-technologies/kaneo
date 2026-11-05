@@ -27,6 +27,7 @@ async function updateTask(
   position: number,
   userId?: string,
   currentUserId?: string,
+  estimacion_horas?: number | null,
 ) {
   assertTaskPosition(position);
 
@@ -123,6 +124,7 @@ async function updateTask(
         columnId: column?.id ?? null,
         startDate: startDate || null,
         dueDate: dueDate || null,
+        estimacion_horas,
         projectId,
         description,
         priority,

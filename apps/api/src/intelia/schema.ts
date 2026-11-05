@@ -279,6 +279,15 @@ export const initiativeTable = inteliaSchema.table(
     name: text("name").notNull(),
     // The name without case, accents or repeated spaces: unique per project.
     nameKey: text("name_key").notNull(),
+    objetivo: text("objetivo"),
+    hitos_externos: jsonb("hitos_externos").$type<
+      {
+        nombre: string;
+        enlace: string;
+        estado: "pendiente" | "hecho" | "bloqueado";
+        tarea?: string;
+      }[]
+    >(),
     designUrl: text("design_url"),
     approvedBy: text("approved_by"),
     approvedAt: timestamp("approved_at", { mode: "date" }),

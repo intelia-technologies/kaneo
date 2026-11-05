@@ -234,6 +234,12 @@
             ],
             "format": "date-time"
           },
+          "estimacion_horas": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
           "recurrence": {
             "anyOf": [
               {
@@ -321,6 +327,7 @@
           "priority",
           "startDate",
           "dueDate",
+          "estimacion_horas",
           "recurrence",
           "position",
           "createdAt",
@@ -1302,6 +1309,13 @@
             ],
             "format": "date-time"
           },
+          "estimacion_horas": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Estimated hours, or null when unset."
+          },
           "recurrence": {
             "anyOf": [
               {
@@ -1347,6 +1361,7 @@
           "priority",
           "startDate",
           "dueDate",
+          "estimacion_horas",
           "createdAt"
         ]
       },
@@ -5997,6 +6012,45 @@
           "name": {
             "type": "string"
           },
+          "objetivo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hitos_externos": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "properties": {
+                "nombre": {
+                  "type": "string"
+                },
+                "enlace": {
+                  "type": "string"
+                },
+                "estado": {
+                  "type": "string",
+                  "enum": [
+                    "pendiente",
+                    "hecho",
+                    "bloqueado"
+                  ]
+                },
+                "tarea": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "nombre",
+                "enlace",
+                "estado"
+              ]
+            }
+          },
           "designUrl": {
             "type": [
               "string",
@@ -6054,6 +6108,8 @@
           "id",
           "projectId",
           "name",
+          "objetivo",
+          "hitos_externos",
           "designUrl",
           "approvedBy",
           "approvedAt",
@@ -13315,6 +13371,13 @@
                   "dueDate": {
                     "type": "string"
                   },
+                  "estimacion_horas": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
                   "priority": {
                     "type": "string",
                     "enum": [
@@ -13908,6 +13971,13 @@
                   },
                   "dueDate": {
                     "type": "string"
+                  },
+                  "estimacion_horas": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "minimum": 0
                   },
                   "priority": {
                     "type": "string",
@@ -14713,6 +14783,102 @@
           },
           "404": {
             "description": "Task not found, or assignee is not a member of the workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/task/estimacion_horas/{id}": {
+      "put": {
+        "operationId": "updateTaskEstimation",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Update task estimated hours",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "estimacion_horas": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "estimacion_horas"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid estimate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project, or missing task:update permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -27126,6 +27292,45 @@
                     "maxLength": 200,
                     "description": "Unique within the project, ignoring case, accents and repeated spaces."
                   },
+                  "objetivo": {
+                    "type": "null"
+                  },
+                  "hitos_externos": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "nombre": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "enlace": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "estado": {
+                          "type": "string",
+                          "enum": [
+                            "pendiente",
+                            "hecho",
+                            "bloqueado"
+                          ]
+                        },
+                        "tarea": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "nombre",
+                        "enlace",
+                        "estado"
+                      ]
+                    }
+                  },
                   "designUrl": {
                     "type": [
                       "string",
@@ -27327,6 +27532,50 @@
                     "minLength": 1,
                     "maxLength": 200,
                     "description": "Unique within the project, ignoring case, accents and repeated spaces."
+                  },
+                  "objetivo": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "description": "ID of a task belonging to this initiative, or null."
+                  },
+                  "hitos_externos": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "nombre": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "enlace": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "estado": {
+                          "type": "string",
+                          "enum": [
+                            "pendiente",
+                            "hecho",
+                            "bloqueado"
+                          ]
+                        },
+                        "tarea": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "nombre",
+                        "enlace",
+                        "estado"
+                      ]
+                    }
                   },
                   "designUrl": {
                     "type": [

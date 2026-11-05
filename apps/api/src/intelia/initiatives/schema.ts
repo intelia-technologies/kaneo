@@ -39,9 +39,24 @@ const approvedAt = z.iso
   .datetime({ offset: true })
   .nullable()
   .openapi({ description: "When the plan was approved." });
+const objetivo = z.string().trim().min(1).nullable().openapi({
+  description: "ID of a task belonging to this initiative, or null.",
+});
+const hitos_externos = z
+  .array(
+    z.object({
+      nombre: z.string().trim().min(1),
+      enlace: z.string().trim().min(1),
+      estado: z.enum(["pendiente", "hecho", "bloqueado"]),
+      tarea: z.string().trim().min(1).optional(),
+    }),
+  )
+  .nullable();
 
 export const createInitiativeInput = z.object({
   name,
+  objetivo: z.null().optional(),
+  hitos_externos: hitos_externos.optional(),
   designUrl: designUrl.optional(),
   approvedBy: approvedBy.optional(),
   approvedAt: approvedAt.optional(),
@@ -51,6 +66,8 @@ export const createInitiativeInput = z.object({
 export const updateInitiativeInput = z
   .object({
     name: name.optional(),
+    objetivo: objetivo.optional(),
+    hitos_externos: hitos_externos.optional(),
     designUrl: designUrl.optional(),
     approvedBy: approvedBy.optional(),
     approvedAt: approvedAt.optional(),
@@ -59,6 +76,8 @@ export const updateInitiativeInput = z
   .refine(
     (body) =>
       body.name !== undefined ||
+      body.objetivo !== undefined ||
+      body.hitos_externos !== undefined ||
       body.designUrl !== undefined ||
       body.approvedBy !== undefined ||
       body.approvedAt !== undefined,

@@ -38,6 +38,8 @@ function initiative(
     id: name,
     projectId: "p",
     name,
+    objetivo: null,
+    hitos_externos: null,
     designUrl: null,
     approvedBy: null,
     approvedAt: null,

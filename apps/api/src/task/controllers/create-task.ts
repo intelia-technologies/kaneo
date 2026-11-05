@@ -70,6 +70,7 @@ async function createTask({
   status,
   startDate,
   dueDate,
+  estimacion_horas,
   description,
   priority,
   recurrence,
@@ -85,6 +86,7 @@ async function createTask({
   status: string;
   startDate?: Date;
   dueDate?: Date;
+  estimacion_horas?: number | null;
   description?: string;
   priority?: string;
   recurrence?: TaskRecurrence;
@@ -199,6 +201,7 @@ async function createTask({
         columnId: column?.id ?? null,
         startDate: startDate || null,
         dueDate: dueDate || null,
+        estimacion_horas: estimacion_horas ?? null,
         description: description || "",
         priority: resolvedPriority,
         recurrence: recurrence ?? null,

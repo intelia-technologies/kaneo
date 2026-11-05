@@ -81,6 +81,7 @@ export const createTaskBody = z.object({
   description: z.string(),
   startDate: z.string().optional(),
   dueDate: z.string().optional(),
+  estimacion_horas: z.number().finite().nonnegative().nullable().optional(),
   priority,
   status: z.string().openapi({ description: "The target column's slug." }),
   userId: z.string().optional().openapi({ description: "Assignee, if any." }),
@@ -104,6 +105,7 @@ export const updateTaskBody = z.object({
   }),
   startDate: z.string().optional(),
   dueDate: z.string().optional(),
+  estimacion_horas: z.number().finite().nonnegative().nullable().optional(),
   priority,
   status: z.string(),
   projectId: z.string(),
@@ -150,6 +152,9 @@ export const importTasksBody = z.object({
 
 export const updateStatusBody = z.object({ status: z.string() });
 export const updatePriorityBody = z.object({ priority });
+export const updateEstimationBody = z.object({
+  estimacion_horas: z.number().finite().nonnegative().nullable(),
+});
 export const updateAssigneeBody = z.object({
   userId: z.string().nullable().openapi({ description: "Null unassigns." }),
 });
