@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import db, { schema } from "../../apps/api/src/database";
 import { createApp } from "../../apps/api/src/index";
@@ -319,12 +320,71 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
     });
     expect(scoped.task(own.id).dependsOn).toEqual([]);
     expect(scoped.body.criticalPath.partial).toBe(true);
+    expect(scoped.task(own.id)).toMatchObject({
+      mark: null,
+      stallReason: null,
+    });
     expect(JSON.stringify(scoped.body)).not.toContain(secret.id);
     expect(JSON.stringify(scoped.body)).not.toContain("Excluded dependency");
 
     const empty = await plan(app, initiative.id, "?projectIds=");
     expect(empty.body.projectScope).toEqual([]);
     expect(empty.body.tasks).toEqual([]);
+  });
+
+  it("keeps the plan partial when an external task has another predecessor", async () => {
+    const { app, coder, project, other, initiative, workspace } = await setup();
+    const hidden = await createProjectFixture({
+      workspaceId: workspace.id,
+      name: "Hidden",
+      slug: "HID",
+    });
+    const own = await seedTask(project.id, { initiativeId: initiative.id });
+    const external = await seedTask(other.id, {
+      userId: coder.id,
+      status: "to-do",
+    });
+    const predecessor = await seedTask(other.id, {
+      title: "Readable predecessor",
+    });
+    const secret = await seedTask(hidden.project.id, {
+      title: "Hidden predecessor",
+    });
+    await blocks(external.id, own.id);
+    await blocks(predecessor.id, external.id);
+    const visible = await plan(
+      app,
+      initiative.id,
+      `?projectIds=${project.id},${other.id}`,
+    );
+    expect(visible.body.criticalPath.partial).toBe(true);
+    expect(visible.task(external.id)).toMatchObject({
+      mark: null,
+      stallReason: null,
+    });
+    await db
+      .delete(schema.taskRelationTable)
+      .where(eq(schema.taskRelationTable.sourceTaskId, predecessor.id));
+    const withoutPredecessor = await plan(
+      app,
+      initiative.id,
+      `?projectIds=${project.id},${other.id}`,
+    );
+    expect(withoutPredecessor.body.criticalPath.partial).toBe(false);
+    expect(withoutPredecessor.task(external.id).mark).toBe("stalled");
+    await blocks(secret.id, external.id);
+    const filtered = await plan(
+      app,
+      initiative.id,
+      `?projectIds=${project.id},${other.id}`,
+    );
+    expect(filtered.body.criticalPath.partial).toBe(true);
+    expect(filtered.task(external.id)).toMatchObject({
+      mark: null,
+      stallReason: null,
+    });
+    expect(JSON.stringify(filtered.body)).not.toContain(secret.id);
+    expect(JSON.stringify(filtered.body)).not.toContain("Hidden predecessor");
   });
 
   it("estimates with the median of finished tasks of the same project, level and executor", async () => {
@@ -705,8 +765,8 @@ describe("a project the caller cannot read", () => {
     expect(limited.task(own.id)).toMatchObject({
       estimate: { hours: 4, source: "default", cases: 0 },
       dependsOn: [],
-      mark: "stalled",
-      stallReason: "not_started",
+      mark: null,
+      stallReason: null,
     });
     expect(limited.body.criticalPath).toMatchObject({
       taskIds: [own.id],

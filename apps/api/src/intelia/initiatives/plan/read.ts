@@ -1,9 +1,10 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
 import db from "../../../database";
 import {
   activityTable,
   projectTable,
   taskTable,
+  taskRelationTable,
   userTable,
 } from "../../../database/schema";
 import { boardSignalTable, taskAutomationTable } from "../../schema";
@@ -123,6 +124,26 @@ export async function getInitiativePlan(
     })),
   ];
   const ids = tasks.map((task) => task.id);
+  // The detail contains only edges touching the initiative. If an external
+  // dependency has another predecessor, the plan is incomplete, even when
+  // that predecessor is readable. Only expose the aggregate partial flag.
+  const externalIds = detail.externalTasks.map((task) => task.id);
+  const ownIds = detail.tasks.map((task) => task.id);
+  const omittedExternalEdges = externalIds.length
+    ? await db
+        .select({ id: taskRelationTable.id })
+        .from(taskRelationTable)
+        .where(
+          and(
+            eq(taskRelationTable.relationType, "blocks"),
+            inArray(taskRelationTable.targetTaskId, externalIds),
+            notInArray(taskRelationTable.sourceTaskId, ownIds),
+          ),
+        )
+        .limit(1)
+    : [];
+  const partial =
+    detail.pendingChain.partial || omittedExternalEdges.length > 0;
 
   const [facts, readableRows, cached] = await Promise.all([
     taskFacts(ids),
@@ -215,7 +236,7 @@ export async function getInitiativePlan(
     const openBlockers = (blockersOf.get(task.id) ?? []).filter((id) =>
       isPending(status.get(id)!),
     ).length;
-    const { mark, stallReason } = pending
+    const classified = pending
       ? planMark({
           status: task.status,
           executor: executorKind(fact.email),
@@ -227,6 +248,12 @@ export async function getInitiativePlan(
           now,
         })
       : { mark: null, stallReason: null };
+    // A partial plan hides which task has an unreadable relation. Do not
+    // assert that a To do task is ready, or reveal which relation is hidden.
+    const { mark, stallReason } =
+      classified.mark === "stalled" && task.status === "to-do" && partial
+        ? { mark: null, stallReason: null }
+        : classified;
     const reason = reasons.get(task.id);
     return {
       task,
@@ -281,7 +308,7 @@ export async function getInitiativePlan(
       taskIds: schedule.critical?.taskIds ?? [],
       hours: round(schedule.critical?.hours ?? 0),
       goalTaskId,
-      partial: detail.pendingChain.partial,
+      partial,
       cycle: schedule.critical === null,
       summary,
     },

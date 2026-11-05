@@ -67,7 +67,7 @@ const planTaskSchema = z
     critical: z.boolean(),
     mark: z.enum(PLAN_MARKS).nullable().openapi({
       description:
-        "How a pending task stands (annex of design 19 §3.2). blocked: in Blocked, with its reason. waiting: readable blockers still pending ahead. advancing: in In progress or In review, last status change within the column's p90 (design 23), and someone on it: for an agent, a worker the dispatcher reports `activo` and `trabajando` in board signals of at most 10 minutes (RT-05); for a person, being assigned. stalled: To do with no pending blockers and assigned to a role, or In progress with nobody working. Null for other pending tasks and once Done or Cancelled.",
+        "How a pending task stands (annex of design 19 §3.2). blocked: in Blocked, with its reason. waiting: readable blockers still pending ahead. advancing: in In progress or In review, last status change within the column's p90 (design 23), and someone on it: for an agent, a worker the dispatcher reports `activo` and `trabajando` in board signals of at most 10 minutes (RT-05); for a person, being assigned. stalled: To do with no pending blockers and assigned to a role, or In progress with nobody working. A partial plan cannot confirm which To do tasks are ready, so they are not marked stalled. Null for other pending tasks and once Done or Cancelled.",
     }),
     stallReason: z.enum(STALL_REASONS).nullable().openapi({
       description:
@@ -111,7 +111,7 @@ export const initiativePlanSchema = z
         }),
         partial: z.boolean().openapi({
           description:
-            "A pending task of the initiative has a dependency the caller cannot read, left out without any of its data.",
+            "A dependency is omitted: an endpoint is unreadable, or an external task has a predecessor outside the detail's one-hop graph. No omitted task data is exposed.",
         }),
         cycle: z.boolean().openapi({
           description:
