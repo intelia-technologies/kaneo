@@ -48,6 +48,8 @@ async function computeSamples(workspaceId: string): Promise<Sample[]> {
         and t.status = 'done'
         and a.type in ('status_changed', 'moved')
         and a.event_data ? 'newStatus'
+        -- A move that keeps the column is not a column change.
+        and a.event_data->>'newStatus' is distinct from a.event_data->>'oldStatus'
     ),
     finished as (
       select

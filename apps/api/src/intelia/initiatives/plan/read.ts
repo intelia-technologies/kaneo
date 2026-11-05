@@ -32,17 +32,15 @@ const round = (hours: number) => Math.round(hours * 10) / 10;
 // card (RT-05): it rewrites the board signals every 2.
 const WORKER_STALE_MS = 10 * 60 * 1000;
 
-// Workers of `taskIds` in the fresh board signals of `projectIds`. Only the
-// entries of those tasks, already readable, are kept.
-async function freshWorkers(
-  projectIds: string[],
-  taskIds: Set<string>,
-  now: Date,
-) {
+// Workers of readable tasks in fresh board signals, each taken only from the
+// signals of its own project (`projectOf`), as the card reads them.
+async function freshWorkers(projectOf: Map<string, string>, now: Date) {
   const workers = new Map<string, WorkerSignal>();
+  const projectIds = [...new Set(projectOf.values())];
   if (projectIds.length === 0) return workers;
   const rows = await db
     .select({
+      projectId: boardSignalTable.projectId,
       signals: boardSignalTable.signals,
       calculatedAt: boardSignalTable.calculatedAt,
     })
@@ -52,7 +50,9 @@ async function freshWorkers(
     if (now.getTime() - row.calculatedAt.getTime() > WORKER_STALE_MS) continue;
     for (const [taskId, signal] of Object.entries(row.signals.tareas)) {
       const worker = (signal as { worker?: WorkerSignal | null }).worker;
-      if (taskIds.has(taskId) && worker) workers.set(taskId, worker);
+      if (worker && projectOf.get(taskId) === row.projectId) {
+        workers.set(taskId, worker);
+      }
     }
   }
   return workers;
@@ -151,7 +151,9 @@ export async function getInitiativePlan(
   const changesById = new Map<string, StatusChange[]>();
   for (const change of facts.changes) {
     const data = (change.eventData ?? {}) as Record<string, unknown>;
+    // A move that keeps the column is not a column change.
     if (typeof data.newStatus !== "string") continue;
+    if (data.newStatus === data.oldStatus) continue;
     const list = changesById.get(change.taskId) ?? [];
     list.push({
       at: change.at,
@@ -190,7 +192,14 @@ export async function getInitiativePlan(
         async (projectId) => [projectId, await columnStats(projectId)] as const,
       ),
     ),
-    freshWorkers(pendingProjects, new Set(ids), now),
+    freshWorkers(
+      new Map(
+        tasks
+          .filter((task) => isPending(task.status))
+          .map((task) => [task.id, factsById.get(task.id)!.projectId]),
+      ),
+      now,
+    ),
     // The detail has no reason for the external Blocked tasks: read them all.
     blockReasons(tasks),
   ]);

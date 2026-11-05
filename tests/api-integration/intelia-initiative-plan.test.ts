@@ -402,7 +402,7 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
   });
 
   it("advances an agent's task only with a fresh worker that is working, and says why the others are stalled", async () => {
-    const { app, coder, project, initiative } = await setup();
+    const { app, coder, project, other, initiative } = await setup();
     const inProgress = async () => {
       const task = await seedTask(project.id, {
         initiativeId: initiative.id,
@@ -422,6 +422,10 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
       [idle.id]: { estado: "activo", trabajando: false },
       [down.id]: { estado: "caido", trabajando: false },
     });
+    // Another project's signals say nothing of this project's tasks.
+    await seedWorkers(other.id, {
+      [none.id]: { estado: "activo", trabajando: true },
+    });
 
     const { task } = await plan(app, initiative.id);
     expect(task(live.id)).toMatchObject({ mark: "advancing" });
@@ -439,7 +443,7 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
   });
 
   it("follows moves between projects that change the column, in the dates and in the estimates", async () => {
-    const { app, coder, project, initiative } = await setup();
+    const { app, user, coder, project, initiative } = await setup();
     const alike = { level: "completa" as const, userId: coder.id };
     // Ten tasks that reached Done by a move: their stays count as cases.
     await seedMany(10, project.id, () => 3, alike, "moved");
@@ -456,6 +460,40 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
     });
     await seedChange(moved.id, "to-do", "in-progress", startedAt);
     await seedChange(moved.id, "in-progress", "done", movedAt, "moved");
+    // Moves that keep the column change nothing.
+    await seedChange(moved.id, "done", "done", ago(HOUR), "moved");
+    for (let i = 0; i < 10; i++) {
+      const created = ago(110 * DAY);
+      const old = await seedTask(project.id, {
+        ...alike,
+        status: "done",
+        createdAt: created,
+      });
+      const start = created.getTime() + HOUR;
+      await seedChange(old.id, "to-do", "in-progress", new Date(start));
+      await seedChange(
+        old.id,
+        "in-progress",
+        "done",
+        new Date(start + 5 * HOUR),
+      );
+      await seedChange(old.id, "done", "done", ago(DAY), "moved");
+    }
+    // A person's task 5 h in In progress, past the column's p90 (1.5 h).
+    const stuck = await seedTask(project.id, {
+      initiativeId: initiative.id,
+      status: "in-progress",
+      userId: user.id,
+      createdAt: ago(DAY),
+    });
+    await seedChange(stuck.id, "to-do", "in-progress", ago(5 * HOUR));
+    await seedChange(
+      stuck.id,
+      "in-progress",
+      "in-progress",
+      ago(30 * 60_000),
+      "moved",
+    );
 
     const { task } = await plan(app, initiative.id);
     expect(task(pending.id).estimate).toEqual({
@@ -467,6 +505,11 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
       actualStart: startedAt.toISOString(),
       actualEnd: movedAt.toISOString(),
       workedHours: 4,
+    });
+    expect(task(stuck.id)).toMatchObject({
+      mark: "stalled",
+      stallReason: "over_p90",
+      workedHours: 5,
     });
   });
 

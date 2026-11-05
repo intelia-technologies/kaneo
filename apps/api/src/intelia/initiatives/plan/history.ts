@@ -2,8 +2,8 @@ const WORKING = new Set(["in-progress", "in-review"]);
 
 /**
  * A change of column from the activity log: `status_changed`, or `moved` to
- * another project when the move changes the column. Both carry `oldStatus`
- * and `newStatus`.
+ * another project. Both carry `oldStatus` and `newStatus`; callers drop the
+ * moves that keep the column.
  */
 export const COLUMN_CHANGE_TYPES = ["status_changed", "moved"];
 
@@ -26,8 +26,10 @@ export function taskHistory(
   changes: StatusChange[],
   now: Date,
 ) {
-  const initial = changes[0]?.oldStatus ?? task.status;
-  let actualStart: Date | null = WORKING.has(initial) ? task.createdAt : null;
+  const initial = changes.length > 0 ? changes[0]!.oldStatus : task.status;
+  let actualStart: Date | null = WORKING.has(initial ?? "")
+    ? task.createdAt
+    : null;
   let actualEnd: Date | null = null;
   let workedMs = 0;
   let enteredAt = task.createdAt;

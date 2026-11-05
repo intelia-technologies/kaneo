@@ -45,6 +45,16 @@ describe("taskHistory", () => {
     });
   });
 
+  it("does not guess the creation column when the first change lacks it", () => {
+    expect(
+      taskHistory(
+        { status: "in-progress", createdAt: at(0) },
+        [{ at: at(2), oldStatus: null, newStatus: "in-progress" }],
+        at(5),
+      ),
+    ).toMatchObject({ actualStart: at(2), workedHours: 3 });
+  });
+
   describe("a task created straight into In progress starts at its creation", () => {
     it("while it stays there", () => {
       expect(
