@@ -67,11 +67,11 @@ const planTaskSchema = z
     critical: z.boolean(),
     mark: z.enum(PLAN_MARKS).nullable().openapi({
       description:
-        "How a pending task stands (annex of design 19 §3.2). blocked: in Blocked, with its reason. waiting: readable blockers still pending ahead. advancing: in In progress or In review, last status change within the column's p90 (design 23), and someone on it: for an agent, a worker the dispatcher reports `activo` and `trabajando` in board signals of at most 10 minutes (RT-05); for a person, being assigned. stalled: anything else, with `stallReason`. Null once Done or Cancelled.",
+        "How a pending task stands (annex of design 19 §3.2). blocked: in Blocked, with its reason. waiting: readable blockers still pending ahead. advancing: in In progress or In review, last status change within the column's p90 (design 23), and someone on it: for an agent, a worker the dispatcher reports `activo` and `trabajando` in board signals of at most 10 minutes (RT-05); for a person, being assigned. stalled: To do with no pending blockers and assigned to a role, or In progress with nobody working. Null for other pending tasks and once Done or Cancelled.",
     }),
     stallReason: z.enum(STALL_REASONS).nullable().openapi({
       description:
-        "Probable reason of a stalled task, the first that applies: unassigned; no_worker (an agent without a worker in fresh board signals); worker_down, worker_finished or worker_idle (its worker is `caido`, `terminado`, or alive but not working); over_p90 (no status change for longer than the column's p90); not_started (ready, someone on it, not yet in In progress). Null unless stalled.",
+        "Provisional reason of a stalled task: unassigned; no_worker; worker_down, worker_finished or worker_idle; not_started (To do assigned to a role). The MF-01 watcher's real reason is outside GT-06. Null unless stalled.",
     }),
     ...blockReason,
     dependsOn: z.array(z.string()).openapi({

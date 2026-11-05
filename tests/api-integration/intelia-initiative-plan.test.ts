@@ -271,6 +271,31 @@ async function plan(app: App, initiativeId: string, query = "") {
 }
 
 describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
+  it("marks stalled only for a ready role in To do or an idle In progress task", async () => {
+    const { app, coder, user, project, initiative } = await setup();
+    const own = (fields: TaskFields) =>
+      seedTask(project.id, { initiativeId: initiative.id, ...fields });
+    const backlog = await own({ status: "backlog", userId: coder.id });
+    const design = await own({ status: "design", userId: coder.id });
+    const ready = await own({ status: "to-do", userId: coder.id });
+    const waiting = await own({ status: "to-do", userId: coder.id });
+    const unassigned = await own({ status: "to-do" });
+    const person = await own({ status: "to-do", userId: user.id });
+    const idle = await own({ status: "in-progress", userId: coder.id });
+    const working = await own({ status: "in-progress", userId: coder.id });
+    await blocks(backlog.id, waiting.id);
+    await seedWorkers(project.id, {
+      [working.id]: { estado: "activo", trabajando: true },
+    });
+    const { task } = await plan(app, initiative.id);
+    for (const t of [backlog, design, unassigned, person])
+      expect(task(t.id).mark).toBeNull();
+    expect(task(ready.id).mark).toBe("stalled");
+    expect(task(waiting.id).mark).toBe("waiting");
+    expect(task(idle.id).mark).toBe("stalled");
+    expect(task(working.id).mark).toBe("advancing");
+  });
+
   it("intersects the requested scope for tasks, dependencies and estimation samples", async () => {
     const { app, coder, project, other, initiative } = await setup();
     const alike = { level: "completa" as const, userId: coder.id };
@@ -369,8 +394,11 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
       seedTask(project.id, { initiativeId: initiative.id, ...fields });
     // a (2 h) and b (5 h) block c (1 h); d (3 h) stands alone. Both chains to
     // c have two tasks: the critical one is b → c, with more hours.
-    const a = await own({ description: "**En llano.** Primero.\n\nResto" });
-    const b = await own();
+    const a = await own({
+      description: "**En llano.** Primero.\n\nResto",
+      userId: coder.id,
+    });
+    const b = await own({ userId: coder.id });
     const c = await own();
     const d = await own();
     await blocks(a.id, c.id);
@@ -416,7 +444,7 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
     expect(task(a.id)).toMatchObject({
       critical: false,
       mark: "stalled",
-      stallReason: "unassigned",
+      stallReason: "not_started",
       plain: "Primero.",
       dependsOn: [],
     });
@@ -553,7 +581,8 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
       );
       await seedChange(old.id, "done", "done", ago(DAY), "moved");
     }
-    // A person's task 5 h in In progress, past the column's p90 (1.5 h).
+    // A person's task 5 h in In progress, past the column's p90 (1.5 h):
+    // its age alone does not imply that nobody is working.
     const stuck = await seedTask(project.id, {
       initiativeId: initiative.id,
       status: "in-progress",
@@ -581,8 +610,8 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
       workedHours: 4,
     });
     expect(task(stuck.id)).toMatchObject({
-      mark: "stalled",
-      stallReason: "over_p90",
+      mark: null,
+      stallReason: null,
       workedHours: 5,
     });
   });
@@ -677,7 +706,7 @@ describe("a project the caller cannot read", () => {
       estimate: { hours: 4, source: "default", cases: 0 },
       dependsOn: [],
       mark: "stalled",
-      stallReason: "no_worker",
+      stallReason: "not_started",
     });
     expect(limited.body.criticalPath).toMatchObject({
       taskIds: [own.id],

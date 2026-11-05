@@ -43,19 +43,50 @@ describe("planMark", () => {
     );
   });
 
-  it("stalls past the column's p90 and when ready but not started", () => {
-    expect(planMark({ ...base, statusSince: hoursAgo(5) })).toEqual(
-      stalled("over_p90"),
+  it("only marks ready To do tasks assigned to a role or idle In progress tasks as stalled", () => {
+    for (const status of ["backlog", "design"]) {
+      expect(
+        planMark({
+          ...base,
+          status,
+          executor: null,
+          worker: null,
+          statusSince: hoursAgo(50),
+        }),
+      ).toEqual({ mark: null, stallReason: null });
+      expect(planMark({ ...base, status, worker: null })).toEqual({
+        mark: null,
+        stallReason: null,
+      });
+    }
+    expect(planMark({ ...base, status: "to-do", worker: null })).toEqual(
+      stalled("not_started"),
     );
+    expect(
+      planMark({
+        ...base,
+        status: "to-do",
+        executor: "persistent",
+        worker: null,
+      }).mark,
+    ).toBeNull();
+    expect(
+      planMark({ ...base, status: "to-do", executor: "person", worker: null })
+        .mark,
+    ).toBeNull();
+    expect(
+      planMark({ ...base, status: "to-do", executor: null, worker: null }).mark,
+    ).toBeNull();
+    expect(planMark({ ...base, status: "in-progress", worker: null })).toEqual(
+      stalled("no_worker"),
+    );
+    expect(
+      planMark({ ...base, status: "in-review", worker: null }).mark,
+    ).toBeNull();
+    expect(planMark({ ...base, statusSince: hoursAgo(5) }).mark).toBeNull();
     expect(
       planMark({ ...base, statusSince: hoursAgo(50), p90Seconds: null }).mark,
     ).toBe("advancing");
-    expect(planMark({ ...base, status: "to-do" })).toEqual(
-      stalled("not_started"),
-    );
-    expect(planMark({ ...base, status: "to-do", worker: null })).toEqual(
-      stalled("no_worker"),
-    );
   });
 
   it("takes a person's assignment as all the signal there is", () => {
