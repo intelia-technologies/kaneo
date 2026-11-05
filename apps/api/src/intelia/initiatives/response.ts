@@ -161,11 +161,11 @@ const state = z
       "Derived, never stored. in_flight: some active task not Done. finished: active tasks, all Done. no_tasks: none. all_cancelled: tasks, all Cancelled.",
   });
 
-const assignee = z
+export const assignee = z
   .object({ id: z.string(), name: z.string().nullable() })
   .nullable();
 
-const blockReason = {
+export const blockReason = {
   blockReason: z.string().nullable().openapi({
     description:
       "The `motivo_bloqueo` custom field of a Blocked task; null otherwise or when empty.",

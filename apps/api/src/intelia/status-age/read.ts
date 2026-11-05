@@ -92,7 +92,8 @@ async function computeColumnStats(projectId: string) {
   return columnas;
 }
 
-async function columnStats(projectId: string): Promise<CachedStats> {
+/** Percentiles by column of a project, cached; also used by initiative plans. */
+export async function columnStats(projectId: string): Promise<CachedStats> {
   const cached = statsCache.get(projectId);
   if (cached && Date.now() - cached.calculado_en.getTime() < CACHE_MS) {
     return cached;

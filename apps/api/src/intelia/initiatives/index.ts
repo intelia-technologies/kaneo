@@ -5,6 +5,8 @@ import {
   jsonResponse,
 } from "../../openapi";
 import { initiativeAccess, initiativeReader, initiativeWriter } from "./access";
+import { getInitiativePlan } from "./plan/read";
+import { initiativePlanSchema } from "./plan/response";
 import {
   getInitiativeDetail,
   getTaskInitiatives,
@@ -194,6 +196,22 @@ const detailRouteDef = createRoute({
   },
 });
 
+const planRouteDef = createRoute({
+  method: "get",
+  operationId: "getInitiativePlan",
+  path: "/initiative/{initiativeId}/plan",
+  tags,
+  summary: "Get an initiative's estimated plan and critical path",
+  description: `Real start and end of each task, its estimate (the median of similar finished tasks, or its \`estimacion_horas\`), planned dates chained along \`blocks\` from now, the critical path by hours with the mark of each pending task, and the estimated end (annex of design 19). The finished tasks behind the medians are read at most every 10 minutes. ${READERS} Estimates learn only from tasks the caller can read.`,
+  middleware: initiativeAccess.readOnInitiative(),
+  request: { params: initiativeIdParam },
+  responses: {
+    200: jsonResponse("The initiative's plan", initiativePlanSchema),
+    403: errorResponse("No access to the project or missing read permission"),
+    404: errorResponse("Initiative not found"),
+  },
+});
+
 const initiativeHistoryRouteDef = createRoute({
   method: "get",
   operationId: "listInitiativeChanges",
@@ -307,6 +325,15 @@ const initiatives = apiRouter()
   .openapi(detailRouteDef, async (c) =>
     c.json(
       await getInitiativeDetail(
+        c.req.valid("param").initiativeId,
+        initiativeReader(c),
+      ),
+      200,
+    ),
+  )
+  .openapi(planRouteDef, async (c) =>
+    c.json(
+      await getInitiativePlan(
         c.req.valid("param").initiativeId,
         initiativeReader(c),
       ),
