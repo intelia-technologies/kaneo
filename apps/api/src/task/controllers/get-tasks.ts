@@ -187,6 +187,7 @@ async function getTasksPage(
     priority: taskTable.priority,
     startDate: taskTable.startDate,
     dueDate: taskTable.dueDate,
+    estimacion_horas: taskTable.estimacion_horas,
     recurrence: taskTable.recurrence,
     position: taskTable.position,
     createdAt: taskTable.createdAt,

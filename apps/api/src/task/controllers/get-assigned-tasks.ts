@@ -91,6 +91,7 @@ async function getAssignedTasks(
         statusIcon: statusColumn.icon,
         priority: taskTable.priority,
         dueDate: taskTable.dueDate,
+        estimacion_horas: taskTable.estimacion_horas,
         projectName: projectTable.name,
         projectSlug: projectTable.slug,
         projectIcon: projectTable.icon,

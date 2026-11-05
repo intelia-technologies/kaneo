@@ -117,6 +117,7 @@ import {
   updateAssigneeBody,
   updateDescriptionBody,
   updateDueDateBody,
+  updateEstimationBody,
   updatePriorityBody,
   updateRecurrenceBody,
   updateStatusBody,
@@ -600,6 +601,29 @@ const updateTaskPriorityRoute = createRoute({
     404: errorResponse("Task not found"),
   },
 });
+const updateTaskEstimationRoute = createRoute({
+  method: "put",
+  operationId: "updateTaskEstimation",
+  path: "/estimacion_horas/{id}",
+  tags: ["Tasks"],
+  summary: "Update task estimated hours",
+  middleware: [
+    workspaceAccess.fromTask(),
+    requireWorkspacePermission({ task: ["update"] }),
+    requireEntitlement,
+  ] as const,
+  request: {
+    params: taskParam,
+    body: { required: true, content: { "application/json": { schema: updateEstimationBody } } },
+  },
+  responses: {
+    200: jsonResponse("The updated task", taskSchema),
+    400: errorResponse("Invalid estimate"),
+    403: errorResponse("No access to the project, or missing task:update permission"),
+    404: errorResponse("Task not found"),
+  },
+});
+
 
 const updateTaskAssigneeRoute = createRoute({
   method: "put",
@@ -956,6 +980,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       description,
       startDate,
       dueDate,
+      estimacion_horas,
       priority,
       status,
       userId,
@@ -985,6 +1010,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       description,
       startDate: parsedStartDate,
       dueDate: parsedDueDate,
+      estimacion_horas,
       priority,
       status,
       recurrence,
@@ -1058,6 +1084,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       description,
       startDate,
       dueDate,
+      estimacion_horas,
       priority,
       status,
       projectId,
@@ -1090,6 +1117,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       position,
       userId,
       currentUserId,
+      estimacion_horas,
     );
 
     return c.json(task, 200);
@@ -1148,6 +1176,14 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
     const task = await updateTaskAssignee({ id, userId, currentUserId });
 
     return c.json(task, 200);
+  })
+  .openapi(updateTaskEstimationRoute, async (c) => {
+    const { id } = c.req.valid("param");
+    const { estimacion_horas } = c.req.valid("json");
+    const [updated] = await db.update(taskTable).set({ estimacion_horas })
+      .where(eq(taskTable.id, id)).returning();
+    if (!updated) throw new HTTPException(404, { message: "Task not found" });
+    return c.json(updated, 200);
   })
   .openapi(updateTaskDueDateRoute, async (c) => {
     const { id } = c.req.valid("param");

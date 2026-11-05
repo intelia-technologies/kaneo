@@ -310,6 +310,36 @@ async function waitForLockWait() {
 }
 
 describe("API integration: Intelia initiatives", () => {
+  it("persists, reads, updates and clears initiative goals and external milestones", async () => {
+    const { app, project } = await setup();
+    const hitos = [{ nombre: "Entrega", enlace: "https://example.com", estado: "pendiente", tarea: "T-1" }];
+    const createdResponse = await createInitiative(app, project.id, {
+      name: "Iniciativa", objetivo: " Objetivo ", hitos_externos: hitos,
+    });
+    expect(createdResponse.status).toBe(201);
+    const created = await createdResponse.json() as { id: string };
+    expect(created).toMatchObject({ objetivo: "Objetivo", hitos_externos: hitos });
+    const detail = await app.request(`/api/intelia/initiative/${created.id}`);
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toMatchObject({ objetivo: "Objetivo", hitos_externos: hitos });
+    const listing = await app.request(`/api/intelia/project/${project.id}/initiatives`);
+    expect(await listing.json()).toMatchObject({ initiatives: [{ objetivo: "Objetivo", hitos_externos: hitos }] });
+    const updated = await patchInitiative(app, created.id, { objetivo: "Nuevo" });
+    expect(await updated.json()).toMatchObject({ objetivo: "Nuevo", hitos_externos: hitos });
+    const cleared = await patchInitiative(app, created.id, { objetivo: null, hitos_externos: null });
+    expect(await cleared.json()).toMatchObject({ objetivo: null, hitos_externos: null });
+    const history = await db.select().from(initiativeChangeTable).where(eq(initiativeChangeTable.initiativeId, created.id));
+    expect(history.some((entry) => entry.kind === "updated" && entry.value.objetivo === null && entry.value.hitos_externos === null)).toBe(true);
+    for (const body of [
+      { objetivo: "   " },
+      { hitos_externos: [{ nombre: "x", enlace: "x", estado: "otro" }] },
+      { hitos_externos: [{ nombre: "", enlace: "x", estado: "hecho" }] },
+      { hitos_externos: [{ nombre: "x", enlace: "x", estado: "hecho", tarea: "" }] },
+    ]) {
+      expect((await patchInitiative(app, created.id, body)).status).toBe(400);
+    }
+  });
+
   it("rejects task creation without initiative, with unknown initiative, or with initiative of another project, creating nothing", async () => {
     const { app, project, workspace } = await setup();
 

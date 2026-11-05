@@ -50,6 +50,20 @@
       "when": 1793860160588,
       "tag": "0006_board_signal",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793860160589,
+      "tag": "0008_initiative_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793860160590,
+      "tag": "0009_task_estimation",
+      "breakpoints": true
     }
   ]
 }

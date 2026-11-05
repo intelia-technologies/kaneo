@@ -3,6 +3,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   customType,
+  doublePrecision,
   foreignKey,
   index,
   integer,
@@ -556,6 +557,7 @@ export const taskTable = pgTable(
     priority: text("priority").default("low").notNull(),
     startDate: timestamp("start_date", { mode: "date" }),
     dueDate: timestamp("due_date", { mode: "date" }),
+    estimacion_horas: doublePrecision("estimacion_horas"),
     recurrence: jsonb("recurrence").$type<TaskRecurrence>(),
     createdAt: timestamp("created_at", { mode: "date" })
       .default(utcNow)
