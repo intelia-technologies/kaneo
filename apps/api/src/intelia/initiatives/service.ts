@@ -200,7 +200,7 @@ function dataValue(row: {
 
 export async function createInitiative(
   projectId: string,
-  data: InitiativeData & { name: string },
+  data: Omit<InitiativeData, "objetivo"> & { name: string; objetivo?: null },
   writer: InitiativeWriter,
 ) {
   const author = authorOf(writer);
@@ -211,7 +211,7 @@ export async function createInitiative(
         projectId,
         name: data.name,
         nameKey: initiativeNameKey(data.name),
-        objetivo: data.objetivo ?? null,
+        objetivo: null,
         hitos_externos: data.hitos_externos ?? null,
         designUrl: data.designUrl ?? null,
         approvedBy: data.approvedBy ?? null,
@@ -248,6 +248,22 @@ export async function updateInitiative(
       const current = await lockInitiative(tx, initiativeId);
       if (!current) {
         throw new HTTPException(404, { message: "Initiative not found" });
+      }
+      if (data.objetivo != null) {
+        const [member] = await tx
+          .select({ taskId: taskInitiativeTable.taskId })
+          .from(taskInitiativeTable)
+          .where(and(
+            eq(taskInitiativeTable.taskId, data.objetivo),
+            eq(taskInitiativeTable.initiativeId, initiativeId),
+          ))
+          .limit(1);
+        if (!member) {
+          throw new ApiError(400, {
+            message: "The objective must be a task of this initiative",
+            code: "OBJECTIVE_NOT_IN_INITIATIVE",
+          });
+        }
       }
       const before = dataValue(current);
       const next = {

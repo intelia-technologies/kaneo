@@ -39,7 +39,9 @@ const approvedAt = z.iso
   .datetime({ offset: true })
   .nullable()
   .openapi({ description: "When the plan was approved." });
-const objetivo = z.string().trim().min(1).nullable();
+const objetivo = z.string().trim().min(1).nullable().openapi({
+  description: "ID of a task belonging to this initiative, or null.",
+});
 const hitos_externos = z.array(z.object({
   nombre: z.string().trim().min(1),
   enlace: z.string().trim().min(1),
@@ -49,7 +51,7 @@ const hitos_externos = z.array(z.object({
 
 export const createInitiativeInput = z.object({
   name,
-  objetivo: objetivo.optional(),
+  objetivo: z.null().optional(),
   hitos_externos: hitos_externos.optional(),
   designUrl: designUrl.optional(),
   approvedBy: approvedBy.optional(),
