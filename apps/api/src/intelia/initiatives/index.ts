@@ -11,6 +11,7 @@ import {
   listInitiativesWithCounters,
 } from "./read";
 import {
+  deletedInitiativeSchema,
   initiativeChangeListSchema,
   initiativeDetailSchema,
   initiativeSchema,
@@ -34,6 +35,7 @@ import {
 import {
   closePlan,
   createInitiative,
+  deleteInitiative,
   getTaskInitiative,
   listInitiativeChanges,
   listTaskInitiativeChanges,
@@ -123,6 +125,35 @@ const closePlanRouteDef = createRoute({
     400: errorResponse("`actor` from a session"),
     ...writeErrors,
     404: errorResponse("Initiative not found"),
+  },
+});
+
+const deleteRouteDef = createRoute({
+  method: "delete",
+  operationId: "deleteInitiative",
+  path: "/initiative/{initiativeId}",
+  tags,
+  summary: "Delete an empty initiative",
+  description: `Only an initiative with no tasks, or with only Cancelled ones: those stay in the project without initiative, each with a row in its initiative log, and the initiative goes with its own change log. Every task counts, readable by the caller or not. ${WRITERS} The body is optional.`,
+  middleware: initiativeAccess.writeOnInitiative(),
+  request: {
+    params: initiativeIdParam,
+    body: {
+      required: false,
+      content: { "application/json": { schema: closePlanInput } },
+    },
+  },
+  responses: {
+    200: jsonResponse(
+      "The deleted initiative and the tasks it left",
+      deletedInitiativeSchema,
+    ),
+    400: errorResponse("Invalid body, or `actor` from a session"),
+    ...writeErrors,
+    404: errorResponse("Initiative not found"),
+    409: errorResponse(
+      "The initiative still has tasks that are not Cancelled (INITIATIVE_NOT_EMPTY)",
+    ),
   },
 });
 
@@ -307,6 +338,15 @@ const initiatives = apiRouter()
   .openapi(closePlanRouteDef, async (c) =>
     c.json(
       await closePlan(
+        c.req.valid("param").initiativeId,
+        initiativeWriter(c, c.req.valid("json").actor),
+      ),
+      200,
+    ),
+  )
+  .openapi(deleteRouteDef, async (c) =>
+    c.json(
+      await deleteInitiative(
         c.req.valid("param").initiativeId,
         initiativeWriter(c, c.req.valid("json").actor),
       ),

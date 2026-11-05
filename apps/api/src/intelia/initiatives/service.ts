@@ -21,6 +21,12 @@ import type { InitiativeOnCreate } from "./schema";
 // The column whose first task closes the plan (design 19 §4).
 export const START_STATUS = "in-progress";
 
+// Both spellings of the Cancelled column, as in the «Dependencias» view.
+export const CANCELLED: ReadonlySet<string> = new Set([
+  "cancelled",
+  "canceled",
+]);
+
 // Name of the initiative that INTELIA_TASK_INITIATIVE_OPTIONAL gives to tasks
 // created without one (upstream's tests and smoke only).
 export const TEST_INITIATIVE_NAME = "Pruebas de upstream";
@@ -331,6 +337,79 @@ export async function closePlan(
     );
   });
   return getInitiative(initiativeId);
+}
+
+// Locks the rows of the initiative's tasks, in id order, and returns them with
+// their current status. Every task, readable by the caller or not.
+function lockInitiativeTasks(tx: Transaction, initiativeId: string) {
+  return tx
+    .select({ id: taskTable.id, status: taskTable.status })
+    .from(taskInitiativeTable)
+    .innerJoin(taskTable, eq(taskTable.id, taskInitiativeTable.taskId))
+    .where(eq(taskInitiativeTable.initiativeId, initiativeId))
+    .orderBy(asc(taskTable.id))
+    .for("update", { of: taskTable });
+}
+
+/**
+ * Deletes an initiative with no work left in it: no tasks, or only cancelled
+ * ones, which stay in the project without initiative, each with a row in its
+ * log. Any other task makes it 409 INITIATIVE_NOT_EMPTY, changing nothing.
+ */
+export async function deleteInitiative(
+  initiativeId: string,
+  writer: InitiativeWriter,
+) {
+  return db.transaction(async (tx) => {
+    // Tasks first, then the initiative: the order a status change (the
+    // plan-closing trigger) and an assignment take them in, so this never
+    // deadlocks with either. A task that joins before the initiative's lock is
+    // taken is locked by the second pass; none joins after it.
+    await lockInitiativeTasks(tx, initiativeId);
+    const initiative = await lockInitiative(tx, initiativeId);
+    if (!initiative)
+      throw new HTTPException(404, { message: "Initiative not found" });
+    const tasks = await lockInitiativeTasks(tx, initiativeId);
+
+    const notCancelled = tasks.filter((task) => !CANCELLED.has(task.status));
+    if (notCancelled.length > 0) {
+      throw new ApiError(409, {
+        message: `The initiative still has ${notCancelled.length} task${notCancelled.length === 1 ? "" : "s"} not cancelled; cancel or move ${notCancelled.length === 1 ? "it" : "them"} before deleting it`,
+        code: "INITIATIVE_NOT_EMPTY",
+      });
+    }
+
+    const { source, author } = membershipWrite(writer);
+    for (const task of tasks) {
+      const [current] = await tx
+        .delete(taskInitiativeTable)
+        .where(eq(taskInitiativeTable.taskId, task.id))
+        .returning();
+      if (!current) continue;
+      await tx.insert(taskInitiativeChangeTable).values({
+        taskId: task.id,
+        previousInitiativeId: current.initiativeId,
+        previousOrigin: current.origin,
+        initiativeId: null,
+        origin: null,
+        changedByUserId: author.userId,
+        changedByActor: author.actor,
+        source,
+        changedAt: await nextTaskChangeAt(tx, task.id),
+      });
+    }
+    // Its own log goes with it (cascade); the tasks' logs keep their rows,
+    // with the initiative set to null.
+    await tx
+      .delete(initiativeTable)
+      .where(eq(initiativeTable.id, initiativeId));
+    return {
+      id: initiative.id,
+      projectId: initiative.projectId,
+      name: initiative.name,
+      unlinkedTaskIds: tasks.map((task) => task.id),
+    };
+  });
 }
 
 const NO_AUTHOR: Author = { userId: null, actor: null };

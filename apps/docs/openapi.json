@@ -6333,6 +6333,33 @@
           "cycle"
         ]
       },
+      "DeletedInitiative": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unlinkedTaskIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The cancelled tasks it had, now without initiative (each with a row in its initiative log). Empty when it had none."
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "name",
+          "unlinkedTaskIds"
+        ]
+      },
       "InitiativeChange": {
         "type": "object",
         "properties": {
@@ -27392,6 +27419,108 @@
           },
           "409": {
             "description": "The project already has an initiative with that name (INITIATIVE_NAME_TAKEN)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteInitiative",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "Delete an empty initiative",
+        "description": "Only an initiative with no tasks, or with only Cancelled ones: those stay in the project without initiative, each with a row in its initiative log, and the initiative goes with its own change log. Every task counts, readable by the caller or not. A person's session or an account's API key, with task:update. Kaneo does not check who may write beyond that: the factory's gateway does, before calling (design 19 §3). With an API key, `actor` names who the caller acts for (informative, logged as given). The body is optional.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "initiativeId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "actor": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
+                    "example": "agent:orq-jaime"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The deleted initiative and the tasks it left",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedInitiative"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, or `actor` from a session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing task:update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Initiative not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The initiative still has tasks that are not Cancelled (INITIATIVE_NOT_EMPTY)",
             "content": {
               "application/json": {
                 "schema": {
