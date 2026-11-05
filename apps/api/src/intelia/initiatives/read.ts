@@ -70,7 +70,7 @@ type BlockReason = {
 };
 
 // Reasons of the Blocked tasks among `tasks`, already readable.
-async function blockReasons(
+export async function blockReasons(
   tasks: { id: string; status: string }[],
 ): Promise<Map<string, BlockReason>> {
   const blockedIds = tasks.filter((t) => t.status === BLOCKED).map((t) => t.id);
