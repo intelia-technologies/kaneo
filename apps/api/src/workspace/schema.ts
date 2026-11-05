@@ -24,4 +24,8 @@ export const updateMemberProjectAccessBody = z.object({
     description:
       'Projects the member can access when projectAccess is "selected".',
   }),
+  reasignarA: z.string().min(1).optional().openapi({
+    description:
+      "Eligible destination assignee for open tasks in projects whose access is revoked.",
+  }),
 });

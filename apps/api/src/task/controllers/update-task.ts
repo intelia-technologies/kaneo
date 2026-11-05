@@ -10,6 +10,7 @@ import {
 import {
   assertAssignableUser,
   getProjectWorkspaceId,
+  lockAssignableUser,
 } from "../../utils/assert-assignable-user";
 import { boardDescription, descriptionDeferred } from "../description-pages";
 import { assertValidTaskStatus } from "../validate-task-fields";
@@ -64,14 +65,6 @@ async function updateTask(
 
   const normalizedUserId = userId?.trim() || undefined;
 
-  if (normalizedUserId && normalizedUserId !== existingTask.userId) {
-    await assertAssignableUser(
-      normalizedUserId,
-      await getProjectWorkspaceId(projectId),
-      projectId,
-    );
-  }
-
   const column = await db.query.columnTable.findFirst({
     where: and(
       eq(columnTable.projectId, projectId),
@@ -82,6 +75,11 @@ async function updateTask(
   const initialPosition = existingTask.position;
   const initialStatus = existingTask.status;
   const updatedTask = await db.transaction(async (tx) => {
+    if (normalizedUserId) {
+      const workspaceId = await getProjectWorkspaceId(projectId, tx);
+      await lockAssignableUser(tx, workspaceId, normalizedUserId);
+      await assertAssignableUser(normalizedUserId, workspaceId, projectId, tx);
+    }
     const [project] = await tx
       .select({ id: projectTable.id })
       .from(projectTable)
@@ -129,7 +127,8 @@ async function updateTask(
         description,
         priority,
         position,
-        userId: normalizedUserId ?? null,
+        userId:
+          userId === undefined ? locked.userId : (normalizedUserId ?? null),
       })
       .where(and(eq(taskTable.id, id), eq(taskTable.projectId, projectId)))
       .returning({

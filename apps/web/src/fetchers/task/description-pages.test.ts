@@ -154,4 +154,20 @@ describe("deferred descriptions", () => {
     });
     expect(updateRequest.mock.calls[2][0].json.description).toBe("");
   });
+
+  it("never sends a stale assignee with a generic task edit", async () => {
+    updateRequest.mockResolvedValue(Response.json({}));
+    const task = {
+      id: "task",
+      title: "Edited",
+      projectId: "project",
+      status: "to-do",
+      userId: null,
+    } as Task;
+    await updateTask(task.id, task);
+    await updateTask(task.id, { ...task, userId: "previous-assignee" });
+    for (const [request] of updateRequest.mock.calls) {
+      expect(request.json).not.toHaveProperty("userId");
+    }
+  });
 });

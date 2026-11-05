@@ -11,6 +11,13 @@ export async function loadAssignableMembers(
   workspaceId: string,
   projectId: string,
 ): Promise<AssignableMember[]> {
+  // Lock memberships in the same order as access changes before reading grants.
+  await tx
+    .select({ id: workspaceUserTable.id })
+    .from(workspaceUserTable)
+    .where(eq(workspaceUserTable.workspaceId, workspaceId))
+    .orderBy(workspaceUserTable.id)
+    .for("update");
   const members = await tx
     .select({ id: userTable.id, name: userTable.name, email: userTable.email })
     .from(workspaceUserTable)

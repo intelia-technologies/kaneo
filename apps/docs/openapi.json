@@ -25036,6 +25036,11 @@
                     },
                     "default": [],
                     "description": "Projects the member can access when projectAccess is \"selected\"."
+                  },
+                  "reasignarA": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Eligible destination assignee for open tasks in projects whose access is revoked."
                   }
                 },
                 "required": [
@@ -25047,11 +25052,44 @@
         },
         "responses": {
           "200": {
-            "description": "The member's project access",
+            "description": "The member's project access and task counts",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MemberProjectAccess"
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string"
+                    },
+                    "projectAccess": {
+                      "type": "string",
+                      "enum": [
+                        "all",
+                        "selected"
+                      ]
+                    },
+                    "projectIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "reasignadas": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "desasignadas": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "projectAccess",
+                    "projectIds",
+                    "reasignadas",
+                    "desasignadas"
+                  ]
                 }
               }
             }

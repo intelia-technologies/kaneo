@@ -20,6 +20,7 @@ import listWorkspacesCtrl from "./controllers/list-workspaces";
 import updateMemberProjectAccessCtrl from "./controllers/update-member-project-access";
 import {
   memberProjectAccessListSchema,
+  updateMemberProjectAccessResponseSchema,
   memberProjectAccessSchema,
   workspaceCapabilitiesSchema,
   workspaceListSchema,
@@ -169,7 +170,10 @@ const updateMemberProjectAccessRoute = createRoute({
     },
   },
   responses: {
-    200: jsonResponse("The member's project access", memberProjectAccessSchema),
+    200: jsonResponse(
+      "The member's project access and task counts",
+      updateMemberProjectAccessResponseSchema,
+    ),
     400: errorResponse(
       "Invalid body, the member is an owner, or a project is not in this workspace",
     ),
@@ -225,6 +229,7 @@ const workspace = apiRouter<BaseVariables & { workspaceId: string }>()
         userId,
         projectAccess: body.projectAccess,
         projectIds: body.projectIds,
+        reasignarA: body.reasignarA,
       }),
       200,
     );

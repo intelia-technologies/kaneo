@@ -30,6 +30,8 @@ import {
   createProjectFixture,
   createWorkspaceMember,
 } from "./helpers/fixtures";
+import { createRestrictedWorkspace } from "./helpers/project-access/create-restricted-workspace";
+import { projectAccessApi } from "./helpers/project-access/project-access-api";
 
 const DUPLICATED_OBJECT_KEY =
   "workspace/ws/project/pj/task/copy/descriptions/diagram-1-copy.png";
@@ -421,6 +423,53 @@ describe("API integration: task duplication", () => {
       );
     },
   );
+
+  it("rejects a copy when access revocation changes the source assignee", async () => {
+    const ctx = await createRestrictedWorkspace();
+    const assetId = "asset1sourcekey000000001";
+    await db
+      .update(schema.taskTable)
+      .set({ description: `<img src="/api/asset/${assetId}" />` })
+      .where(eq(schema.taskTable.id, ctx.alphaTask.id));
+    await db.insert(schema.assetTable).values({
+      id: assetId,
+      workspaceId: ctx.workspace.id,
+      projectId: ctx.alpha.id,
+      taskId: ctx.alphaTask.id,
+      objectKey: "workspace/ws/project/pj/task/source/descriptions/diagram.png",
+      filename: "diagram.png",
+      mimeType: "image/png",
+      size: 2048,
+      kind: "image",
+      surface: "description",
+      createdBy: ctx.owner.id,
+    });
+    mockAuthenticatedSession(ctx.owner);
+    const accessRequest = projectAccessApi();
+    copyTaskAssetObject.mockImplementationOnce(async () => {
+      const revoked = await accessRequest(
+        `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`,
+        {
+          method: "PUT",
+          body: { projectAccess: "selected", projectIds: [ctx.beta.id] },
+        },
+      );
+      expect(revoked.status).toBe(200);
+      expect(await revoked.json()).toMatchObject({ desasignadas: 1 });
+      return DUPLICATED_OBJECT_KEY;
+    });
+
+    const { app } = createApp();
+    const response = await requestDuplicate(app, ctx.alphaTask.id);
+
+    expect(response.status).toBe(409);
+    const tasks = await db.query.taskTable.findMany({
+      where: eq(schema.taskTable.projectId, ctx.alpha.id),
+    });
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.userId).toBeNull();
+    expect(deleteS3Object).toHaveBeenCalledWith(DUPLICATED_OBJECT_KEY);
+  });
 
   it("copies the description assets and repoints the copy at them", async () => {
     const member = await createWorkspaceMember();

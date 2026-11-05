@@ -6,7 +6,12 @@ import type { DbOrTx } from "./db-or-tx";
 
 export async function lockAccessChange(
   database: DbOrTx,
-  change: { workspaceId: string; actorId: string; userId: string },
+  change: {
+    workspaceId: string;
+    actorId: string;
+    userId: string;
+    reasignarA?: string;
+  },
 ): Promise<{ actorAllowed: boolean; targetRole: string | null }> {
   const rows = await database
     .select({
@@ -20,6 +25,7 @@ export async function lockAccessChange(
         inArray(schema.workspaceUserTable.userId, [
           change.actorId,
           change.userId,
+          ...(change.reasignarA ? [change.reasignarA] : []),
         ]),
       ),
     )

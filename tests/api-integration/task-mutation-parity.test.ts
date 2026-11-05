@@ -7,12 +7,17 @@ import db, { getDatabase, schema } from "../../apps/api/src/database";
 import updateTask from "../../apps/api/src/task/controllers/update-task";
 import bulkUpdateTasks from "../../apps/api/src/task/controllers/bulk-update-tasks";
 import { resetTestDatabase } from "./helpers/database";
+import { mockAuthenticatedSession } from "./helpers/auth";
+import { projectAccessApi } from "./helpers/project-access/project-access-api";
 import {
   createProjectFixture,
   createWorkspaceMember,
 } from "./helpers/fixtures";
 const publish = vi.hoisted(() => vi.fn(async () => undefined));
-vi.mock("../../apps/api/src/events", () => ({ publishEvent: publish }));
+vi.mock("../../apps/api/src/events", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  publishEvent: publish,
+}));
 beforeEach(async () => {
   await resetTestDatabase();
   vi.clearAllMocks();
@@ -59,6 +64,58 @@ it("full updates store title history, assignment events and reset reminders toge
   expect(publish).toHaveBeenCalledWith(
     "task.assignee_changed",
     expect.objectContaining({ newAssigneeId: user.id }),
+  );
+});
+it("full updates preserve a concurrent reassignment when userId is omitted", async () => {
+  const { user, workspace } = await createWorkspaceMember();
+  const { project } = await createProjectFixture({ workspaceId: workspace.id });
+  const [task] = await db
+    .insert(schema.taskTable)
+    .values({
+      projectId: project.id,
+      title: "old",
+      status: "to-do",
+      priority: "low",
+      position: 0,
+    })
+    .returning();
+  mockAuthenticatedSession(user);
+  const request = projectAccessApi();
+  const database = getDatabase();
+  const transaction = database.transaction.bind(database);
+  vi.spyOn(database, "transaction").mockImplementationOnce(
+    async (apply, config) => {
+      await db
+        .update(schema.taskTable)
+        .set({ userId: user.id })
+        .where(eq(schema.taskTable.id, task.id));
+      return transaction(apply, config);
+    },
+  );
+
+  const response = await request(`/task/${task.id}`, {
+    method: "PUT",
+    body: {
+      title: "new",
+      description: "",
+      status: "to-do",
+      priority: "low",
+      position: 0,
+      projectId: project.id,
+    },
+  });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ userId: user.id });
+  expect(
+    (
+      await db.query.taskTable.findFirst({
+        where: eq(schema.taskTable.id, task.id),
+      })
+    )?.userId,
+  ).toBe(user.id);
+  expect(publish).not.toHaveBeenCalledWith(
+    "task.assignee_changed",
+    expect.anything(),
   );
 });
 it("bulk due date updates clear claims and preserve claims for unchanged dates", async () => {
