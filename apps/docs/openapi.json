@@ -6400,6 +6400,47 @@
           "changedAt"
         ]
       },
+      "TaskInitiatives": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskInitiativeRef"
+            }
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "description": "One entry per requested task of the workspace the caller can read, by task id. Unknown tasks, tasks of other workspaces and tasks of projects the caller cannot read are left out, indistinguishably."
+      },
+      "TaskInitiativeRef": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string"
+          },
+          "initiativeId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "initiativeName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "taskId",
+          "initiativeId",
+          "initiativeName"
+        ],
+        "description": "A readable task and its initiative; both null when it has none."
+      },
       "Reaction": {
         "type": "object",
         "properties": {
@@ -27444,6 +27485,106 @@
           },
           "404": {
             "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/workspace/{workspaceId}/task-initiatives": {
+      "post": {
+        "operationId": "getTaskInitiatives",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "Get the initiative of many tasks",
+        "description": "The initiative id and name of each requested task, in one read (null for a task without initiative), ordered by task id. A POST only to carry up to 500 ids; it changes nothing. Needs task:read and access to the project. Tasks of projects the caller cannot read are left out of every count, list and dependency, without any of their data. Unknown tasks and tasks of other workspaces are left out the same way.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "workspaceId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taskIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1,
+                    "maxItems": 500,
+                    "description": "Ids of the tasks, 1 to 500. Repeated ids count once."
+                  }
+                },
+                "required": [
+                  "taskIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The tasks' initiatives",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskInitiatives"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the workspace or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found",
             "content": {
               "application/json": {
                 "schema": {

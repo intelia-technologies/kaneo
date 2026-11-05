@@ -4,6 +4,20 @@ import { declaredActorInput } from "../task-automation/schema";
 export const projectIdParam = z.object({ projectId: z.string() });
 export const initiativeIdParam = z.object({ initiativeId: z.string() });
 export const taskIdParam = z.object({ taskId: z.string() });
+export const workspaceIdParam = z.object({ workspaceId: z.string() });
+
+// At most this many tasks per batch read of initiatives.
+export const TASK_INITIATIVES_MAX_TASKS = 500;
+
+export const taskInitiativesInput = z.object({
+  taskIds: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(TASK_INITIATIVES_MAX_TASKS)
+    .openapi({
+      description: `Ids of the tasks, 1 to ${TASK_INITIATIVES_MAX_TASKS}. Repeated ids count once.`,
+    }),
+});
 
 const name = z.string().trim().min(1).max(200).openapi({
   description:

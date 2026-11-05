@@ -5,7 +5,11 @@ import {
   jsonResponse,
 } from "../../openapi";
 import { initiativeAccess, initiativeReader, initiativeWriter } from "./access";
-import { getInitiativeDetail, listInitiativesWithCounters } from "./read";
+import {
+  getInitiativeDetail,
+  getTaskInitiatives,
+  listInitiativesWithCounters,
+} from "./read";
 import {
   initiativeChangeListSchema,
   initiativeDetailSchema,
@@ -13,6 +17,7 @@ import {
   projectInitiativesSchema,
   taskInitiativeChangeListSchema,
   taskInitiativeSchema,
+  taskInitiativesSchema,
 } from "./response";
 import {
   closePlanInput,
@@ -22,7 +27,9 @@ import {
   projectIdParam,
   putTaskInitiativeInput,
   taskIdParam,
+  taskInitiativesInput,
   updateInitiativeInput,
+  workspaceIdParam,
 } from "./schema";
 import {
   closePlan,
@@ -232,6 +239,30 @@ const taskHistoryRouteDef = createRoute({
   },
 });
 
+const taskInitiativesRouteDef = createRoute({
+  method: "post",
+  operationId: "getTaskInitiatives",
+  path: "/workspace/{workspaceId}/task-initiatives",
+  tags,
+  summary: "Get the initiative of many tasks",
+  description: `The initiative id and name of each requested task, in one read (null for a task without initiative), ordered by task id. A POST only to carry up to 500 ids; it changes nothing. ${READERS} Unknown tasks and tasks of other workspaces are left out the same way.`,
+  middleware: initiativeAccess.readOnWorkspace(),
+  request: {
+    params: workspaceIdParam,
+    body: {
+      required: true,
+      content: { "application/json": { schema: taskInitiativesInput } },
+    },
+  },
+  responses: {
+    200: jsonResponse("The tasks' initiatives", taskInitiativesSchema),
+    400: errorResponse("Invalid body"),
+    401: errorResponse("No session or API key"),
+    403: errorResponse("No access to the workspace or missing read permission"),
+    404: errorResponse("Workspace not found"),
+  },
+});
+
 const initiatives = apiRouter()
   .openapi(listRouteDef, async (c) =>
     c.json(
@@ -311,6 +342,15 @@ const initiatives = apiRouter()
       await listTaskInitiativeChanges(
         c.req.valid("param").taskId,
         c.req.valid("query").limit,
+      ),
+      200,
+    ),
+  )
+  .openapi(taskInitiativesRouteDef, async (c) =>
+    c.json(
+      await getTaskInitiatives(
+        c.req.valid("json").taskIds,
+        initiativeReader(c),
       ),
       200,
     ),
