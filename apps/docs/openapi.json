@@ -6389,6 +6389,329 @@
           "cycle"
         ]
       },
+      "InitiativePlan": {
+        "type": "object",
+        "properties": {
+          "initiativeId": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "computedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "estimatesComputedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the finished tasks behind the medians were read; kept 10 minutes."
+          },
+          "estimatedEnd": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The end of the critical path: an estimate, without sharing capacity between machines. Null with nothing pending or with a cycle."
+          },
+          "criticalPath": {
+            "$ref": "#/components/schemas/InitiativeCriticalPath"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InitiativePlanTask"
+            },
+            "description": "The initiative's readable tasks by number, then the external ones."
+          }
+        },
+        "required": [
+          "initiativeId",
+          "projectId",
+          "name",
+          "computedAt",
+          "estimatesComputedAt",
+          "estimatedEnd",
+          "criticalPath",
+          "tasks"
+        ]
+      },
+      "InitiativeCriticalPath": {
+        "type": "object",
+        "properties": {
+          "taskIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The chain of pending tasks with the most remaining hours that ends at the goal, or at the initiative's task that ends last; first blocker first."
+          },
+          "hours": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Remaining hours along the chain."
+          },
+          "goalTaskId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The initiative's goal task (`objetivo`), if it has one the caller can read; the chain ends there while it is pending, and at the task that ends last otherwise."
+          },
+          "partial": {
+            "type": "boolean",
+            "description": "A pending task of the initiative has a dependency the caller cannot read, left out without any of its data."
+          },
+          "cycle": {
+            "type": "boolean",
+            "description": "The pending dependencies form a cycle: no chain and no planned dates."
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "advancing": {
+                "type": "integer"
+              },
+              "blocked": {
+                "type": "integer"
+              },
+              "stalled": {
+                "type": "integer"
+              },
+              "waiting": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "advancing",
+              "blocked",
+              "stalled",
+              "waiting"
+            ],
+            "description": "Tasks of the chain by mark."
+          }
+        },
+        "required": [
+          "taskIds",
+          "hours",
+          "goalTaskId",
+          "partial",
+          "cycle",
+          "summary"
+        ]
+      },
+      "InitiativePlanTask": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "external": {
+            "type": "boolean",
+            "description": "A readable task of another initiative or project that a task of this one depends on or blocks."
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "assignee": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "plain": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The «**En llano.**» paragraph opening the description, without its marker; null when it lacks one and for external tasks."
+          },
+          "actualStart": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "First move to In progress or In review."
+          },
+          "actualEnd": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Last move to Done, for a Done task."
+          },
+          "workedHours": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Time in In progress and In review so far, Blocked and the rest left out."
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/InitiativePlanEstimate"
+          },
+          "remainingHours": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Hours left: 0 once Done or Cancelled; once started, the estimate minus the worked hours and at least 1; otherwise the estimate."
+          },
+          "plannedStart": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The real start once started; for a pending task not started, when its pending blockers end (or now). Null with a cycle."
+          },
+          "plannedEnd": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The real end for a Done task; for a pending one, its planned start plus its remaining hours, chained after its blockers. Null with a cycle or for a Cancelled task."
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "mark": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "advancing",
+              "blocked",
+              "stalled",
+              "waiting",
+              null
+            ],
+            "description": "How a pending task stands (annex of design 19 §3.2). blocked: in Blocked, with its reason. waiting: readable blockers still pending ahead. advancing: in In progress or In review, last status change within the column's p90 (design 23), and someone on it: for an agent, a worker the dispatcher reports `activo` and `trabajando` in board signals of at most 10 minutes (RT-05); for a person, being assigned. stalled: anything else, with `stallReason`. Null once Done or Cancelled."
+          },
+          "stallReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "unassigned",
+              "no_worker",
+              "worker_down",
+              "worker_finished",
+              "worker_idle",
+              "over_p90",
+              "not_started",
+              null
+            ],
+            "description": "Probable reason of a stalled task, the first that applies: unassigned; no_worker (an agent without a worker in fresh board signals); worker_down, worker_finished or worker_idle (its worker is `caido`, `terminado`, or alive but not working); over_p90 (no status change for longer than the column's p90); not_started (ready, someone on it, not yet in In progress). Null unless stalled."
+          },
+          "blockReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `motivo_bloqueo` custom field of a Blocked task; null otherwise or when empty."
+          },
+          "blockReasonDetail": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `motivo_bloqueo_detalle` custom field of a Blocked task; null otherwise, when empty or when the project lacks the field."
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of the readable tasks that block this one."
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "status",
+          "external",
+          "projectId",
+          "assignee",
+          "plain",
+          "actualStart",
+          "actualEnd",
+          "workedHours",
+          "estimate",
+          "remainingHours",
+          "plannedStart",
+          "plannedEnd",
+          "critical",
+          "mark",
+          "stallReason",
+          "blockReason",
+          "blockReasonDetail",
+          "dependsOn"
+        ]
+      },
+      "InitiativePlanEstimate": {
+        "type": "object",
+        "properties": {
+          "hours": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Estimated hours of the whole task, to one decimal."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "project",
+              "org",
+              "default"
+            ],
+            "description": "manual: the task's `estimacion_horas` (set through `PUT /api/task/estimacion_horas/{id}` or the task's create and update). project: median of the finished tasks of the last 90 days of its project with the same automation level (manual, arranque, completa or none) and executor (ephemeral agent, persistent agent or person; any, when unassigned), from 10 of them. org: the same median over every project of the workspace the caller can read, when its project has fewer. default: 4 h, with fewer still."
+          },
+          "cases": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Finished tasks behind the median; 0 for manual and default."
+          }
+        },
+        "required": [
+          "hours",
+          "source",
+          "cases"
+        ]
+      },
       "DeletedInitiative": {
         "type": "object",
         "properties": {
@@ -27770,6 +28093,71 @@
           },
           "409": {
             "description": "The initiative still has tasks that are not Cancelled (INITIATIVE_NOT_EMPTY)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/initiative/{initiativeId}/plan": {
+      "get": {
+        "operationId": "getInitiativePlan",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "Get an initiative's estimated plan and critical path",
+        "description": "Real start and end of each task, its estimate (the median of similar finished tasks, or its `estimacion_horas`), planned dates chained along `blocks` from now, the critical path by hours with the mark of each pending task, and the estimated end (annex of design 19). The finished tasks behind the medians are read at most every 10 minutes. Needs task:read and access to the project. Tasks of projects the caller cannot read are left out of every count, list and dependency, without any of their data. Estimates learn only from tasks the caller can read.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "initiativeId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The initiative's plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InitiativePlan"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Initiative not found",
             "content": {
               "application/json": {
                 "schema": {
