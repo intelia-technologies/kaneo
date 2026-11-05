@@ -3388,7 +3388,30 @@
 			"usual": "3 de cada 4 tareas salen de esta columna en menos de {{duration}} (últimos 90 días, {{cases}} casos).",
 			"noBase_one": "Sin base para comparar: {{count}} caso en los últimos 90 días.",
 			"noBase_many": "Sin base para comparar: {{count}} casos en los últimos 90 días.",
-			"noBase_other": "Sin base para comparar: {{count}} casos en los últimos 90 días."
+			"noBase_other": "Sin base para comparar: {{count}} casos en los últimos 90 días.",
+			"aboveMean": "Por encima de la media de esta columna",
+			"mean_one": "Media de la columna: {{duration}} (este proyecto, últimos 30 días, {{count}} tarea).",
+			"mean_many": "Media de la columna: {{duration}} (este proyecto, últimos 30 días, {{count}} tareas).",
+			"mean_other": "Media de la columna: {{duration}} (este proyecto, últimos 30 días, {{count}} tareas).",
+			"meanOrganization_one": "Media de la columna: {{duration}} (toda la organización, últimos 30 días, {{count}} tarea: poco histórico en este proyecto).",
+			"meanOrganization_many": "Media de la columna: {{duration}} (toda la organización, últimos 30 días, {{count}} tareas: poco histórico en este proyecto).",
+			"meanOrganization_other": "Media de la columna: {{duration}} (toda la organización, últimos 30 días, {{count}} tareas: poco histórico en este proyecto)."
+		},
+		"boardSignals": {
+			"alarm": "Alarma el {{date}}",
+			"waitsFor": "Espera a {{who}}",
+			"worker": {
+				"activo": "Worker vivo",
+				"caido": "Worker caído: sin señal de vida en 30 min",
+				"terminado": "Worker terminado",
+				"working": "Trabajando ahora.",
+				"lastSignal": "Última señal de vida el {{date}}.",
+				"short": {
+					"activo": "Vivo",
+					"caido": "Caído",
+					"terminado": "Terminado"
+				}
+			}
 		},
 		"filterBar": {
 			"label": "Filtros activos",

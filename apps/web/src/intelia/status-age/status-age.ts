@@ -22,16 +22,28 @@ export function statusAgeDuration(seconds: number): StatusAgeDuration {
   return { value: Math.floor(elapsed / DAY), unit: "days" };
 }
 
-export type StatusAgeTone = "neutral" | "above-p75" | "above-p90";
+export type StatusAgeTone =
+  | "neutral"
+  | "above-mean"
+  | "above-p75"
+  | "above-p90";
 
-// Design 23 §4: amber above the column's p75, red above its p90. A column
-// without percentiles (fewer than 10 cases) has no baseline and no colour.
+// Design 32 §4: with the factory's mean for the column (the one its rule R7
+// compares against), amber above the mean and red when also above the p90.
+// Without a mean, design 23 §4: amber above the column's p75, red above its
+// p90; a column without percentiles (fewer than 10 cases) has no colour.
 export function statusAgeTone(
   seconds: number,
   column: StatusAgeColumn | undefined,
+  meanSeconds?: number | null,
 ): StatusAgeTone {
+  const aboveP90 = column?.p90_s != null && seconds > column.p90_s;
+  if (meanSeconds != null) {
+    if (seconds <= meanSeconds) return "neutral";
+    return aboveP90 ? "above-p90" : "above-mean";
+  }
   if (column?.p75_s == null || column.p90_s == null) return "neutral";
-  if (seconds > column.p90_s) return "above-p90";
+  if (aboveP90) return "above-p90";
   if (seconds > column.p75_s) return "above-p75";
   return "neutral";
 }

@@ -56,6 +56,9 @@ vi.mock(
 vi.mock("@/intelia/automation/api", () => ({
   useProjectAutomation: () => ({ data: undefined }),
 }));
+vi.mock("@/intelia/board-signals/api", () => ({
+  useProjectBoardSignals: () => ({ data: undefined }),
+}));
 vi.mock(
   "@/components/kanban-board/task-card-context-menu/task-card-context-menu-content",
   () => ({ default: () => null }),

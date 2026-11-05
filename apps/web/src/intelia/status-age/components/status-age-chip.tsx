@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format";
 import useProjectStore from "@/store/project";
 import { useUserPreferencesStore } from "@/store/user-preferences";
 import type Task from "@/types/task";
+import { useProjectBoardSignals } from "../../board-signals/api";
 import { useProjectStatusAge } from "../api";
 import {
   type StatusAgeDuration,
@@ -17,18 +18,21 @@ import { useMinuteClock } from "../use-minute-clock";
 
 const TONE_ICON = {
   neutral: Clock,
+  "above-mean": ClockAlert,
   "above-p75": ClockAlert,
   "above-p90": TriangleAlert,
 } as const;
 
 const TONE_CLASS: Record<StatusAgeTone, string | undefined> = {
   neutral: undefined,
+  "above-mean": "font-medium text-warning-foreground",
   "above-p75": "font-medium text-warning-foreground",
   "above-p90": "font-medium text-due-overdue",
 };
 
 // Design 23 §5: how long the task has been in its column, coloured against
-// the column's own history and explained on hover. Tasks in Done and
+// the column's own history and explained on hover; design 32 §4: against the
+// factory's mean for the column when it reports one. Tasks in Done and
 // Cancelled are absent from the API's `tareas`, so they get no chip.
 export function StatusAgeChip({
   task,
@@ -46,9 +50,10 @@ export function StatusAgeChip({
       state.project?.columns.find((column) => column.slug === task.status)
         ?.name,
   );
-  const { data } = useProjectStatusAge(
-    showStatusAge && !isCompleted ? task.projectId : undefined,
-  );
+  const enabledProject =
+    showStatusAge && !isCompleted ? task.projectId : undefined;
+  const { data } = useProjectStatusAge(enabledProject);
+  const { data: signals } = useProjectBoardSignals(enabledProject);
   const now = useMinuteClock();
 
   const since = data?.tareas[task.id];
@@ -57,7 +62,8 @@ export function StatusAgeChip({
   const enteredAt = new Date(since);
   const seconds = Math.max(0, (now - enteredAt.getTime()) / 1000);
   const stats = data.columnas[task.status];
-  const tone = statusAgeTone(seconds, stats);
+  const mean = signals?.columnas[task.status];
+  const tone = statusAgeTone(seconds, stats, mean?.media_s);
   const Icon = TONE_ICON[tone];
   const column = columnName ?? task.status;
   const duration = (value: StatusAgeDuration) =>
@@ -66,6 +72,7 @@ export function StatusAgeChip({
 
   const label = [
     t("tasks:statusAge.label", { duration: elapsed, column }),
+    tone === "above-mean" && t("tasks:statusAge.aboveMean"),
     tone === "above-p75" && t("tasks:statusAge.aboveP75"),
     tone === "above-p90" && t("tasks:statusAge.aboveP90"),
   ]
@@ -88,7 +95,19 @@ export function StatusAgeChip({
           duration: duration(statusAgeDuration(stats.p75_s)),
           cases: stats.casos,
         }),
-  ].join(" ");
+    mean &&
+      t(
+        mean.ambito === "proyecto"
+          ? "tasks:statusAge.mean"
+          : "tasks:statusAge.meanOrganization",
+        {
+          duration: duration(statusAgeDuration(mean.media_s)),
+          count: mean.tareas,
+        },
+      ),
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <span

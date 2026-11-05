@@ -1,4 +1,5 @@
 import { apiRouter } from "../openapi";
+import boardSignals from "./board-signals";
 import comments from "./comments";
 import initiatives from "./initiatives";
 import reactions from "./reactions";
@@ -12,6 +13,7 @@ import userAvatar from "./user-avatar";
 // Everything the fork serves under /api/intelia, mounted once in
 // apps/api/src/index.ts so new features do not touch upstream's file.
 const intelia = apiRouter()
+  .route("/", boardSignals)
   .route("/", comments)
   .route("/", initiatives)
   .route("/", reactions)
