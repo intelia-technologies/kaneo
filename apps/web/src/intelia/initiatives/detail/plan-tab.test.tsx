@@ -9,6 +9,7 @@ import {
   it,
   vi,
 } from "vite-plus/test";
+import { formatDateTime } from "@/lib/format";
 import type { InitiativeDetail, InitiativePlan } from "../api";
 import { PlanTab } from "./plan-tab";
 vi.mock("../use-external-plan-realtime", () => ({
@@ -111,7 +112,9 @@ describe("PlanTab", () => {
       />,
     );
     const bar = screen.getByTestId("planned-bar");
-    expect(bar.title).toContain("17:00");
+    expect(bar.title).toBe(
+      `${formatDateTime("2026-11-04T17:00:00Z")} – ${formatDateTime("2026-11-04T19:00:00Z")}`,
+    );
     expect(bar.style.backgroundColor).toBe("rgb(18, 52, 86)");
   });
   it("shows empty, partial and cyclic states", () => {
