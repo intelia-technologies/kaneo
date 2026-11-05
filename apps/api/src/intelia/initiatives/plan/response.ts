@@ -30,6 +30,9 @@ const planTaskSchema = z
     number: z.number().int().nullable(),
     title: z.string(),
     status: z.string(),
+    statusSince: responseTimestamp.openapi({
+      description: "When this task last entered its current column.",
+    }),
     external: z.boolean().openapi({
       description:
         "A readable task of another initiative or project that a task of this one depends on or blocks.",

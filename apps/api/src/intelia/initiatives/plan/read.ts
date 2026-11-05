@@ -290,6 +290,7 @@ export async function getInitiativePlan(
       number: p.task.number,
       title: p.task.title,
       status: p.task.status,
+      statusSince: p.history.statusSince,
       external: p.task.external,
       projectId: p.fact.projectId,
       assignee: p.task.assignee,

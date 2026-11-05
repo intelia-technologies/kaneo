@@ -590,6 +590,8 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
   it("gives the reason of a readable Blocked dependency in another project", async () => {
     const { app, other, project, initiative } = await setup();
     const external = await seedTask(other.id, { status: "blocked" });
+    const blockedAt = ago(HOUR);
+    await seedChange(external.id, "in-progress", "blocked", blockedAt);
     const own = await seedTask(project.id, { initiativeId: initiative.id });
     await blocks(external.id, own.id);
     const [field] = await db
@@ -606,6 +608,7 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
     expect(task(external.id)).toMatchObject({
       external: true,
       mark: "blocked",
+      statusSince: blockedAt.toISOString(),
       blockReason: "dependencias",
       critical: true,
     });
