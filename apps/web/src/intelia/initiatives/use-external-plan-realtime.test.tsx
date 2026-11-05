@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   afterEach,
   beforeEach,
@@ -7,13 +8,10 @@ import {
   it,
   vi,
 } from "vite-plus/test";
+import type { ReactNode } from "react";
 import type { InitiativePlan } from "./api";
 import { useExternalPlanRealtime } from "./use-external-plan-realtime";
 
-const mocks = vi.hoisted(() => ({ invalidate: vi.fn() }));
-vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: mocks.invalidate }),
-}));
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
     useSession: () => ({ data: { user: { id: "u" }, session: { id: "s" } } }),
@@ -26,7 +24,7 @@ class Socket {
   static OPEN = 1;
   static instances: Socket[] = [];
   onopen?: () => void;
-  onclose?: () => void;
+  onclose?: (event: { code: number; reason: string }) => void;
   onmessage?: (event: { data: string }) => void;
   readyState = 1;
   constructor(public url: string) {
@@ -34,7 +32,7 @@ class Socket {
   }
   send() {}
   close() {
-    this.onclose?.();
+    this.onclose?.({ code: 1000, reason: "" });
   }
 }
 const plan = {
@@ -42,38 +40,68 @@ const plan = {
   initiativeId: "i",
   tasks: [{ external: true, projectId: "other" }],
 } as InitiativePlan;
+const planKey = ["intelia-initiative", "project", "own", "plan", "i"];
+const detailKey = ["intelia-initiative", "project", "own", "detail", "i"];
+const relationsKey = ["project-relations", "own"];
+let client: QueryClient;
+let wrapper: ({ children }: { children: ReactNode }) => ReactNode;
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("WebSocket", Socket);
   Socket.instances = [];
-  mocks.invalidate.mockClear();
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(planKey, { title: "external secret" });
+  client.setQueryData(detailKey, { title: "external secret" });
+  client.setQueryData(relationsKey, { title: "external secret" });
+  wrapper = ({ children }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
 });
 afterEach(() => {
+  client.clear();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 describe("external plan realtime", () => {
-  it("refreshes the initiative after external task events and reconnects", () => {
-    const { unmount } = renderHook(() => useExternalPlanRealtime(plan));
+  it("invalidates plan, detail and relations after an external event and after reconnecting", () => {
+    const { unmount } = renderHook(() => useExternalPlanRealtime(plan), {
+      wrapper,
+    });
     expect(Socket.instances[0].url).toBe("ws://localhost/other");
     act(() => {
-      Socket.instances[0].onopen?.();
       Socket.instances[0].onmessage?.({
         data: JSON.stringify({ type: "TASK_UPDATED" }),
       });
       vi.advanceTimersByTime(5_000);
     });
-    expect(mocks.invalidate).toHaveBeenCalledWith({
-      queryKey: ["intelia-initiative", "project", "own", "plan", "i"],
-    });
-    mocks.invalidate.mockClear();
+    for (const key of [planKey, detailKey, relationsKey])
+      expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    for (const key of [planKey, detailKey, relationsKey])
+      client.setQueryData(key, { title: "fresh" });
     act(() => {
-      Socket.instances[0].onclose?.();
+      Socket.instances[0].onclose?.({ code: 1006, reason: "" });
       vi.advanceTimersByTime(1_000);
       Socket.instances[1].onopen?.();
     });
-    expect(mocks.invalidate).toHaveBeenCalledTimes(1);
+    for (const key of [planKey, detailKey, relationsKey])
+      expect(client.getQueryState(key)?.isInvalidated).toBe(true);
     unmount();
-    expect(vi.getTimerCount()).toBe(0);
+  });
+  it("removes cached external data on revocation and does not reconnect", () => {
+    const { unmount } = renderHook(() => useExternalPlanRealtime(plan), {
+      wrapper,
+    });
+    act(() => {
+      Socket.instances[0].onopen?.();
+      Socket.instances[0].onclose?.({
+        code: 1008,
+        reason: "Project access revoked",
+      });
+      vi.advanceTimersByTime(60_000);
+    });
+    for (const key of [planKey, detailKey, relationsKey])
+      expect(client.getQueryData(key)).toBeUndefined();
+    expect(Socket.instances).toHaveLength(1);
+    unmount();
   });
 });

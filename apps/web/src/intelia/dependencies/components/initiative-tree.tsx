@@ -43,10 +43,10 @@ export function InitiativeTree({
     isError: isPlanError,
     refetch: refetchPlan,
   } = useInitiativePlan(projectId, initiativeId);
-  useExternalPlanRealtime(plan);
+  useExternalPlanRealtime(isPlanError ? undefined : plan);
   const model = useMemo(() => {
     const critical = new Map(
-      (plan?.tasks ?? [])
+      (isPlanError ? [] : (plan?.tasks ?? []))
         .filter((task) => task.critical && task.mark)
         .map((task) => [task.id, task]),
     );
@@ -55,9 +55,7 @@ export function InitiativeTree({
       nodes: graphModel.nodes.map((node) => {
         const task = critical.get(node.id);
         if (!task?.mark)
-          return plan
-            ? { ...node, data: { ...node.data, isCritical: false } }
-            : node;
+          return { ...node, data: { ...node.data, isCritical: false } };
         const reason = [
           task.blockReason,
           task.blockReasonDetail,
@@ -76,33 +74,31 @@ export function InitiativeTree({
           },
         };
       }),
-      edges: plan
-        ? graphModel.edges.map((edge) => {
-            const path = plan.criticalPath.taskIds;
-            const index = path.indexOf(edge.source);
-            const isCritical = index >= 0 && path[index + 1] === edge.target;
-            const color = isCritical
-              ? "#f59e0b"
-              : "var(--muted-foreground, #71717a)";
-            return {
-              ...edge,
-              animated: isCritical,
-              style: {
-                ...edge.style,
-                stroke: color,
-                strokeWidth: isCritical ? 2.5 : 1.5,
-              },
-              markerEnd: {
-                type: "arrowclosed" as const,
-                color,
-                width: 14,
-                height: 14,
-              },
-            };
-          })
-        : graphModel.edges,
+      edges: graphModel.edges.map((edge) => {
+        const path = isPlanError ? [] : (plan?.criticalPath.taskIds ?? []);
+        const index = path.indexOf(edge.source);
+        const isCritical = index >= 0 && path[index + 1] === edge.target;
+        const color = isCritical
+          ? "#f59e0b"
+          : "var(--muted-foreground, #71717a)";
+        return {
+          ...edge,
+          animated: isCritical,
+          style: {
+            ...edge.style,
+            stroke: color,
+            strokeWidth: isCritical ? 2.5 : 1.5,
+          },
+          markerEnd: {
+            type: "arrowclosed" as const,
+            color,
+            width: 14,
+            height: 14,
+          },
+        };
+      }),
     };
-  }, [graphModel, plan, t]);
+  }, [graphModel, plan, isPlanError, t]);
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-background">
       <div className="flex items-center justify-between border-b px-4 py-2 text-xs">

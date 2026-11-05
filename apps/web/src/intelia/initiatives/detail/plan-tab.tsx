@@ -139,8 +139,10 @@ export function PlanTab({
                     task.plannedEnd &&
                     Number.isFinite(Date.parse(task.plannedEnd)) &&
                     Number.isFinite(
-                      Date.parse(task.plannedEnd) -
-                        task.remainingHours * 3_600_000,
+                      new Date(
+                        Date.parse(task.plannedEnd) -
+                          task.remainingHours * 3_600_000,
+                      ).getTime(),
                     ) &&
                     bar(
                       new Date(

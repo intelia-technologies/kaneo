@@ -2,7 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { getWsUrl } from "@/hooks/use-project-websocket";
 import { authClient } from "@/lib/auth-client";
-import { initiativePlanKey, type InitiativePlan } from "./api";
+import { projectRelationsKey } from "@/intelia/dependencies/api";
+import { projectInitiativesRootKey, type InitiativePlan } from "./api";
 
 // The project's socket does not receive changes from another project's tasks.
 export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
@@ -24,10 +25,14 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
     let disposed = false;
     let refresh: ReturnType<typeof setTimeout> | undefined;
     const cleanups: (() => void)[] = [];
-    const invalidate = () =>
+    const invalidate = () => {
       void queryClient.invalidateQueries({
-        queryKey: initiativePlanKey(projectId, initiativeId),
+        queryKey: projectInitiativesRootKey(projectId),
       });
+      void queryClient.invalidateQueries({
+        queryKey: projectRelationsKey(projectId),
+      });
+    };
     for (const externalProject of JSON.parse(projects) as string[]) {
       let socket: WebSocket;
       let retry: ReturnType<typeof setTimeout> | undefined;
@@ -68,13 +73,26 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
             /* Ignore malformed socket messages. */
           }
         };
-        socket.onclose = () => {
+        socket.onclose = (event) => {
           clearInterval(ping);
-          if (!disposed)
-            retry = setTimeout(
-              connect,
-              Math.min(30_000, 1_000 * 2 ** attempts++),
-            );
+          if (disposed) return;
+          if (event.code === 1008) {
+            if (event.reason === "Workspace access revoked")
+              queryClient.clear();
+            else {
+              void queryClient.resetQueries({
+                queryKey: projectInitiativesRootKey(projectId),
+              });
+              void queryClient.resetQueries({
+                queryKey: projectRelationsKey(projectId),
+              });
+            }
+            return;
+          }
+          retry = setTimeout(
+            connect,
+            Math.min(30_000, 1_000 * 2 ** attempts++),
+          );
         };
       };
       connect();
