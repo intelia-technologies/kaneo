@@ -18,11 +18,18 @@ import type { ProjectWithTasks } from "@/types/project";
 import type { ProjectStatusAge } from "../api";
 import { StatusAgeChip } from "./status-age-chip";
 
-const mocks = vi.hoisted(() => ({ statusAge: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  statusAge: vi.fn(),
+  signals: vi.fn((_projectId: string | undefined) => ({ data: undefined })),
+}));
 
 vi.mock("../api", () => ({
   useProjectStatusAge: (projectId: string | undefined) =>
     mocks.statusAge(projectId),
+}));
+vi.mock("../../board-signals/api", () => ({
+  useProjectBoardSignals: (projectId: string | undefined) =>
+    mocks.signals(projectId),
 }));
 vi.mock("@/lib/i18n", () => ({ i18n: { resolvedLanguage: "es-ES" } }));
 
@@ -85,6 +92,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
   vi.setSystemTime(NOW);
   useUserPreferencesStore.setState({ showStatusAge: true });
+  mocks.signals.mockReturnValue({ data: undefined });
   useProjectStore.setState({
     project: {
       columns: [{ slug: "in-review", name: "In review", isFinal: false }],
@@ -145,6 +153,56 @@ describe("StatusAgeChip", () => {
       "24 h en In review. Muy por encima de lo habitual en esta columna",
     );
     expect(chip().querySelector(".lucide-triangle-alert")).not.toBeNull();
+  });
+
+  describe("against the factory's mean for the column (design 32 §4)", () => {
+    const MEAN = 4 * 3600;
+    function withMean(ambito: "proyecto" | "organizacion" = "proyecto") {
+      mocks.signals.mockReturnValue({
+        data: {
+          calculado_en: NOW.toISOString(),
+          columnas: { "in-review": { media_s: MEAN, tareas: 25, ambito } },
+          tareas: {},
+        },
+      } as never);
+    }
+
+    it("stays neutral up to the mean, even above the p75", () => {
+      withMean();
+      mocks.statusAge.mockReturnValue(
+        statusAge(MEAN * 1000, { p75_s: 3600, p90_s: P90, casos: 42 }),
+      );
+      renderChip();
+      expect(chip()).toHaveAttribute("data-status-age-tone", "neutral");
+    });
+
+    it("turns amber above the mean, below the p75, and says so", () => {
+      withMean();
+      mocks.statusAge.mockReturnValue(statusAge(MEAN * 1000 + MINUTE));
+      renderChip();
+      expect(chip()).toHaveAttribute("data-status-age-tone", "above-mean");
+      expect(chip()).toHaveClass("text-warning-foreground");
+      expect(chip()).toHaveAccessibleName(
+        "4 h en In review. Por encima de la media de esta columna",
+      );
+      expect(chip().getAttribute("title")).toMatch(
+        / Media de la columna: 4 h \(este proyecto, últimos 30 días, 25 tareas\)\.$/,
+      );
+    });
+
+    it("turns red above the mean and the p90", () => {
+      withMean();
+      mocks.statusAge.mockReturnValue(statusAge(P90 * 1000 + 1000));
+      renderChip();
+      expect(chip()).toHaveAttribute("data-status-age-tone", "above-p90");
+    });
+
+    it("names the organization's mean when the project has little history", () => {
+      withMean("organizacion");
+      mocks.statusAge.mockReturnValue(statusAge(HOUR));
+      renderChip();
+      expect(chip().getAttribute("title")).toContain("toda la organización");
+    });
   });
 
   it("explains the entry date in the browser's zone and the column's p75", () => {

@@ -5516,6 +5516,181 @@
           "joinedAt"
         ]
       },
+      "BoardSignals": {
+        "type": "object",
+        "properties": {
+          "calculado_en": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the factory computed the stored signals; null if it never sent any for this project."
+          },
+          "columnas": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/BoardSignalColumn"
+            },
+            "description": "By column slug, the columns with a mean."
+          },
+          "tareas": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/BoardSignalTask"
+            },
+            "description": "By task id, the open tasks with an alarm, a wait or a worker."
+          }
+        },
+        "required": [
+          "calculado_en",
+          "columnas",
+          "tareas"
+        ]
+      },
+      "BoardSignalColumn": {
+        "type": "object",
+        "properties": {
+          "media_s": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Mean time, in seconds, that tasks stay in the column: the project's over the last 30 days, or the organization's if the project has fewer than 20 tasks there."
+          },
+          "tareas": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tasks behind the mean."
+          },
+          "ambito": {
+            "type": "string",
+            "enum": [
+              "proyecto",
+              "organizacion"
+            ],
+            "description": "Whether the mean is the project's or the organization's."
+          }
+        },
+        "required": [
+          "media_s",
+          "tareas",
+          "ambito"
+        ]
+      },
+      "BoardSignalTask": {
+        "type": "object",
+        "properties": {
+          "alarma": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "cuando": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "motivo": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 280
+              }
+            },
+            "required": [
+              "cuando",
+              "motivo"
+            ],
+            "description": "The task's next alarm, if any."
+          },
+          "espera_a": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 280,
+            "description": "Who or what a blocked task waits for (a person, a task, a real test or a date)."
+          },
+          "worker": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "estado": {
+                "type": "string",
+                "enum": [
+                  "activo",
+                  "caido",
+                  "terminado"
+                ],
+                "description": "activo: alive (heartbeat or activity in the last 30 min). caido: no sign of life in 30 min without having finished, or failed. terminado: asleep or retired."
+              },
+              "instancia": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 280
+              },
+              "rol": {
+                "type": "string",
+                "maxLength": 280
+              },
+              "ultima_senal": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "trabajando": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "estado",
+              "instancia",
+              "rol",
+              "ultima_senal",
+              "trabajando"
+            ],
+            "description": "The task's worker, if it has had one."
+          }
+        },
+        "required": [
+          "alarma",
+          "espera_a",
+          "worker"
+        ]
+      },
+      "PutBoardSignals": {
+        "type": "object",
+        "properties": {
+          "calculado_en": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the factory computed these signals."
+          },
+          "columnas": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/BoardSignalColumn"
+            },
+            "description": "By column slug, the columns with a mean."
+          },
+          "tareas": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/BoardSignalTask"
+            },
+            "description": "By task id, the open tasks with an alarm, a wait or a worker."
+          }
+        },
+        "required": [
+          "calculado_en",
+          "columnas",
+          "tareas"
+        ]
+      },
       "WorkspaceCommentsResponse": {
         "type": "object",
         "properties": {
@@ -26554,6 +26729,154 @@
           },
           "404": {
             "description": "Workspace or member not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/project/{projectId}/board-signals": {
+      "get": {
+        "operationId": "getProjectBoardSignals",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get project board signals",
+        "description": "What the factory last reported about the project's open tasks for the cards: the mean stay of each column, alarms, waits and workers. Empty if it never reported. The same access as listing the project's tasks.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project's board signals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardSignals"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project, or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putProjectBoardSignals",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Replace project board signals",
+        "description": "Replaces the project's board signals. Written by the factory's dispatcher on every board review (design 32, RT-05) with its API key and task:update; a person's session cannot write them. Kaneo stores them as given and never calls the factory.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutBoardSignals"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored board signals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BoardSignals"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid signals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project, missing task:update, or a session instead of an API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
             "content": {
               "application/json": {
                 "schema": {

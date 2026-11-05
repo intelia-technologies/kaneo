@@ -43,6 +43,13 @@
       "when": 1793792076379,
       "tag": "0005_task_alias",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793860160588,
+      "tag": "0006_board_signal",
+      "breakpoints": true
     }
   ]
 }

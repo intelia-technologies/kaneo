@@ -472,3 +472,31 @@ export const taskAliasTable = inteliaSchema.table(
     index("task_alias_task_id_idx").on(table.taskId, table.movedAt),
   ],
 );
+
+// Board signals (README-INTELIA.md, «Señales del tablero»): what the
+// factory's dispatcher knows about a project's open tasks and the card shows
+// (design 32 §4, RT-05): the mean stay of each column, alarms, waits and
+// workers. One row per project, replaced on every write; Kaneo never computes
+// it and never calls the factory (design 11).
+export const boardSignalTable = inteliaSchema.table("board_signal", {
+  projectId: text("project_id")
+    .primaryKey()
+    .references(() => projectTable.id, {
+      onDelete: "cascade",
+      onUpdate: "cascade",
+    }),
+  signals: jsonb("signals")
+    .$type<{
+      columnas: Record<string, unknown>;
+      tareas: Record<string, unknown>;
+    }>()
+    .notNull(),
+  calculatedAt: timestamp("calculated_at", { mode: "date" }).notNull(),
+  updatedByUserId: text("updated_by_user_id").references(() => userTable.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+  updatedAt: timestamp("updated_at", { mode: "date" })
+    .default(utcNow)
+    .notNull(),
+});

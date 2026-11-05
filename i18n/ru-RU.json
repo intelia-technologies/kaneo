@@ -3552,7 +3552,32 @@
 			"noBase_one": "No baseline to compare: {{count}} case in the last 90 days.",
 			"noBase_other": "No baseline to compare: {{count}} cases in the last 90 days.",
 			"since": "In {{column}} since {{date}}.",
-			"usual": "3 out of 4 tasks leave this column in under {{duration}} (last 90 days, {{cases}} cases)."
+			"usual": "3 out of 4 tasks leave this column in under {{duration}} (last 90 days, {{cases}} cases).",
+			"aboveMean": "Above this column's average",
+			"mean_few": "Column average: {{duration}} (this project, last 30 days, {{count}} tasks).",
+			"mean_many": "Column average: {{duration}} (this project, last 30 days, {{count}} tasks).",
+			"mean_one": "Column average: {{duration}} (this project, last 30 days, {{count}} task).",
+			"mean_other": "Column average: {{duration}} (this project, last 30 days, {{count}} tasks).",
+			"meanOrganization_few": "Column average: {{duration}} (whole organization, last 30 days, {{count}} tasks: little history in this project).",
+			"meanOrganization_many": "Column average: {{duration}} (whole organization, last 30 days, {{count}} tasks: little history in this project).",
+			"meanOrganization_one": "Column average: {{duration}} (whole organization, last 30 days, {{count}} task: little history in this project).",
+			"meanOrganization_other": "Column average: {{duration}} (whole organization, last 30 days, {{count}} tasks: little history in this project)."
+		},
+		"boardSignals": {
+			"alarm": "Alarm on {{date}}",
+			"waitsFor": "Waiting for {{who}}",
+			"worker": {
+				"activo": "Worker alive",
+				"caido": "Worker down: no sign of life in 30 min",
+				"lastSignal": "Last sign of life on {{date}}.",
+				"short": {
+					"activo": "Alive",
+					"caido": "Down",
+					"terminado": "Finished"
+				},
+				"terminado": "Worker finished",
+				"working": "Working now."
+			}
 		}
 	},
 	"invitations": {
