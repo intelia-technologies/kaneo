@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import useGetActivitiesByTaskId from "@/hooks/queries/activity/use-get-activities-by-task-id";
 import useGetProject from "@/hooks/queries/project/use-get-project";
 import useGetTask from "@/hooks/queries/task/use-get-task";
+import { useMovedTaskRedirect } from "@/intelia/aliases/use-moved-task-redirect";
 
 export const Route = createFileRoute(
   "/_layout/_authenticated/dashboard/workspace/$workspaceId/project/$projectId/task/$taskId_",
@@ -39,6 +40,13 @@ function RouteComponent() {
     workspaceId,
   });
   const { isLoading: isActivitiesLoading } = useGetActivitiesByTaskId(taskId);
+  // Intelia: an old link of a task moved to another project goes to its project now.
+  const isMovedTask = useMovedTaskRedirect({
+    workspaceId,
+    projectId,
+    taskId,
+    taskProjectId: task?.projectId,
+  });
   const [isShikiReady, setIsShikiReady] = useState(false);
   const [deleteHandle] = useState(() => AlertDialogCreateHandle());
   useEffect(() => {
@@ -64,7 +72,11 @@ function RouteComponent() {
   }, []);
 
   const isLoading =
-    isTaskLoading || isProjectLoading || isActivitiesLoading || !isShikiReady;
+    isTaskLoading ||
+    isProjectLoading ||
+    isActivitiesLoading ||
+    !isShikiReady ||
+    isMovedTask;
 
   const handleDeleted = () => {
     navigate({
