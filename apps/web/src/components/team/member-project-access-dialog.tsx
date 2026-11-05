@@ -16,6 +16,7 @@ import {
   DialogPopup,
   DialogTitle,
 } from "../ui/dialog";
+import { isProjectAccessComplete } from "./project-access/is-project-access-complete";
 import { type ProjectAccessValue } from "./project-access/project-access-value";
 import { toProjectAccessRequest } from "./project-access/to-project-access-request";
 import ProjectAccessFields from "./project-access-fields";
@@ -37,6 +38,7 @@ function MemberProjectAccessDialog({
 }: Props) {
   const { t } = useTranslation();
   const [value, setValue] = useState(access);
+  const [showError, setShowError] = useState(false);
   const [wasOpen, setWasOpen] = useState(open);
   const { data: projects, isLoading: isLoadingProjects } = useGetProjects({
     workspaceId,
@@ -51,6 +53,7 @@ function MemberProjectAccessDialog({
     setWasOpen(open);
     if (open) {
       setValue(access);
+      setShowError(false);
     }
   }
 
@@ -60,6 +63,10 @@ function MemberProjectAccessDialog({
       value,
       (projects ?? []).map((project) => project.id),
     );
+    if (!isProjectAccessComplete(request)) {
+      setShowError(true);
+      return;
+    }
     try {
       await mutateAsync({ workspaceId, userId: member.userId, ...request });
       toast.success(t("team:projectAccess.updateSuccess"), {
@@ -90,10 +97,16 @@ function MemberProjectAccessDialog({
           <ProjectAccessFields
             allowAll={!managerLimited}
             value={value}
-            onChange={setValue}
+            onChange={(next) => {
+              setValue(next);
+              setShowError(false);
+            }}
             projects={projects}
             isLoadingProjects={isLoadingProjects}
             disabled={isPending || myAccess.isPending}
+            error={
+              showError ? t("team:projectAccess.selectAtLeastOne") : undefined
+            }
           />
         </DialogPanel>
         <DialogFooter>
