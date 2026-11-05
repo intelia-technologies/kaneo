@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { getWsUrl } from "@/hooks/use-project-websocket";
 import { authClient } from "@/lib/auth-client";
 import { projectRelationsKey } from "@/intelia/dependencies/api";
@@ -10,7 +10,7 @@ const denied = new Map<string, number>();
 // The project's socket does not receive changes from another project's tasks.
 export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
   const queryClient = useQueryClient();
-  const [connected, setConnected] = useState<Map<string, object>>(
+  const [connected, setConnected] = useState<Map<string, string>>(
     () => new Map(),
   );
   const { data: session } = authClient.useSession();
@@ -25,16 +25,14 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
       ),
     ].sort(),
   );
-  const generation = useMemo(
-    () => ({}),
-    [
-      projectId,
-      initiativeId,
-      projects,
-      session?.user?.id,
-      session?.session?.id,
-    ],
-  );
+  // Identifica la suscripción actual: un «conectado» de una suscripción anterior no cuenta.
+  const generation = JSON.stringify([
+    projectId,
+    initiativeId,
+    projects,
+    session?.user?.id,
+    session?.session?.id,
+  ]);
   useEffect(() => {
     if (!projectId || !initiativeId || !session?.user?.id) return;
     let disposed = false;

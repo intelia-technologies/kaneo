@@ -202,10 +202,10 @@ export function PlanTab({
         <h3 className="font-semibold">{t(`${key}.milestones`)}</h3>
         {initiative.hitos_externos?.length ? (
           <ul>
-            {initiative.hitos_externos.map((milestone, index) => {
+            {initiative.hitos_externos.map((milestone) => {
               const href = getExternalWebUrl(milestone.enlace);
               return (
-                <li key={`${milestone.enlace}-${index}`}>
+                <li key={`${milestone.nombre}-${milestone.enlace}`}>
                   {href ? (
                     <a
                       className="underline"
