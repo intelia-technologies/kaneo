@@ -6,7 +6,7 @@ import {
 import { AUTOMATION_LEVELS } from "../../schema";
 import { assignee, blockReason } from "../response";
 import { DEFAULT_HOURS, ESTIMATE_SOURCES, MIN_CASES } from "./estimate";
-import { PLAN_MARKS } from "./mark";
+import { PLAN_MARKS, STALL_REASONS } from "./mark";
 
 const hours = (description: string) =>
   z.number().nonnegative().openapi({ description });
@@ -64,7 +64,11 @@ const planTaskSchema = z
     critical: z.boolean(),
     mark: z.enum(PLAN_MARKS).nullable().openapi({
       description:
-        "How a pending task stands: blocked (Blocked, with its reason); waiting (open blockers ahead); advancing (In progress or In review, assigned, last status change within the column's p90 of design 23); stalled (anything else). Null once Done or Cancelled.",
+        "How a pending task stands (annex of design 19 §3.2). blocked: in Blocked, with its reason. waiting: readable blockers still pending ahead. advancing: in In progress or In review, last status change within the column's p90 (design 23), and someone on it: for an agent, a worker the dispatcher reports `activo` and `trabajando` in board signals of at most 10 minutes (RT-05); for a person, being assigned. stalled: anything else, with `stallReason`. Null once Done or Cancelled.",
+    }),
+    stallReason: z.enum(STALL_REASONS).nullable().openapi({
+      description:
+        "Probable reason of a stalled task, the first that applies: unassigned; no_worker (an agent without a worker in fresh board signals); worker_down, worker_finished or worker_idle (its worker is `caido`, `terminado`, or alive but not working); over_p90 (no status change for longer than the column's p90); not_started (ready, someone on it, not yet in In progress). Null unless stalled.",
     }),
     ...blockReason,
     dependsOn: z.array(z.string()).openapi({

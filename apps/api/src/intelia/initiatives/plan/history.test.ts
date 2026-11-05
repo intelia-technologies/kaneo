@@ -27,6 +27,7 @@ describe("taskHistory", () => {
       actualStart: at(1),
       actualEnd: at(11),
       workedHours: 2 + 1 + 1 + 1,
+      statusSince: at(11),
     });
   });
 
@@ -40,12 +41,50 @@ describe("taskHistory", () => {
       actualStart: at(2),
       actualEnd: null,
       workedHours: 3,
+      statusSince: at(2),
     });
   });
 
-  it("starts a task created straight into In progress at its creation", () => {
-    expect(
-      taskHistory({ status: "in-progress", createdAt: at(1) }, [], at(4)),
-    ).toEqual({ actualStart: at(1), actualEnd: null, workedHours: 3 });
+  describe("a task created straight into In progress starts at its creation", () => {
+    it("while it stays there", () => {
+      expect(
+        taskHistory({ status: "in-progress", createdAt: at(1) }, [], at(4)),
+      ).toMatchObject({ actualStart: at(1), workedHours: 3 });
+    });
+
+    it("then Done", () => {
+      expect(
+        taskHistory(
+          { status: "done", createdAt: at(1) },
+          [change(4, "in-progress", "done")],
+          at(9),
+        ),
+      ).toEqual({
+        actualStart: at(1),
+        actualEnd: at(4),
+        workedHours: 3,
+        statusSince: at(4),
+      });
+    });
+
+    it("then Blocked", () => {
+      expect(
+        taskHistory(
+          { status: "blocked", createdAt: at(1) },
+          [change(3, "in-progress", "blocked")],
+          at(9),
+        ),
+      ).toMatchObject({ actualStart: at(1), actualEnd: null, workedHours: 2 });
+    });
+
+    it("then In review, counting both stays", () => {
+      expect(
+        taskHistory(
+          { status: "in-review", createdAt: at(1) },
+          [change(3, "in-progress", "in-review")],
+          at(6),
+        ),
+      ).toMatchObject({ actualStart: at(1), workedHours: 5 });
+    });
   });
 });

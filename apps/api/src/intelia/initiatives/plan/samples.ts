@@ -15,7 +15,10 @@ const cache = new Map<string, CachedSamples>();
 
 // The real duration of a Done task: its stays in In progress and In review,
 // from its activity log (Blocked and the rest do not count). A stay runs from
-// one status change (or the task's creation) to the next, as in design 23.
+// one column change (or the task's creation) to the next, as in design 23;
+// a move to another project (`moved`) changes the column too. The first stay
+// is in the column the first change leaves, so a task created straight into
+// In progress counts from its creation.
 // Tasks that reached Done without a stay there say nothing about how long
 // work takes and are left out. Every project of the workspace: the caller
 // keeps only the ones the reader can read.
@@ -43,7 +46,8 @@ async function computeSamples(workspaceId: string): Promise<Sample[]> {
       join public.project p on p.id = t.project_id
       where p.workspace_id = ${workspaceId}
         and t.status = 'done'
-        and a.type = 'status_changed'
+        and a.type in ('status_changed', 'moved')
+        and a.event_data ? 'newStatus'
     ),
     finished as (
       select

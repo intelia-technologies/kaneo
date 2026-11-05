@@ -3,6 +3,7 @@ import db, { schema } from "../../apps/api/src/database";
 import { createApp } from "../../apps/api/src/index";
 import {
   type AutomationLevel,
+  boardSignalTable,
   initiativeTable,
   taskAutomationTable,
   taskInitiativeTable,
@@ -76,21 +77,55 @@ function seedChange(
   oldStatus: string,
   newStatus: string,
   createdAt: Date,
+  type = "status_changed",
 ) {
   return db.insert(schema.activityTable).values({
     taskId,
-    type: "status_changed",
-    eventData: { oldStatus, newStatus },
+    type,
+    eventData:
+      type === "moved"
+        ? { fromProjectId: "old", toProjectId: "new", oldStatus, newStatus }
+        : { oldStatus, newStatus },
     createdAt,
   });
 }
 
+type Worker = { estado: "activo" | "caido" | "terminado"; trabajando: boolean };
+
+// What the dispatcher writes every 2 minutes (RT-05).
+function seedWorkers(
+  projectId: string,
+  workers: Record<string, Worker>,
+  calculatedAt = ago(60_000),
+) {
+  const tareas = Object.fromEntries(
+    Object.entries(workers).map(([taskId, worker]) => [
+      taskId,
+      {
+        alarma: null,
+        espera_a: null,
+        worker: {
+          ...worker,
+          instancia: "coder-1234",
+          rol: "coder",
+          ultima_senal: calculatedAt.toISOString(),
+        },
+      },
+    ]),
+  );
+  return db
+    .insert(boardSignalTable)
+    .values({ projectId, signals: { columnas: {}, tareas }, calculatedAt });
+}
+
 // A task finished 10 days ago after `hours` in In progress, plus one hour
-// Blocked in between that must not count.
+// Blocked in between that must not count. With `moved`, its last change is a
+// move from another project straight into Done.
 async function seedFinished(
   projectId: string,
   hours: number,
   fields: { level: AutomationLevel; userId: string },
+  last = "status_changed",
 ) {
   const createdAt = ago(20 * DAY);
   const task = await seedTask(projectId, {
@@ -113,6 +148,7 @@ async function seedFinished(
     "in-progress",
     "done",
     new Date(start + 2 * half + HOUR),
+    last,
   );
   return task;
 }
@@ -122,9 +158,10 @@ async function seedMany(
   projectId: string,
   hours: (i: number) => number,
   fields: { level: AutomationLevel; userId: string },
+  last = "status_changed",
 ) {
   for (let i = 0; i < count; i++) {
-    await seedFinished(projectId, hours(i), fields);
+    await seedFinished(projectId, hours(i), fields, last);
   }
 }
 
@@ -317,6 +354,9 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
       [d.id]: "3",
       [doing.id]: "4",
     });
+    await seedWorkers(project.id, {
+      [doing.id]: { estado: "activo", trabajando: true },
+    });
 
     const { body, task } = await plan(app, initiative.id);
     const computedAt = new Date(body.computedAt).getTime();
@@ -337,6 +377,7 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
     expect(task(a.id)).toMatchObject({
       critical: false,
       mark: "stalled",
+      stallReason: "unassigned",
       plain: "Primero.",
       dependsOn: [],
     });
@@ -344,6 +385,7 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
     // 4 h estimated, about 3 h worked: about 1 h left, at least 1.
     expect(task(doing.id)).toMatchObject({
       mark: "advancing",
+      stallReason: null,
       workedHours: 3,
       remainingHours: 1,
       estimate: { hours: 4, source: "manual" },
@@ -357,6 +399,101 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
       mark: null,
       critical: false,
     });
+  });
+
+  it("advances an agent's task only with a fresh worker that is working, and says why the others are stalled", async () => {
+    const { app, coder, project, initiative } = await setup();
+    const inProgress = async () => {
+      const task = await seedTask(project.id, {
+        initiativeId: initiative.id,
+        status: "in-progress",
+        userId: coder.id,
+        createdAt: ago(2 * HOUR),
+      });
+      await seedChange(task.id, "to-do", "in-progress", ago(HOUR));
+      return task;
+    };
+    const live = await inProgress();
+    const idle = await inProgress();
+    const down = await inProgress();
+    const none = await inProgress();
+    await seedWorkers(project.id, {
+      [live.id]: { estado: "activo", trabajando: true },
+      [idle.id]: { estado: "activo", trabajando: false },
+      [down.id]: { estado: "caido", trabajando: false },
+    });
+
+    const { task } = await plan(app, initiative.id);
+    expect(task(live.id)).toMatchObject({ mark: "advancing" });
+    expect(task(idle.id)).toMatchObject({ stallReason: "worker_idle" });
+    expect(task(down.id)).toMatchObject({ stallReason: "worker_down" });
+    expect(task(none.id)).toMatchObject({ stallReason: "no_worker" });
+
+    // What the dispatcher said 20 minutes ago no longer says anyone works.
+    await db.update(boardSignalTable).set({ calculatedAt: ago(20 * 60_000) });
+    const stale = await plan(app, initiative.id);
+    expect(stale.task(live.id)).toMatchObject({
+      mark: "stalled",
+      stallReason: "no_worker",
+    });
+  });
+
+  it("follows moves between projects that change the column, in the dates and in the estimates", async () => {
+    const { app, coder, project, initiative } = await setup();
+    const alike = { level: "completa" as const, userId: coder.id };
+    // Ten tasks that reached Done by a move: their stays count as cases.
+    await seedMany(10, project.id, () => 3, alike, "moved");
+    const pending = await seedTask(project.id, {
+      ...alike,
+      initiativeId: initiative.id,
+    });
+    const startedAt = ago(6 * HOUR);
+    const movedAt = ago(2 * HOUR);
+    const moved = await seedTask(project.id, {
+      initiativeId: initiative.id,
+      status: "done",
+      createdAt: ago(DAY),
+    });
+    await seedChange(moved.id, "to-do", "in-progress", startedAt);
+    await seedChange(moved.id, "in-progress", "done", movedAt, "moved");
+
+    const { task } = await plan(app, initiative.id);
+    expect(task(pending.id).estimate).toEqual({
+      hours: 3,
+      source: "project",
+      cases: 10,
+    });
+    expect(task(moved.id)).toMatchObject({
+      actualStart: startedAt.toISOString(),
+      actualEnd: movedAt.toISOString(),
+      workedHours: 4,
+    });
+  });
+
+  it("gives the reason of a readable Blocked dependency in another project", async () => {
+    const { app, other, project, initiative } = await setup();
+    const external = await seedTask(other.id, { status: "blocked" });
+    const own = await seedTask(project.id, { initiativeId: initiative.id });
+    await blocks(external.id, own.id);
+    const [field] = await db
+      .insert(schema.customFieldDefinitionTable)
+      .values({ projectId: other.id, name: "motivo_bloqueo", type: "dropdown" })
+      .returning();
+    await db.insert(schema.customFieldValueTable).values({
+      taskId: external.id,
+      fieldId: field!.id,
+      value: "dependencias",
+    });
+
+    const { body, task } = await plan(app, initiative.id);
+    expect(task(external.id)).toMatchObject({
+      external: true,
+      mark: "blocked",
+      blockReason: "dependencias",
+      critical: true,
+    });
+    expect(task(own.id)).toMatchObject({ mark: "waiting" });
+    expect(body.criticalPath.summary).toMatchObject({ blocked: 1, waiting: 1 });
   });
 
   it("answers 404 for an unknown initiative", async () => {
@@ -405,6 +542,7 @@ describe("a project the caller cannot read", () => {
       estimate: { hours: 4, source: "default", cases: 0 },
       dependsOn: [],
       mark: "stalled",
+      stallReason: "no_worker",
     });
     expect(limited.body.criticalPath).toMatchObject({
       taskIds: [own.id],

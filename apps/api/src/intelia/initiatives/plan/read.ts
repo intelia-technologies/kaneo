@@ -8,14 +8,14 @@ import {
   taskTable,
   userTable,
 } from "../../../database/schema";
-import { taskAutomationTable } from "../../schema";
+import { boardSignalTable, taskAutomationTable } from "../../schema";
 import { columnStats } from "../../status-age/read";
 import { type InitiativeReader, readableProject } from "../access";
-import { getInitiativeDetail } from "../read";
+import { blockReasons, getInitiativeDetail } from "../read";
 import { estimateHours, parseManualHours, remainingHours } from "./estimate";
 import { executorKind } from "./executor";
-import { type StatusChange, taskHistory } from "./history";
-import { type PlanMark, planMark } from "./mark";
+import { COLUMN_CHANGE_TYPES, type StatusChange, taskHistory } from "./history";
+import { planMark, type WorkerSignal } from "./mark";
 import { plainParagraph } from "./plain";
 import { workspaceSamples } from "./samples";
 import { buildSchedule, type ScheduleNode } from "./schedule";
@@ -27,6 +27,36 @@ const isPending = (status: string) =>
   status !== "done" && status !== "cancelled" && status !== "canceled";
 
 const round = (hours: number) => Math.round(hours * 10) / 10;
+
+// What the dispatcher said of a worker is current for 10 minutes, as on the
+// card (RT-05): it rewrites the board signals every 2.
+const WORKER_STALE_MS = 10 * 60 * 1000;
+
+// Workers of `taskIds` in the fresh board signals of `projectIds`. Only the
+// entries of those tasks, already readable, are kept.
+async function freshWorkers(
+  projectIds: string[],
+  taskIds: Set<string>,
+  now: Date,
+) {
+  const workers = new Map<string, WorkerSignal>();
+  if (projectIds.length === 0) return workers;
+  const rows = await db
+    .select({
+      signals: boardSignalTable.signals,
+      calculatedAt: boardSignalTable.calculatedAt,
+    })
+    .from(boardSignalTable)
+    .where(inArray(boardSignalTable.projectId, projectIds));
+  for (const row of rows) {
+    if (now.getTime() - row.calculatedAt.getTime() > WORKER_STALE_MS) continue;
+    for (const [taskId, signal] of Object.entries(row.signals.tareas)) {
+      const worker = (signal as { worker?: WorkerSignal | null }).worker;
+      if (taskIds.has(taskId) && worker) workers.set(taskId, worker);
+    }
+  }
+  return workers;
+}
 
 // What the plan needs of each task beyond the initiative detail, for tasks
 // the detail already filtered as readable.
@@ -75,7 +105,7 @@ async function taskFacts(ids: string[]) {
       .where(
         and(
           inArray(activityTable.taskId, ids),
-          eq(activityTable.type, "status_changed"),
+          inArray(activityTable.type, COLUMN_CHANGE_TYPES),
         ),
       )
       .orderBy(asc(activityTable.createdAt), asc(activityTable.id)),
@@ -101,9 +131,6 @@ export async function getInitiativePlan(
       ...task,
       external: true,
       assignee: null,
-      statusSince: null,
-      blockReason: null,
-      blockReasonDetail: null,
     })),
   ];
   const ids = tasks.map((task) => task.id);
@@ -124,6 +151,7 @@ export async function getInitiativePlan(
   const changesById = new Map<string, StatusChange[]>();
   for (const change of facts.changes) {
     const data = (change.eventData ?? {}) as Record<string, unknown>;
+    if (typeof data.newStatus !== "string") continue;
     const list = changesById.get(change.taskId) ?? [];
     list.push({
       at: change.at,
@@ -156,13 +184,17 @@ export async function getInitiativePlan(
         .map((task) => factsById.get(task.id)!.projectId),
     ),
   ];
-  const stats = new Map(
-    await Promise.all(
+  const [statsEntries, workers, reasons] = await Promise.all([
+    Promise.all(
       pendingProjects.map(
         async (projectId) => [projectId, await columnStats(projectId)] as const,
       ),
     ),
-  );
+    freshWorkers(pendingProjects, new Set(ids), now),
+    // The detail has no reason for the external Blocked tasks: read them all.
+    blockReasons(tasks),
+  ]);
+  const stats = new Map(statsEntries);
 
   const planned = tasks.map((task) => {
     const fact = factsById.get(task.id)!;
@@ -185,26 +217,28 @@ export async function getInitiativePlan(
     const openBlockers = (blockersOf.get(task.id) ?? []).filter((id) =>
       isPending(status.get(id)!),
     ).length;
-    const mark: PlanMark | null = pending
+    const { mark, stallReason } = pending
       ? planMark({
           status: task.status,
-          assigned: fact.email !== null,
-          statusSince:
-            task.statusSince ??
-            changesById.get(task.id)?.at(-1)?.at ??
-            fact.createdAt,
+          executor: executorKind(fact.email),
+          worker: workers.get(task.id) ?? null,
+          statusSince: history.statusSince,
           p90Seconds:
             stats.get(fact.projectId)?.columnas[task.status]?.p90_s ?? null,
           openBlockers,
           now,
         })
-      : null;
+      : { mark: null, stallReason: null };
+    const reason = reasons.get(task.id);
     return {
       task,
       fact,
       history,
       estimate,
       mark,
+      stallReason,
+      blockReason: reason?.blockReason ?? null,
+      blockReasonDetail: reason?.blockReasonDetail ?? null,
       remaining: pending
         ? remainingHours(estimate.hours, history.workedHours, started)
         : 0,
@@ -263,8 +297,9 @@ export async function getInitiativePlan(
       plannedEnd: schedule.dates.get(p.task.id)!.plannedEnd,
       critical: critical.has(p.task.id),
       mark: p.mark,
-      blockReason: p.task.blockReason,
-      blockReasonDetail: p.task.blockReasonDetail,
+      stallReason: p.stallReason,
+      blockReason: p.blockReason,
+      blockReasonDetail: p.blockReasonDetail,
       dependsOn: blockersOf.get(p.task.id) ?? [],
     })),
   };

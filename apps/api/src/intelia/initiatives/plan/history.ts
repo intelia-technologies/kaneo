@@ -1,5 +1,12 @@
 const WORKING = new Set(["in-progress", "in-review"]);
 
+/**
+ * A change of column from the activity log: `status_changed`, or `moved` to
+ * another project when the move changes the column. Both carry `oldStatus`
+ * and `newStatus`.
+ */
+export const COLUMN_CHANGE_TYPES = ["status_changed", "moved"];
+
 export type StatusChange = {
   at: Date;
   oldStatus: string | null;
@@ -7,17 +14,20 @@ export type StatusChange = {
 };
 
 /**
- * Real dates and work of a task from its status changes, oldest first
- * (annex of design 19 §2 and §3.3): it starts on its first move to In
- * progress or In review, ends on its last move to Done if it is Done, and has
- * worked the time it spent in those two columns, the open stay included.
+ * Real dates and work of a task from its column changes, oldest first
+ * (annex of design 19 §2 and §3.3). The task was created in the column its
+ * first change leaves (or, without changes, the one it is in). It starts when
+ * it first is in In progress or In review (its creation, if created there),
+ * ends on its last move to Done if it is Done, and has worked the time it
+ * spent in those two columns, the open stay included.
  */
 export function taskHistory(
   task: { status: string; createdAt: Date },
   changes: StatusChange[],
   now: Date,
 ) {
-  let actualStart: Date | null = null;
+  const initial = changes[0]?.oldStatus ?? task.status;
+  let actualStart: Date | null = WORKING.has(initial) ? task.createdAt : null;
   let actualEnd: Date | null = null;
   let workedMs = 0;
   let enteredAt = task.createdAt;
@@ -33,12 +43,12 @@ export function taskHistory(
   }
   if (WORKING.has(task.status)) {
     workedMs += Math.max(now.getTime() - enteredAt.getTime(), 0);
-    // Created straight into the column.
-    actualStart ??= task.createdAt;
   }
   return {
     actualStart,
     actualEnd: task.status === "done" ? actualEnd : null,
     workedHours: workedMs / 3_600_000,
+    /** When it entered its current column: its last change, or creation. */
+    statusSince: changes.at(-1)?.at ?? task.createdAt,
   };
 }
