@@ -119,6 +119,8 @@ const mockInitiative: InitiativeDetail = {
   id: "init-1",
   projectId: "proj-1",
   name: "Importación de pedidos",
+  objetivo: null,
+  hitos_externos: null,
   designUrl: "https://example.com/design",
   approvedBy: "Persona A",
   approvedAt: "2026-10-12T00:00:00.000Z",

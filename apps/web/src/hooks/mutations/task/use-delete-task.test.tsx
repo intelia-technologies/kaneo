@@ -93,6 +93,7 @@ describe("useDeleteTask", () => {
     const project = makeProject();
     const deletedTask = {
       ...makeTask("delete-me"),
+      estimacion_horas: null,
       priority: "no-priority",
     };
     queryClient.setQueryData(["tasks", project.id], project);
