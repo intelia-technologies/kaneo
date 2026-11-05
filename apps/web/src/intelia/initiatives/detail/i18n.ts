@@ -66,6 +66,8 @@ const en = {
           "Estimated dates do not account for shared machine capacity.",
         partial: "Partial path: a dependency is not readable",
         cycle: "Dependency cycle: no critical path or planned dates",
+        externalDisconnected:
+          "External project connection unavailable; the plan is hidden until access can be verified.",
         empty: "No tasks in this plan",
         gantt: "Timeline",
         external: "external",
@@ -195,6 +197,8 @@ const es = {
           "Las fechas estimadas no reparten capacidad entre máquinas.",
         partial: "Camino parcial: alguna dependencia no es legible",
         cycle: "Ciclo de dependencias: sin camino crítico ni fechas previstas",
+        externalDisconnected:
+          "Sin conexión con un proyecto externo; el plan se oculta hasta poder comprobar el acceso.",
         empty: "No hay tareas en este plan",
         gantt: "Cronograma",
         external: "externa",

@@ -43,7 +43,7 @@ export function InitiativeTree({
     isError: isPlanError,
     refetch: refetchPlan,
   } = useInitiativePlan(projectId, initiativeId);
-  useExternalPlanRealtime(isPlanError ? undefined : plan);
+  const disconnected = useExternalPlanRealtime(isPlanError ? undefined : plan);
   const model = useMemo(() => {
     const critical = new Map(
       (isPlanError ? [] : (plan?.tasks ?? []))
@@ -139,16 +139,22 @@ export function InitiativeTree({
         </div>
       )}
 
-      <div className="relative min-h-0 w-full flex-1">
-        <DependenciesView
-          model={model}
-          showLoose={showLoose}
-          onToggleShowLoose={() => setShowLoose(true)}
-          isLoading={isLoading}
-          isError={isError}
-          onRetry={refetch}
-        />
-      </div>
+      {disconnected ? (
+        <p role="alert" className="px-4 py-2">
+          {t("intelia:initiatives.detail.plan.externalDisconnected")}
+        </p>
+      ) : plan && !isPlanError ? (
+        <div className="relative min-h-0 w-full flex-1">
+          <DependenciesView
+            model={model}
+            showLoose={showLoose}
+            onToggleShowLoose={() => setShowLoose(true)}
+            isLoading={isLoading}
+            isError={isError}
+            onRetry={refetch}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

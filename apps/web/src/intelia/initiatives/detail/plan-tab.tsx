@@ -14,7 +14,7 @@ export function PlanTab({
   initiative: InitiativeDetail;
   columns?: { slug: string; color: string | null }[];
 }) {
-  useExternalPlanRealtime(plan);
+  const disconnected = useExternalPlanRealtime(plan);
   const { t } = useTranslation();
   const key = "intelia:initiatives.detail.plan";
   const date = (value: string | null) =>
@@ -65,6 +65,8 @@ export function PlanTab({
     );
   };
   const summary = plan.criticalPath.summary;
+  if (disconnected)
+    return <p role="alert">{t(`${key}.externalDisconnected`)}</p>;
   return (
     <section className="space-y-6">
       <div>
@@ -133,7 +135,7 @@ export function PlanTab({
                     task.actualEnd ??
                       (task.actualStart && task.mark ? plan.computedAt : null),
                     "actual",
-                    task.status,
+                    task.projectId === plan.projectId ? task.status : "",
                   )}
                   {!task.actualEnd &&
                     task.plannedEnd &&
@@ -151,7 +153,7 @@ export function PlanTab({
                       ).toISOString(),
                       task.plannedEnd,
                       "planned",
-                      task.status,
+                      task.projectId === plan.projectId ? task.status : "",
                     )}
                 </div>
               </div>

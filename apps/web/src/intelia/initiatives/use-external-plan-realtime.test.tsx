@@ -80,6 +80,12 @@ describe("external plan realtime", () => {
       client.setQueryData(key, { title: "fresh" });
     act(() => {
       Socket.instances[0].onclose?.({ code: 1006, reason: "" });
+    });
+    for (const key of [planKey, detailKey, relationsKey]) {
+      expect(client.getQueryData(key)).toBeUndefined();
+      client.setQueryData(key, { title: "fresh" });
+    }
+    act(() => {
       vi.advanceTimersByTime(1_000);
       Socket.instances[1].onopen?.();
     });
@@ -102,6 +108,31 @@ describe("external plan realtime", () => {
     for (const key of [planKey, detailKey, relationsKey])
       expect(client.getQueryData(key)).toBeUndefined();
     expect(Socket.instances).toHaveLength(1);
+    unmount();
+  });
+  it("hides the plan during a failed connection and removes cached data on abnormal close", async () => {
+    const { result, unmount } = renderHook(
+      () => useExternalPlanRealtime(plan),
+      { wrapper },
+    );
+    expect(result.current).toBe(true);
+    await act(async () => {
+      Socket.instances[0].onopen?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current).toBe(false);
+    act(() => {
+      Socket.instances[0].onclose?.({ code: 1006, reason: "" });
+    });
+    expect(result.current).toBe(true);
+    for (const key of [planKey, detailKey, relationsKey])
+      expect(client.getQueryData(key)).toBeUndefined();
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+      Socket.instances[1].onclose?.({ code: 1006, reason: "" });
+    });
+    expect(result.current).toBe(true);
     unmount();
   });
 });

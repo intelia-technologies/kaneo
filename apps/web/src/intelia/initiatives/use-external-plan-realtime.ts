@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { getWsUrl } from "@/hooks/use-project-websocket";
 import { authClient } from "@/lib/auth-client";
 import { projectRelationsKey } from "@/intelia/dependencies/api";
@@ -8,6 +8,7 @@ import { projectInitiativesRootKey, type InitiativePlan } from "./api";
 // The project's socket does not receive changes from another project's tasks.
 export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
   const queryClient = useQueryClient();
+  const [connected, setConnected] = useState<Set<string>>(() => new Set());
   const { data: session } = authClient.useSession();
   const projectId = plan?.projectId;
   const initiativeId = plan?.initiativeId;
@@ -20,19 +21,29 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
       ),
     ].sort(),
   );
+  const context = JSON.stringify([
+    projectId,
+    initiativeId,
+    projects,
+    session?.user?.id,
+    session?.session?.id,
+  ]);
   useEffect(() => {
     if (!projectId || !initiativeId || !session?.user?.id) return;
     let disposed = false;
     let refresh: ReturnType<typeof setTimeout> | undefined;
     const cleanups: (() => void)[] = [];
-    const invalidate = () => {
-      void queryClient.invalidateQueries({
-        queryKey: projectInitiativesRootKey(projectId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: projectRelationsKey(projectId),
-      });
-    };
+    const invalidate = () =>
+      Promise.all([
+        queryClient.invalidateQueries(
+          { queryKey: projectInitiativesRootKey(projectId) },
+          { throwOnError: true },
+        ),
+        queryClient.invalidateQueries(
+          { queryKey: projectRelationsKey(projectId) },
+          { throwOnError: true },
+        ),
+      ]);
     for (const externalProject of JSON.parse(projects) as string[]) {
       let socket: WebSocket;
       let retry: ReturnType<typeof setTimeout> | undefined;
@@ -41,13 +52,25 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
       const connect = () => {
         if (disposed) return;
         socket = new WebSocket(getWsUrl(externalProject));
+        const current = socket;
         socket.onopen = () => {
           if (disposed) return;
-          invalidate();
+          void invalidate()
+            .then(() => {
+              if (
+                !disposed &&
+                current === socket &&
+                current.readyState === WebSocket.OPEN
+              )
+                setConnected((previous) =>
+                  new Set(previous).add(`${context}:${externalProject}`),
+                );
+            })
+            .catch(() => {});
           attempts = 0;
           ping = setInterval(() => {
-            if (socket.readyState === WebSocket.OPEN)
-              socket.send(JSON.stringify({ type: "ping" }));
+            if (current.readyState === WebSocket.OPEN)
+              current.send(JSON.stringify({ type: "ping" }));
           }, 30_000);
         };
         socket.onmessage = (event) => {
@@ -67,7 +90,7 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
             if (!refresh)
               refresh = setTimeout(() => {
                 refresh = undefined;
-                invalidate();
+                void invalidate().catch(() => {});
               }, 5_000);
           } catch {
             /* Ignore malformed socket messages. */
@@ -76,19 +99,25 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
         socket.onclose = (event) => {
           clearInterval(ping);
           if (disposed) return;
-          if (event.code === 1008) {
-            if (event.reason === "Workspace access revoked")
-              queryClient.clear();
-            else {
-              void queryClient.resetQueries({
-                queryKey: projectInitiativesRootKey(projectId),
-              });
-              void queryClient.resetQueries({
-                queryKey: projectRelationsKey(projectId),
-              });
-            }
+          setConnected((previous) => {
+            const next = new Set(previous);
+            next.delete(`${context}:${externalProject}`);
+            return next;
+          });
+          if (
+            event.code === 1008 &&
+            event.reason === "Workspace access revoked"
+          ) {
+            queryClient.clear();
             return;
           }
+          void queryClient.resetQueries({
+            queryKey: projectInitiativesRootKey(projectId),
+          });
+          void queryClient.resetQueries({
+            queryKey: projectRelationsKey(projectId),
+          });
+          if (event.code === 1008) return;
           retry = setTimeout(
             connect,
             Math.min(30_000, 1_000 * 2 ** attempts++),
@@ -111,8 +140,12 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
     projectId,
     initiativeId,
     projects,
+    context,
     queryClient,
     session?.user?.id,
     session?.session?.id,
   ]);
+  return (JSON.parse(projects) as string[]).some(
+    (id) => !session?.user?.id || !connected.has(`${context}:${id}`),
+  );
 }
