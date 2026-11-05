@@ -29,7 +29,10 @@ export const taskSchema = z
     priority: z.string().openapi({ description: priorityDescription }),
     startDate: nullableResponseTimestamp,
     dueDate: nullableResponseTimestamp,
-    estimacion_horas: z.number().nullable().openapi({ description: "Estimated hours, or null when unset." }),
+    estimacion_horas: z
+      .number()
+      .nullable()
+      .openapi({ description: "Estimated hours, or null when unset." }),
     recurrence: z.union([taskRecurrenceSchema, z.null()]).optional(),
     createdAt: responseTimestamp,
     customFields: z

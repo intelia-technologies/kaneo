@@ -615,16 +615,20 @@ const updateTaskEstimationRoute = createRoute({
   ] as const,
   request: {
     params: taskParam,
-    body: { required: true, content: { "application/json": { schema: updateEstimationBody } } },
+    body: {
+      required: true,
+      content: { "application/json": { schema: updateEstimationBody } },
+    },
   },
   responses: {
     200: jsonResponse("The updated task", taskSchema),
     400: errorResponse("Invalid estimate"),
-    403: errorResponse("No access to the project, or missing task:update permission"),
+    403: errorResponse(
+      "No access to the project, or missing task:update permission",
+    ),
     404: errorResponse("Task not found"),
   },
 });
-
 
 const updateTaskAssigneeRoute = createRoute({
   method: "put",
@@ -1181,8 +1185,11 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
   .openapi(updateTaskEstimationRoute, async (c) => {
     const { id } = c.req.valid("param");
     const { estimacion_horas } = c.req.valid("json");
-    const [updated] = await db.update(taskTable).set({ estimacion_horas })
-      .where(eq(taskTable.id, id)).returning();
+    const [updated] = await db
+      .update(taskTable)
+      .set({ estimacion_horas })
+      .where(eq(taskTable.id, id))
+      .returning();
     if (!updated) throw new HTTPException(404, { message: "Task not found" });
     await publishEvent("task.updated", {
       taskId: updated.id,

@@ -107,6 +107,13 @@ it("leaves every open task in manual with verification, logged as the migration,
     migrationsTable: INTELIA_MIGRATIONS_TABLE,
   });
 
+  // The current Drizzle task schema includes this later column even when
+  // seeding a pre-backfill database. Remove it before replaying the upgrade,
+  // so migration 0009 still adds it to the historical schema itself.
+  await pool.query(
+    'ALTER TABLE "task" ADD COLUMN "estimacion_horas" double precision',
+  );
+
   const [user] = await db
     .insert(schema.userTable)
     .values({
@@ -171,6 +178,7 @@ it("leaves every open task in manual with verification, logged as the migration,
       })),
     )
     .returning();
+  await pool.query('ALTER TABLE "task" DROP COLUMN "estimacion_horas"');
   const idOf = (projectId: string, status: string) =>
     tasks.find(
       (task) => task.projectId === projectId && task.status === status,

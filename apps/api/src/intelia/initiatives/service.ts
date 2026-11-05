@@ -174,7 +174,14 @@ async function logInitiativeChange(
 type InitiativeData = {
   name?: string;
   objetivo?: string | null;
-  hitos_externos?: { nombre: string; enlace: string; estado: "pendiente" | "hecho" | "bloqueado"; tarea?: string }[] | null;
+  hitos_externos?:
+    | {
+        nombre: string;
+        enlace: string;
+        estado: "pendiente" | "hecho" | "bloqueado";
+        tarea?: string;
+      }[]
+    | null;
   designUrl?: string | null;
   approvedBy?: string | null;
   approvedAt?: string | null;
@@ -183,7 +190,14 @@ type InitiativeData = {
 function dataValue(row: {
   name: string;
   objetivo: string | null;
-  hitos_externos: { nombre: string; enlace: string; estado: "pendiente" | "hecho" | "bloqueado"; tarea?: string }[] | null;
+  hitos_externos:
+    | {
+        nombre: string;
+        enlace: string;
+        estado: "pendiente" | "hecho" | "bloqueado";
+        tarea?: string;
+      }[]
+    | null;
   designUrl: string | null;
   approvedBy: string | null;
   approvedAt: Date | null;
@@ -253,10 +267,12 @@ export async function updateInitiative(
         const [member] = await tx
           .select({ taskId: taskInitiativeTable.taskId })
           .from(taskInitiativeTable)
-          .where(and(
-            eq(taskInitiativeTable.taskId, data.objetivo),
-            eq(taskInitiativeTable.initiativeId, initiativeId),
-          ))
+          .where(
+            and(
+              eq(taskInitiativeTable.taskId, data.objetivo),
+              eq(taskInitiativeTable.initiativeId, initiativeId),
+            ),
+          )
           .limit(1);
         if (!member) {
           throw new ApiError(400, {
@@ -269,7 +285,10 @@ export async function updateInitiative(
       const next = {
         name: data.name ?? before.name,
         objetivo: data.objetivo === undefined ? before.objetivo : data.objetivo,
-        hitos_externos: data.hitos_externos === undefined ? before.hitos_externos : data.hitos_externos,
+        hitos_externos:
+          data.hitos_externos === undefined
+            ? before.hitos_externos
+            : data.hitos_externos,
         designUrl:
           data.designUrl === undefined ? before.designUrl : data.designUrl,
         approvedBy:

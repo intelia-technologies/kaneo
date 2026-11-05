@@ -281,7 +281,12 @@ export const initiativeTable = inteliaSchema.table(
     nameKey: text("name_key").notNull(),
     objetivo: text("objetivo"),
     hitos_externos: jsonb("hitos_externos").$type<
-      { nombre: string; enlace: string; estado: "pendiente" | "hecho" | "bloqueado"; tarea?: string }[]
+      {
+        nombre: string;
+        enlace: string;
+        estado: "pendiente" | "hecho" | "bloqueado";
+        tarea?: string;
+      }[]
     >(),
     designUrl: text("design_url"),
     approvedBy: text("approved_by"),

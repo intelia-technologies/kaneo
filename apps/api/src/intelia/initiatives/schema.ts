@@ -42,12 +42,16 @@ const approvedAt = z.iso
 const objetivo = z.string().trim().min(1).nullable().openapi({
   description: "ID of a task belonging to this initiative, or null.",
 });
-const hitos_externos = z.array(z.object({
-  nombre: z.string().trim().min(1),
-  enlace: z.string().trim().min(1),
-  estado: z.enum(["pendiente", "hecho", "bloqueado"]),
-  tarea: z.string().trim().min(1).optional(),
-})).nullable();
+const hitos_externos = z
+  .array(
+    z.object({
+      nombre: z.string().trim().min(1),
+      enlace: z.string().trim().min(1),
+      estado: z.enum(["pendiente", "hecho", "bloqueado"]),
+      tarea: z.string().trim().min(1).optional(),
+    }),
+  )
+  .nullable();
 
 export const createInitiativeInput = z.object({
   name,
