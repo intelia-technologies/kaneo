@@ -487,7 +487,7 @@ export const auth = betterAuth({
               type: "string",
               input: true,
               required: false,
-              defaultValue: "all",
+              defaultValue: "selected",
             },
             projectIds: {
               type: "string[]",

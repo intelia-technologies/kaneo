@@ -137,6 +137,7 @@ test("another workspace member receives task edits in realtime", async ({
         organizationId: workspaceId,
         email,
         role: "member",
+        projectAccess: "all",
       },
     );
     await post(colleague.request, "auth/organization/accept-invitation", {

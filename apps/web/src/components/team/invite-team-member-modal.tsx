@@ -32,11 +32,9 @@ import {
 import { Input } from "../ui/input";
 import InvitationLinkField from "./invitation-link-field";
 import {
-  ALL_PROJECTS_ACCESS,
   type ProjectAccessValue,
   SELECTED_PROJECTS_ACCESS,
 } from "./project-access/project-access-value";
-import { isProjectAccessComplete } from "./project-access/is-project-access-complete";
 import { toProjectAccessRequest } from "./project-access/to-project-access-request";
 import ProjectAccessFields from "./project-access-fields";
 
@@ -70,10 +68,9 @@ function InviteTeamMemberModal({ open, onClose }: Props) {
   const [chosenAccess, setProjectAccess] = useState<ProjectAccessValue | null>(
     null,
   );
-  const projectAccess =
-    chosenAccess ??
-    (inviterLimited ? SELECTED_PROJECTS_ACCESS : ALL_PROJECTS_ACCESS);
-  const [showProjectAccessError, setShowProjectAccessError] = useState(false);
+  // Intelia fork: invitations start closed (no projects); an empty selection
+  // is allowed and access is granted later.
+  const projectAccess = chosenAccess ?? SELECTED_PROJECTS_ACCESS;
   const { data: projects, isLoading: isLoadingProjects } = useGetProjects({
     workspaceId: workspaceId ?? "",
     includeArchived: true,
@@ -103,10 +100,6 @@ function InviteTeamMemberModal({ open, onClose }: Props) {
       projectAccess,
       (projects ?? []).map((project) => project.id),
     );
-    if (!isProjectAccessComplete(access)) {
-      setShowProjectAccessError(true);
-      return;
-    }
     try {
       const invitation = await mutateAsync({
         email,
@@ -152,7 +145,6 @@ function InviteTeamMemberModal({ open, onClose }: Props) {
     setCreatedInvitation(null);
     form.reset();
     setProjectAccess(null);
-    setShowProjectAccessError(false);
   };
 
   return (
@@ -212,18 +204,10 @@ function InviteTeamMemberModal({ open, onClose }: Props) {
                 <ProjectAccessFields
                   allowAll={!inviterLimited}
                   value={projectAccess}
-                  onChange={(next) => {
-                    setProjectAccess(next);
-                    setShowProjectAccessError(false);
-                  }}
+                  onChange={setProjectAccess}
                   projects={projects}
                   isLoadingProjects={isLoadingProjects}
                   disabled={form.formState.isSubmitting || isMyAccessPending}
-                  error={
-                    showProjectAccessError
-                      ? t("team:projectAccess.selectAtLeastOne")
-                      : undefined
-                  }
                 />
               </DialogPanel>
 
