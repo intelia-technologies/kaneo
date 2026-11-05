@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import useGetProject from "@/hooks/queries/project/use-get-project";
 import { useGetTasks } from "@/hooks/queries/task/use-get-tasks";
-import { useInitiative } from "../api";
+import { useInitiative, useInitiativePlan } from "../api";
 import type { InitiativeDetailSearch, InitiativeTab } from "../search";
 import { DetailHeader } from "./detail-header";
 import "./i18n";
 import { InitiativeHistoryCollapsible } from "./initiative-history-collapsible";
+import { PlanTab } from "./plan-tab";
 import { TasksTab } from "./tasks-tab";
 import { TreeTab } from "./tree-tab";
 
@@ -61,6 +62,12 @@ export function InitiativeDetailPage({
   }, [liveProjectTasks?.columns]);
 
   const activeTab: InitiativeTab = search.tab ?? "tasks";
+  const {
+    data: plan,
+    isLoading: isPlanLoading,
+    isError: isPlanError,
+    refetch: refetchPlan,
+  } = useInitiativePlan(projectId, initiativeId, activeTab === "plan");
 
   const updateSearch = (next: Partial<InitiativeDetailSearch>) => {
     const merged: Record<string, unknown> = { ...search, ...next };
@@ -175,6 +182,9 @@ export function InitiativeDetailPage({
                 <TabsTab value="tree">
                   {t("intelia:initiatives.detail.tabs.tree")}
                 </TabsTab>
+                <TabsTab value="plan">
+                  {t("intelia:initiatives.detail.tabs.plan")}
+                </TabsTab>
               </TabsList>
 
               <TabsPanel value="tasks">
@@ -198,6 +208,32 @@ export function InitiativeDetailPage({
                   onShowCancelledChange={handleShowCancelledChange}
                   onOpenTask={handleOpenTask}
                 />
+              </TabsPanel>
+
+              <TabsPanel value="plan">
+                {isPlanLoading ? (
+                  <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+                    {t("intelia:initiatives.loading")}
+                  </div>
+                ) : isPlanError || !plan ? (
+                  <div
+                    role="alert"
+                    className="flex h-64 flex-col items-center justify-center gap-3 text-center"
+                  >
+                    <p className="text-sm text-muted-foreground">
+                      {t("intelia:initiatives.loadError")}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void refetchPlan()}
+                    >
+                      {t("intelia:initiatives.retry")}
+                    </Button>
+                  </div>
+                ) : (
+                  <PlanTab plan={plan} initiative={initiative} />
+                )}
               </TabsPanel>
             </Tabs>
           </div>

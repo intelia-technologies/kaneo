@@ -94,6 +94,12 @@ vi.mock("@/intelia/dependencies/components/initiative-tree", () => ({
 
 vi.mock("../api", () => ({
   useInitiative: (...args: unknown[]) => mocks.useInitiative(...args),
+  useInitiativePlan: () => ({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
   useInitiativeHistory: (...args: unknown[]) =>
     mocks.useInitiativeHistory(...args),
   useUpdateInitiative: (...args: unknown[]) =>

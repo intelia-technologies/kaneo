@@ -31,6 +31,7 @@ const en = {
       tabs: {
         tasks: "Tasks",
         tree: "Tree",
+        plan: "Plan",
       },
       filters: {
         searchPlaceholder: "ID, key or title…",
@@ -57,6 +58,50 @@ const en = {
       noTasksDescription: "There are no tasks assigned to this initiative yet.",
       chainPartial: "Partial chain: some dependency is not readable",
       chainCycle: "Dependency cycle: no chain",
+      plan: {
+        criticalPath: "Critical path",
+        summary:
+          "{{count}} tasks · {{advancing}} advancing · {{blocked}} blocked · {{stalled}} stalled · {{waiting}} waiting · estimated end: {{end}}",
+        estimateDisclaimer:
+          "Estimated dates do not account for shared machine capacity.",
+        partial: "Partial path: a dependency is not readable",
+        cycle: "Dependency cycle: no critical path or planned dates",
+        empty: "No tasks in this plan",
+        gantt: "Timeline",
+        external: "external",
+        critical: "critical",
+        goal: "goal",
+        legend: "Upper bar: actual · lower bar: planned",
+        task: "Task",
+        status: "Status",
+        start: "Actual start",
+        end: "Actual end",
+        estimate: "Estimate",
+        plain: "In plain language",
+        manual: "manual",
+        milestones: "External milestones",
+        noMilestones: "No external milestones",
+        milestoneStatus: {
+          pendiente: "Pending",
+          hecho: "Done",
+          bloqueado: "Blocked",
+        },
+        marks: {
+          advancing: "Advancing",
+          blocked: "Blocked",
+          stalled: "Stalled",
+          waiting: "Waiting",
+        },
+        reasons: {
+          unassigned: "Unassigned",
+          no_worker: "No worker reported",
+          worker_down: "Worker down",
+          worker_finished: "Worker finished",
+          worker_idle: "Worker idle",
+          over_p90: "No recent status change",
+          not_started: "Not started",
+        },
+      },
       editDialog: {
         title: "Edit initiative",
         description:
@@ -114,6 +159,7 @@ const es = {
       tabs: {
         tasks: "Tareas",
         tree: "Árbol",
+        plan: "Plan",
       },
       filters: {
         searchPlaceholder: "ID, clave o título…",
@@ -141,6 +187,50 @@ const es = {
       noTasksDescription: "Aún no hay tareas asignadas a esta iniciativa.",
       chainPartial: "Cadena parcial: alguna dependencia no es legible",
       chainCycle: "Ciclo de dependencias: sin cadena",
+      plan: {
+        criticalPath: "Camino crítico",
+        summary:
+          "{{count}} tareas · {{advancing}} avanzando · {{blocked}} bloqueadas · {{stalled}} paradas · {{waiting}} esperando · fin estimado: {{end}}",
+        estimateDisclaimer:
+          "Las fechas estimadas no reparten capacidad entre máquinas.",
+        partial: "Camino parcial: alguna dependencia no es legible",
+        cycle: "Ciclo de dependencias: sin camino crítico ni fechas previstas",
+        empty: "No hay tareas en este plan",
+        gantt: "Cronograma",
+        external: "externa",
+        critical: "crítico",
+        goal: "objetivo",
+        legend: "Barra superior: real · barra inferior: prevista",
+        task: "Tarea",
+        status: "Estado",
+        start: "Inicio real",
+        end: "Fin real",
+        estimate: "Estimación",
+        plain: "En llano",
+        manual: "manual",
+        milestones: "Hitos externos",
+        noMilestones: "Sin hitos externos",
+        milestoneStatus: {
+          pendiente: "Pendiente",
+          hecho: "Hecho",
+          bloqueado: "Bloqueado",
+        },
+        marks: {
+          advancing: "Avanzando",
+          blocked: "Bloqueada",
+          stalled: "Parada",
+          waiting: "Esperando",
+        },
+        reasons: {
+          unassigned: "Sin asignar",
+          no_worker: "Sin trabajador registrado",
+          worker_down: "Trabajador caído",
+          worker_finished: "Trabajador terminado",
+          worker_idle: "Trabajador inactivo",
+          over_p90: "Sin cambio reciente de estado",
+          not_started: "Sin empezar",
+        },
+      },
       editDialog: {
         title: "Editar iniciativa",
         description:
