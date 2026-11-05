@@ -1,25 +1,36 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vite-plus/test";
 import type { InitiativeDetail, InitiativePlan } from "../api";
 import { PlanTab } from "./plan-tab";
+vi.mock("../use-external-plan-realtime", () => ({
+  useExternalPlanRealtime: () => {},
+}));
 
 if (!i18n.isInitialized) {
-  await i18n
-    .use(initReactI18next)
-    .init({
-      lng: "es",
-      fallbackLng: "es",
-      interpolation: { escapeValue: false },
-      resources: {},
-    });
+  await i18n.use(initReactI18next).init({
+    lng: "es",
+    fallbackLng: "es",
+    interpolation: { escapeValue: false },
+    resources: {},
+  });
 } else {
   await i18n.changeLanguage("es");
 }
 // Register the bundle after initializing the isolated test i18n instance.
 await import("./i18n");
 
+beforeEach(async () => {
+  await i18n.changeLanguage("es");
+});
 afterEach(cleanup);
 
 const task: InitiativePlan["tasks"][number] = {
@@ -85,6 +96,23 @@ describe("PlanTab", () => {
     expect(
       screen.getByRole("link", { name: "PR externa" }).getAttribute("href"),
     ).toBe("https://example.com/pr");
+  });
+  it("starts a resumed forecast after its blockers and uses the column color", () => {
+    const waiting = {
+      ...task,
+      plannedEnd: "2026-11-04T19:00:00Z",
+      remainingHours: 2,
+    };
+    render(
+      <PlanTab
+        plan={{ ...plan, tasks: [waiting] }}
+        initiative={initiative}
+        columns={[{ slug: "in-progress", color: "#123456" }]}
+      />,
+    );
+    const bar = screen.getByTestId("planned-bar");
+    expect(bar.title).toContain("17:00");
+    expect(bar.style.backgroundColor).toBe("rgb(18, 52, 86)");
   });
   it("shows empty, partial and cyclic states", () => {
     render(

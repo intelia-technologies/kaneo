@@ -6,6 +6,7 @@ import PageTitle from "@/components/page-title";
 import TaskDetailsSheet from "@/components/task/task-details-sheet";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
+import { useGetColumns } from "@/hooks/queries/column/use-get-columns";
 import useGetProject from "@/hooks/queries/project/use-get-project";
 import { useGetTasks } from "@/hooks/queries/task/use-get-tasks";
 import { useInitiative, useInitiativePlan } from "../api";
@@ -47,6 +48,7 @@ export function InitiativeDetailPage({
   });
 
   const { data: liveProjectTasks } = useGetTasks(projectId);
+  const { data: columns } = useGetColumns(projectId);
 
   const projectSlug = project?.slug ?? "";
 
@@ -232,7 +234,11 @@ export function InitiativeDetailPage({
                     </Button>
                   </div>
                 ) : (
-                  <PlanTab plan={plan} initiative={initiative} />
+                  <PlanTab
+                    plan={plan}
+                    initiative={initiative}
+                    columns={columns}
+                  />
                 )}
               </TabsPanel>
             </Tabs>

@@ -1,15 +1,20 @@
 import { useTranslation } from "react-i18next";
 import { formatDateTime } from "@/lib/format";
 import { getExternalWebUrl } from "@/lib/external-url";
+import { resolveLabelColor } from "@/lib/label-color";
+import { useExternalPlanRealtime } from "../use-external-plan-realtime";
 import type { InitiativeDetail, InitiativePlan } from "../api";
 
 export function PlanTab({
   plan,
   initiative,
+  columns = [],
 }: {
   plan: InitiativePlan;
   initiative: InitiativeDetail;
+  columns?: { slug: string; color: string | null }[];
 }) {
+  useExternalPlanRealtime(plan);
   const { t } = useTranslation();
   const key = "intelia:initiatives.detail.plan";
   const date = (value: string | null) =>
@@ -20,7 +25,7 @@ export function PlanTab({
       task.actualEnd,
       task.plannedStart,
       task.plannedEnd,
-      task.actualStart && !task.actualEnd ? plan.computedAt : null,
+      task.actualStart && !task.actualEnd && task.mark ? plan.computedAt : null,
     ])
     .filter((value): value is string => value !== null)
     .map((value) => new Date(value).getTime())
@@ -32,18 +37,26 @@ export function PlanTab({
     start: string | null,
     end: string | null,
     kind: "actual" | "planned",
+    status: string,
   ) => {
     if (!start || !end) return null;
     const from = new Date(start).getTime();
     const to = new Date(end).getTime();
     if (!Number.isFinite(from) || !Number.isFinite(to) || to < from)
       return null;
+    const color = columns.find((column) => column.slug === status)?.color;
     return (
       <div
         data-testid={`${kind}-bar`}
         title={`${date(start)} – ${date(end)}`}
         className={`absolute h-3 rounded ${kind === "actual" ? "bg-primary" : "bg-primary/50"}`}
         style={{
+          ...(color
+            ? {
+                backgroundColor: resolveLabelColor(color),
+                opacity: kind === "actual" ? 1 : 0.55,
+              }
+            : {}),
           left: `${((from - min) / span) * 100}%`,
           width: `${Math.min(Math.max(((to - from) / span) * 100, 0.5), 100 - ((from - min) / span) * 100)}%`,
           top: kind === "actual" ? 0 : 14,
@@ -81,9 +94,12 @@ export function PlanTab({
           <div className="overflow-x-auto">
             <h3 className="font-semibold">{t(`${key}.gantt`)}</h3>
             {dates.length > 0 && (
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{date(new Date(min).toISOString())}</span>
-                <span>{date(new Date(max).toISOString())}</span>
+              <div className="grid min-w-[600px] grid-cols-[minmax(180px,1fr)_2fr] gap-4 text-xs text-muted-foreground">
+                <span />
+                <div className="flex justify-between">
+                  <span>{date(new Date(min).toISOString())}</span>
+                  <span>{date(new Date(max).toISOString())}</span>
+                </div>
               </div>
             )}
             {plan.tasks.map((task) => (
@@ -115,14 +131,25 @@ export function PlanTab({
                   {bar(
                     task.actualStart,
                     task.actualEnd ??
-                      (task.actualStart ? plan.computedAt : null),
+                      (task.actualStart && task.mark ? plan.computedAt : null),
                     "actual",
+                    task.status,
                   )}
                   {!task.actualEnd &&
+                    task.plannedEnd &&
+                    Number.isFinite(Date.parse(task.plannedEnd)) &&
+                    Number.isFinite(
+                      Date.parse(task.plannedEnd) -
+                        task.remainingHours * 3_600_000,
+                    ) &&
                     bar(
-                      task.actualStart ? plan.computedAt : task.plannedStart,
+                      new Date(
+                        Date.parse(task.plannedEnd) -
+                          task.remainingHours * 3_600_000,
+                      ).toISOString(),
                       task.plannedEnd,
                       "planned",
+                      task.status,
                     )}
                 </div>
               </div>

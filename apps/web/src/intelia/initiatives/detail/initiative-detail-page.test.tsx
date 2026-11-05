@@ -106,6 +106,14 @@ vi.mock("../api", () => ({
     mocks.useUpdateInitiative(...args),
 }));
 
+vi.mock("../use-external-plan-realtime", () => ({
+  useExternalPlanRealtime: () => {},
+}));
+
+vi.mock("@/hooks/queries/column/use-get-columns", () => ({
+  useGetColumns: () => ({ data: [] }),
+}));
+
 vi.mock("@/hooks/queries/project/use-get-project", () => ({
   default: (...args: unknown[]) => mocks.useGetProject(...args),
 }));
