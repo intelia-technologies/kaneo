@@ -254,3 +254,23 @@ export const initiativeDetailSchema = initiativeSchema
       .openapi("InitiativePendingChain"),
   })
   .openapi("InitiativeDetail");
+
+export const taskInitiativesSchema = z
+  .object({
+    tasks: z.array(
+      z
+        .object({
+          taskId: z.string(),
+          initiativeId: z.string().nullable(),
+          initiativeName: z.string().nullable(),
+        })
+        .openapi("TaskInitiativeRef", {
+          description:
+            "A readable task and its initiative; both null when it has none.",
+        }),
+    ),
+  })
+  .openapi("TaskInitiatives", {
+    description:
+      "One entry per requested task of the workspace the caller can read, by task id. Unknown tasks, tasks of other workspaces and tasks of projects the caller cannot read are left out, indistinguishably.",
+  });

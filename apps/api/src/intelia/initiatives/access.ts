@@ -130,4 +130,8 @@ export const initiativeAccess = {
     workspaceAccess.fromTaskId("taskId"),
     requireWorkspacePermission(INITIATIVE_READ_PERMISSION),
   ],
+  readOnWorkspace: () => [
+    workspaceAccess.fromParam("workspaceId"),
+    requireWorkspacePermission(INITIATIVE_READ_PERMISSION),
+  ],
 };

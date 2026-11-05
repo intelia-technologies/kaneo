@@ -398,3 +398,34 @@ export async function getInitiativeDetail(
     },
   };
 }
+
+/**
+ * The initiative of each of `taskIds` the reader can read, in one query.
+ * Tasks it cannot read, of other workspaces or unknown are left out.
+ */
+export async function getTaskInitiatives(
+  taskIds: string[],
+  reader: InitiativeReader,
+) {
+  const tasks = await db
+    .select({
+      taskId: taskTable.id,
+      initiativeId: initiativeTable.id,
+      initiativeName: initiativeTable.name,
+    })
+    .from(taskTable)
+    .innerJoin(projectTable, eq(taskTable.projectId, projectTable.id))
+    .leftJoin(taskInitiativeTable, eq(taskInitiativeTable.taskId, taskTable.id))
+    .leftJoin(
+      initiativeTable,
+      eq(taskInitiativeTable.initiativeId, initiativeTable.id),
+    )
+    .where(
+      and(
+        inArray(taskTable.id, [...new Set(taskIds)]),
+        readableProject(reader),
+      ),
+    )
+    .orderBy(asc(taskTable.id));
+  return { tasks };
+}
