@@ -1,14 +1,18 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getWsUrl } from "@/hooks/use-project-websocket";
 import { authClient } from "@/lib/auth-client";
 import { projectRelationsKey } from "@/intelia/dependencies/api";
 import { projectInitiativesRootKey, type InitiativePlan } from "./api";
 
+const denied = new Set<string>();
+
 // The project's socket does not receive changes from another project's tasks.
 export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
   const queryClient = useQueryClient();
-  const [connected, setConnected] = useState<Set<string>>(() => new Set());
+  const [connected, setConnected] = useState<Map<string, object>>(
+    () => new Map(),
+  );
   const { data: session } = authClient.useSession();
   const projectId = plan?.projectId;
   const initiativeId = plan?.initiativeId;
@@ -21,13 +25,16 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
       ),
     ].sort(),
   );
-  const context = JSON.stringify([
-    projectId,
-    initiativeId,
-    projects,
-    session?.user?.id,
-    session?.session?.id,
-  ]);
+  const generation = useMemo(
+    () => ({}),
+    [
+      projectId,
+      initiativeId,
+      projects,
+      session?.user?.id,
+      session?.session?.id,
+    ],
+  );
   useEffect(() => {
     if (!projectId || !initiativeId || !session?.user?.id) return;
     let disposed = false;
@@ -45,6 +52,8 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
         ),
       ]);
     for (const externalProject of JSON.parse(projects) as string[]) {
+      const deniedKey = `${session.session?.id ?? session.user.id}:${externalProject}`;
+      if (denied.has(deniedKey)) continue;
       let socket: WebSocket;
       let retry: ReturnType<typeof setTimeout> | undefined;
       let ping: ReturnType<typeof setInterval> | undefined;
@@ -63,7 +72,7 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
                 current.readyState === WebSocket.OPEN
               )
                 setConnected((previous) =>
-                  new Set(previous).add(`${context}:${externalProject}`),
+                  new Map(previous).set(externalProject, generation),
                 );
             })
             .catch(() => {});
@@ -100,24 +109,29 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
           clearInterval(ping);
           if (disposed) return;
           setConnected((previous) => {
-            const next = new Set(previous);
-            next.delete(`${context}:${externalProject}`);
+            const next = new Map(previous);
+            if (next.get(externalProject) === generation)
+              next.delete(externalProject);
             return next;
           });
           if (
             event.code === 1008 &&
             event.reason === "Workspace access revoked"
           ) {
+            denied.add(deniedKey);
             queryClient.clear();
             return;
           }
-          void queryClient.resetQueries({
-            queryKey: projectInitiativesRootKey(projectId),
-          });
-          void queryClient.resetQueries({
-            queryKey: projectRelationsKey(projectId),
-          });
-          if (event.code === 1008) return;
+          if (event.code === 1008) {
+            denied.add(deniedKey);
+            void queryClient.resetQueries({
+              queryKey: projectInitiativesRootKey(projectId),
+            });
+            void queryClient.resetQueries({
+              queryKey: projectRelationsKey(projectId),
+            });
+            return;
+          }
           retry = setTimeout(
             connect,
             Math.min(30_000, 1_000 * 2 ** attempts++),
@@ -140,12 +154,12 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
     projectId,
     initiativeId,
     projects,
-    context,
+    generation,
     queryClient,
     session?.user?.id,
     session?.session?.id,
   ]);
   return (JSON.parse(projects) as string[]).some(
-    (id) => !session?.user?.id || !connected.has(`${context}:${id}`),
+    (id) => !session?.user?.id || connected.get(id) !== generation,
   );
 }

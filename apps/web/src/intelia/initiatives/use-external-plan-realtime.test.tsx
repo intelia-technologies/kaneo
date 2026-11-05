@@ -81,10 +81,6 @@ describe("external plan realtime", () => {
     act(() => {
       Socket.instances[0].onclose?.({ code: 1006, reason: "" });
     });
-    for (const key of [planKey, detailKey, relationsKey]) {
-      expect(client.getQueryData(key)).toBeUndefined();
-      client.setQueryData(key, { title: "fresh" });
-    }
     act(() => {
       vi.advanceTimersByTime(1_000);
       Socket.instances[1].onopen?.();
@@ -94,7 +90,11 @@ describe("external plan realtime", () => {
     unmount();
   });
   it("removes cached external data on revocation and does not reconnect", () => {
-    const { unmount } = renderHook(() => useExternalPlanRealtime(plan), {
+    const revokedPlan = {
+      ...plan,
+      tasks: [{ external: true, projectId: "revoked" }],
+    } as InitiativePlan;
+    const { unmount } = renderHook(() => useExternalPlanRealtime(revokedPlan), {
       wrapper,
     });
     act(() => {
@@ -110,7 +110,7 @@ describe("external plan realtime", () => {
     expect(Socket.instances).toHaveLength(1);
     unmount();
   });
-  it("hides the plan during a failed connection and removes cached data on abnormal close", async () => {
+  it("hides the plan throughout an abnormal close and failed reconnect", async () => {
     const { result, unmount } = renderHook(
       () => useExternalPlanRealtime(plan),
       { wrapper },
@@ -126,12 +126,31 @@ describe("external plan realtime", () => {
       Socket.instances[0].onclose?.({ code: 1006, reason: "" });
     });
     expect(result.current).toBe(true);
-    for (const key of [planKey, detailKey, relationsKey])
-      expect(client.getQueryData(key)).toBeUndefined();
     act(() => {
       vi.advanceTimersByTime(1_000);
       Socket.instances[1].onclose?.({ code: 1006, reason: "" });
     });
+    expect(result.current).toBe(true);
+    unmount();
+  });
+  it("requires a fresh verification when external projects change away and back", async () => {
+    const other = {
+      ...plan,
+      tasks: [{ external: true, projectId: "third" }],
+    } as InitiativePlan;
+    const { result, rerender, unmount } = renderHook(
+      ({ value }) => useExternalPlanRealtime(value),
+      { wrapper, initialProps: { value: plan } },
+    );
+    await act(async () => {
+      Socket.instances[0].onopen?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current).toBe(false);
+    rerender({ value: other });
+    expect(result.current).toBe(true);
+    rerender({ value: plan });
     expect(result.current).toBe(true);
     unmount();
   });
