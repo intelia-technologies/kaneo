@@ -24,6 +24,13 @@ export const initiativeSchema = z
     id: z.string(),
     projectId: z.string(),
     name: z.string(),
+    objetivo: z.string().nullable(),
+    hitos_externos: z.array(z.object({
+      nombre: z.string(),
+      enlace: z.string(),
+      estado: z.enum(["pendiente", "hecho", "bloqueado"]),
+      tarea: z.string().optional(),
+    })).nullable(),
     designUrl: z.string().nullable(),
     approvedBy: z.string().nullable(),
     approvedAt: timestamp,
