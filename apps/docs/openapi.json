@@ -27266,11 +27266,7 @@
                     "description": "Unique within the project, ignoring case, accents and repeated spaces."
                   },
                   "objetivo": {
-                    "type": [
-                      "string",
-                      "null"
-                    ],
-                    "minLength": 1
+                    "type": "null"
                   },
                   "hitos_externos": {
                     "type": [
@@ -27515,7 +27511,8 @@
                       "string",
                       "null"
                     ],
-                    "minLength": 1
+                    "minLength": 1,
+                    "description": "ID of a task belonging to this initiative, or null."
                   },
                   "hitos_externos": {
                     "type": [

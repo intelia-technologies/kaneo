@@ -1,13 +1,20 @@
 import { eq } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import db, { schema } from "../../apps/api/src/database";
 import { createApp } from "../../apps/api/src/index";
 import { mockAuthenticatedSession } from "./helpers/auth";
 import { resetTestDatabase } from "./helpers/database";
 import { createProjectFixture, createWorkspaceMember } from "./helpers/fixtures";
 
+const publish = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock("../../apps/api/src/events", async (importOriginal) => ({
+  ...((await importOriginal()) as Record<string, unknown>),
+  publishEvent: publish,
+}));
+
 beforeEach(async () => {
   await resetTestDatabase();
+  publish.mockClear();
 });
 
 describe("task estimation", () => {
@@ -44,10 +51,30 @@ describe("task estimation", () => {
     }
     const cleared = await app.request(`/api/task/${task.id}`);
     expect(await cleared.json()).toMatchObject({ estimacion_horas: null });
+    publish.mockClear();
     const dedicated = await app.request(`/api/task/estimacion_horas/${task.id}`, {
       method: "PUT", headers, body: JSON.stringify({ estimacion_horas: 2.25 }),
     });
     expect(dedicated.status).toBe(200);
+    expect(publish).toHaveBeenCalledExactlyOnceWith("task.updated", {
+      taskId: task.id,
+      projectId: project.id,
+      title: "Estimate",
+      status: "to-do",
+      userId: member.user.id,
+    });
+    expect(await db.query.taskTable.findFirst({ where: eq(schema.taskTable.id, task.id) }))
+      .toMatchObject({ estimacion_horas: 2.25 });
+    for (const invalid of [-1, "2", {}, true]) {
+      publish.mockClear();
+      const response = await app.request(`/api/task/estimacion_horas/${task.id}`, {
+        method: "PUT", headers, body: JSON.stringify({ estimacion_horas: invalid }),
+      });
+      expect(response.status).toBe(400);
+      expect(await db.query.taskTable.findFirst({ where: eq(schema.taskTable.id, task.id) }))
+        .toMatchObject({ estimacion_horas: 2.25 });
+      expect(publish).not.toHaveBeenCalled();
+    }
     expect(await dedicated.json()).toMatchObject({ estimacion_horas: 2.25, title: "Estimate" });
     const clear = await app.request(`/api/task/estimacion_horas/${task.id}`, {
       method: "PUT", headers, body: JSON.stringify({ estimacion_horas: null }),

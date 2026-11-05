@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { requireEntitlement } from "../billing/require-entitlement-middleware";
 import db from "../database";
+import { publishEvent } from "../events";
 import {
   assetTable,
   projectTable,
@@ -1183,6 +1184,13 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
     const [updated] = await db.update(taskTable).set({ estimacion_horas })
       .where(eq(taskTable.id, id)).returning();
     if (!updated) throw new HTTPException(404, { message: "Task not found" });
+    await publishEvent("task.updated", {
+      taskId: updated.id,
+      projectId: updated.projectId,
+      title: updated.title,
+      status: updated.status,
+      userId: c.get("userId"),
+    });
     return c.json(updated, 200);
   })
   .openapi(updateTaskDueDateRoute, async (c) => {

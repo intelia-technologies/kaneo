@@ -313,19 +313,26 @@ describe("API integration: Intelia initiatives", () => {
   it("persists, reads, updates and clears initiative goals and external milestones", async () => {
     const { app, project } = await setup();
     const hitos = [{ nombre: "Entrega", enlace: "https://example.com", estado: "pendiente", tarea: "T-1" }];
+    expect((await createInitiative(app, project.id, {
+      name: "Inválida", objetivo: "cualquier-tarea",
+    })).status).toBe(400);
     const createdResponse = await createInitiative(app, project.id, {
-      name: "Iniciativa", objetivo: " Objetivo ", hitos_externos: hitos,
+      name: "Iniciativa", hitos_externos: hitos,
     });
     expect(createdResponse.status).toBe(201);
     const created = await createdResponse.json() as { id: string };
-    expect(created).toMatchObject({ objetivo: "Objetivo", hitos_externos: hitos });
+    const task = await seedRawTask(project.id);
+    const other = await seedRawTask(project.id);
+    expect((await patchInitiative(app, created.id, { objetivo: "missing" })).status).toBe(400);
+    expect((await patchInitiative(app, created.id, { objetivo: other.id })).status).toBe(400);
+    expect((await putTaskInitiative(app, task.id, { initiativeId: created.id })).status).toBe(200);
+    const updated = await patchInitiative(app, created.id, { objetivo: task.id });
+    expect(await updated.json()).toMatchObject({ objetivo: task.id, hitos_externos: hitos });
     const detail = await app.request(`/api/intelia/initiative/${created.id}`);
     expect(detail.status).toBe(200);
-    expect(await detail.json()).toMatchObject({ objetivo: "Objetivo", hitos_externos: hitos });
+    expect(await detail.json()).toMatchObject({ objetivo: task.id, hitos_externos: hitos });
     const listing = await app.request(`/api/intelia/project/${project.id}/initiatives`);
-    expect(await listing.json()).toMatchObject({ initiatives: [{ objetivo: "Objetivo", hitos_externos: hitos }] });
-    const updated = await patchInitiative(app, created.id, { objetivo: "Nuevo" });
-    expect(await updated.json()).toMatchObject({ objetivo: "Nuevo", hitos_externos: hitos });
+    expect(await listing.json()).toMatchObject({ initiatives: [{ objetivo: task.id, hitos_externos: hitos }] });
     const cleared = await patchInitiative(app, created.id, { objetivo: null, hitos_externos: null });
     expect(await cleared.json()).toMatchObject({ objetivo: null, hitos_externos: null });
     const history = await db.select().from(initiativeChangeTable).where(eq(initiativeChangeTable.initiativeId, created.id));
@@ -339,6 +346,48 @@ describe("API integration: Intelia initiatives", () => {
       expect((await patchInitiative(app, created.id, body)).status).toBe(400);
     }
   });
+  it("clears the objective and records it when the task moves or is deleted", async () => {
+    const { app, project, user } = await setup();
+    const a = await (await createInitiative(app, project.id, { name: "A" })).json() as { id: string };
+    const b = await (await createInitiative(app, project.id, { name: "B" })).json() as { id: string };
+    const task = await seedRawTask(project.id);
+    await putTaskInitiative(app, task.id, { initiativeId: a.id });
+    expect((await patchInitiative(app, a.id, { objetivo: task.id })).status).toBe(200);
+    expect((await putTaskInitiative(app, task.id, { initiativeId: b.id })).status).toBe(200);
+    expect(await (await app.request(`/api/intelia/initiative/${a.id}`)).json()).toMatchObject({ objetivo: null });
+    expect((await patchInitiative(app, a.id, { objetivo: task.id })).status).toBe(400);
+    expect((await patchInitiative(app, b.id, { objetivo: task.id })).status).toBe(200);
+    await db.delete(schema.taskTable).where(eq(schema.taskTable.id, task.id));
+    expect(await (await app.request(`/api/intelia/initiative/${b.id}`)).json()).toMatchObject({ objetivo: null });
+    for (const initiative of [a, b]) {
+      const history = await db.select().from(initiativeChangeTable).where(eq(initiativeChangeTable.initiativeId, initiative.id));
+      expect(history.some((entry) => entry.source === "auto" && entry.previous?.objetivo === task.id && entry.value.objetivo === null)).toBe(true);
+    }
+    const moved = await seedRawTask(project.id);
+    await putTaskInitiative(app, moved.id, { initiativeId: a.id });
+    expect((await patchInitiative(app, a.id, { objetivo: moved.id })).status).toBe(200);
+    await db.transaction((tx) => dropTaskInitiativeOnProjectMove(tx, moved.id, user.id));
+    expect(await (await app.request(`/api/intelia/initiative/${a.id}`)).json()).toMatchObject({ objetivo: null });
+  });
+
+  it("serializes setting an objective with a concurrent membership removal", async () => {
+    const { app, project } = await setup();
+    const init = await (await createInitiative(app, project.id, { name: "Carrera" })).json() as { id: string };
+    const task = await seedRawTask(project.id);
+    await putTaskInitiative(app, task.id, { initiativeId: init.id });
+    const commit = await holdTransaction((tx) =>
+      tx.delete(taskInitiativeTable).where(eq(taskInitiativeTable.taskId, task.id)),
+    );
+    const pending = patchInitiative(app, init.id, { objetivo: task.id });
+    try {
+      await waitForLockWait();
+    } finally {
+      await commit();
+    }
+    expect((await pending).status).toBe(400);
+    expect(await (await app.request(`/api/intelia/initiative/${init.id}`)).json()).toMatchObject({ objetivo: null });
+  });
+
 
   it("rejects task creation without initiative, with unknown initiative, or with initiative of another project, creating nothing", async () => {
     const { app, project, workspace } = await setup();

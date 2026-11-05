@@ -74,6 +74,46 @@ FOR EACH ROW
 WHEN (NEW."status" = 'in-progress' AND OLD."status" IS DISTINCT FROM NEW."status")
 EXECUTE FUNCTION "intelia"."close_plan_on_start"()`);
 
+// Serialize membership removal with objective updates, even when the task was
+// not the objective when the removal began. Covers cascaded task deletions too.
+const OBJECTIVE_FUNCTION = sql.raw(`
+CREATE OR REPLACE FUNCTION "intelia"."clear_departing_objective"() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  v_objetivo text;
+  v_at timestamp;
+BEGIN
+  IF TG_OP = 'UPDATE' AND OLD."initiative_id" IS NOT DISTINCT FROM NEW."initiative_id" THEN
+    RETURN NEW;
+  END IF;
+  SELECT "objetivo" INTO v_objetivo FROM "intelia"."initiative"
+    WHERE "id" = OLD."initiative_id" FOR UPDATE;
+  IF FOUND AND v_objetivo = OLD."task_id" THEN
+    SELECT greatest(
+      date_trunc('milliseconds', clock_timestamp() AT TIME ZONE 'utc'),
+      max("changed_at") + interval '1 millisecond'
+    ) INTO v_at FROM "intelia"."initiative_change"
+      WHERE "initiative_id" = OLD."initiative_id";
+    UPDATE "intelia"."initiative" SET "objetivo" = NULL
+      WHERE "id" = OLD."initiative_id";
+    INSERT INTO "intelia"."initiative_change"
+      ("id", "initiative_id", "kind", "previous", "value", "source", "changed_at")
+    VALUES (gen_random_uuid()::text, OLD."initiative_id", 'updated',
+      jsonb_build_object('objetivo', OLD."task_id"), '{"objetivo": null}'::jsonb,
+      'auto', v_at);
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$$`);
+
+const DROP_OBJECTIVE_TRIGGER = sql.raw(`
+DROP TRIGGER IF EXISTS "intelia_clear_departing_objective" ON "intelia"."task_initiative"`);
+const CREATE_OBJECTIVE_TRIGGER = sql.raw(`
+CREATE TRIGGER "intelia_clear_departing_objective"
+BEFORE DELETE OR UPDATE OF "initiative_id" ON "intelia"."task_initiative"
+FOR EACH ROW
+EXECUTE FUNCTION "intelia"."clear_departing_objective"()`);
+
 /**
  * Installs the function and the trigger again, in one transaction: re-runnable
  * and safe with several replicas starting at once (an advisory lock orders
@@ -89,6 +129,9 @@ export async function installTaskHooks<TSchema extends Record<string, unknown>>(
     await tx.execute(CLOSE_PLAN_FUNCTION);
     await tx.execute(DROP_TRIGGER);
     await tx.execute(CREATE_TRIGGER);
+    await tx.execute(OBJECTIVE_FUNCTION);
+    await tx.execute(DROP_OBJECTIVE_TRIGGER);
+    await tx.execute(CREATE_OBJECTIVE_TRIGGER);
   });
 }
 
