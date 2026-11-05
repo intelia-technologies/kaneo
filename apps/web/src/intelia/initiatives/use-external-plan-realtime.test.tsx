@@ -32,6 +32,7 @@ class Socket {
   }
   send() {}
   close() {
+    this.readyState = 3;
     this.onclose?.({ code: 1000, reason: "" });
   }
 }
@@ -89,7 +90,7 @@ describe("external plan realtime", () => {
       expect(client.getQueryState(key)?.isInvalidated).toBe(true);
     unmount();
   });
-  it("removes cached external data on revocation and does not reconnect", () => {
+  it("removes cached external data on revocation and retries after a cooldown", () => {
     const revokedPlan = {
       ...plan,
       tasks: [{ external: true, projectId: "revoked" }],
@@ -103,11 +104,13 @@ describe("external plan realtime", () => {
         code: 1008,
         reason: "Project access revoked",
       });
-      vi.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(29_000);
     });
     for (const key of [planKey, detailKey, relationsKey])
       expect(client.getQueryData(key)).toBeUndefined();
     expect(Socket.instances).toHaveLength(1);
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(Socket.instances).toHaveLength(2);
     unmount();
   });
   it("hides the plan throughout an abnormal close and failed reconnect", async () => {
@@ -152,6 +155,29 @@ describe("external plan realtime", () => {
     expect(result.current).toBe(true);
     rerender({ value: plan });
     expect(result.current).toBe(true);
+    unmount();
+  });
+  it("retries after a failed initial reconciliation and shows the plan after recovery", async () => {
+    vi.spyOn(client, "invalidateQueries").mockRejectedValueOnce(
+      new Error("offline"),
+    );
+    const { result, unmount } = renderHook(
+      () => useExternalPlanRealtime(plan),
+      { wrapper },
+    );
+    await act(async () => {
+      Socket.instances[0].onopen?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current).toBe(true);
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+      Socket.instances[1].onopen?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current).toBe(false);
     unmount();
   });
 });

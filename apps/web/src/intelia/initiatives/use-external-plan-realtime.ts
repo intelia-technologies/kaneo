@@ -5,7 +5,7 @@ import { authClient } from "@/lib/auth-client";
 import { projectRelationsKey } from "@/intelia/dependencies/api";
 import { projectInitiativesRootKey, type InitiativePlan } from "./api";
 
-const denied = new Set<string>();
+const denied = new Map<string, number>();
 
 // The project's socket does not receive changes from another project's tasks.
 export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
@@ -53,13 +53,18 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
       ]);
     for (const externalProject of JSON.parse(projects) as string[]) {
       const deniedKey = `${session.session?.id ?? session.user.id}:${externalProject}`;
-      if (denied.has(deniedKey)) continue;
-      let socket: WebSocket;
+      let socket: WebSocket | undefined;
       let retry: ReturnType<typeof setTimeout> | undefined;
       let ping: ReturnType<typeof setInterval> | undefined;
       let attempts = 0;
       const connect = () => {
         if (disposed) return;
+        const delay = (denied.get(deniedKey) ?? 0) - Date.now();
+        if (delay > 0) {
+          retry = setTimeout(connect, delay);
+          return;
+        }
+        denied.delete(deniedKey);
         socket = new WebSocket(getWsUrl(externalProject));
         const current = socket;
         socket.onopen = () => {
@@ -75,7 +80,9 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
                   new Map(previous).set(externalProject, generation),
                 );
             })
-            .catch(() => {});
+            .catch(() => {
+              if (!disposed && current === socket) current.close();
+            });
           attempts = 0;
           ping = setInterval(() => {
             if (current.readyState === WebSocket.OPEN)
@@ -99,7 +106,9 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
             if (!refresh)
               refresh = setTimeout(() => {
                 refresh = undefined;
-                void invalidate().catch(() => {});
+                void invalidate().catch(() => {
+                  if (!disposed && current === socket) current.close();
+                });
               }, 5_000);
           } catch {
             /* Ignore malformed socket messages. */
@@ -118,18 +127,22 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
             event.code === 1008 &&
             event.reason === "Workspace access revoked"
           ) {
-            denied.add(deniedKey);
+            denied.set(deniedKey, Date.now() + 30_000);
             queryClient.clear();
             return;
           }
-          if (event.code === 1008) {
-            denied.add(deniedKey);
+          if (
+            event.code === 1008 &&
+            event.reason === "Project access revoked"
+          ) {
+            denied.set(deniedKey, Date.now() + 30_000);
             void queryClient.resetQueries({
               queryKey: projectInitiativesRootKey(projectId),
             });
             void queryClient.resetQueries({
               queryKey: projectRelationsKey(projectId),
             });
+            retry = setTimeout(connect, 30_000);
             return;
           }
           retry = setTimeout(
@@ -142,7 +155,7 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
       cleanups.push(() => {
         clearTimeout(retry);
         clearInterval(ping);
-        socket.close();
+        socket?.close();
       });
     }
     return () => {
