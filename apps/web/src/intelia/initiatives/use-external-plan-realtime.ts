@@ -25,16 +25,16 @@ export function useExternalPlanRealtime(plan: InitiativePlan | undefined) {
       ),
     ].sort(),
   );
-  const generation = useMemo(
-    () => ({}),
-    [
-      projectId,
-      initiativeId,
-      projects,
-      session?.user?.id,
-      session?.session?.id,
-    ],
-  );
+  // Identifica la suscripción actual: objeto nuevo en cada cambio, también al volver a un valor anterior, para que
+  // un «conectado» de una suscripción anterior no cuente.
+  const generationKey = JSON.stringify([
+    projectId,
+    initiativeId,
+    projects,
+    session?.user?.id,
+    session?.session?.id,
+  ]);
+  const generation = useMemo(() => ({ key: generationKey }), [generationKey]);
   useEffect(() => {
     if (!projectId || !initiativeId || !session?.user?.id) return;
     let disposed = false;
