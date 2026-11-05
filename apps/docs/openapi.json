@@ -6398,6 +6398,16 @@
           "projectId": {
             "type": "string"
           },
+          "projectScope": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Effective readable project intersection, or null when no projectIds filter was supplied."
+          },
           "name": {
             "type": "string"
           },
@@ -6432,6 +6442,7 @@
         "required": [
           "initiativeId",
           "projectId",
+          "projectScope",
           "name",
           "computedAt",
           "estimatesComputedAt",
@@ -28123,6 +28134,16 @@
             "required": true,
             "name": "initiativeId",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated project IDs to intersect with the caller's readable projects; empty means none."
+            },
+            "required": false,
+            "description": "Comma-separated project IDs to intersect with the caller's readable projects; empty means none.",
+            "name": "projectIds",
+            "in": "query"
           }
         ],
         "responses": {

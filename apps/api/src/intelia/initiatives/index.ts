@@ -4,6 +4,7 @@ import {
   errorResponse,
   jsonResponse,
 } from "../../openapi";
+import { z } from "../../openapi";
 import { initiativeAccess, initiativeReader, initiativeWriter } from "./access";
 import { getInitiativePlan } from "./plan/read";
 import { initiativePlanSchema } from "./plan/response";
@@ -204,7 +205,15 @@ const planRouteDef = createRoute({
   summary: "Get an initiative's estimated plan and critical path",
   description: `Real start and end of each task, its estimate (the median of similar finished tasks, or its \`estimacion_horas\`), planned dates chained along \`blocks\` from now, the critical path by hours with the mark of each pending task, and the estimated end (annex of design 19). The finished tasks behind the medians are read at most every 10 minutes. ${READERS} Estimates learn only from tasks the caller can read.`,
   middleware: initiativeAccess.readOnInitiative(),
-  request: { params: initiativeIdParam },
+  request: {
+    params: initiativeIdParam,
+    query: z.object({
+      projectIds: z.string().optional().openapi({
+        description:
+          "Comma-separated project IDs to intersect with the caller's readable projects; empty means none.",
+      }),
+    }),
+  },
   responses: {
     200: jsonResponse("The initiative's plan", initiativePlanSchema),
     403: errorResponse("No access to the project or missing read permission"),
@@ -336,6 +345,7 @@ const initiatives = apiRouter()
       await getInitiativePlan(
         c.req.valid("param").initiativeId,
         initiativeReader(c),
+        c.req.valid("query").projectIds,
       ),
       200,
     ),

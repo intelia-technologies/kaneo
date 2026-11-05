@@ -81,6 +81,10 @@ export const initiativePlanSchema = z
   .object({
     initiativeId: z.string(),
     projectId: z.string(),
+    projectScope: z.array(z.string()).nullable().openapi({
+      description:
+        "Effective readable project intersection, or null when no projectIds filter was supplied.",
+    }),
     name: z.string(),
     computedAt: responseTimestamp,
     estimatesComputedAt: responseTimestamp.openapi({

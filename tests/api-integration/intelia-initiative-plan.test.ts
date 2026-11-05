@@ -260,9 +260,9 @@ type PlanTask = {
   [key: string]: unknown;
 };
 
-async function plan(app: App, initiativeId: string) {
+async function plan(app: App, initiativeId: string, query = "") {
   const response = await app.request(
-    `/api/intelia/initiative/${initiativeId}/plan`,
+    `/api/intelia/initiative/${initiativeId}/plan${query}`,
   );
   const body = await response.json();
   const task = (id: string) =>
@@ -271,6 +271,37 @@ async function plan(app: App, initiativeId: string) {
 }
 
 describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
+  it("intersects the requested scope for tasks, dependencies and estimation samples", async () => {
+    const { app, coder, project, other, initiative } = await setup();
+    const alike = { level: "completa" as const, userId: coder.id };
+    await seedMany(10, other.id, () => 50, alike);
+    const secret = await seedTask(other.id, { title: "Excluded dependency" });
+    const own = await seedTask(project.id, {
+      ...alike,
+      initiativeId: initiative.id,
+    });
+    await blocks(secret.id, own.id);
+
+    const unrestricted = await plan(app, initiative.id);
+    expect(unrestricted.body.projectScope).toBeNull();
+    expect(unrestricted.task(own.id).estimate.source).toBe("org");
+    const scoped = await plan(app, initiative.id, `?projectIds=${project.id}`);
+    expect(scoped.body.projectScope).toEqual([project.id]);
+    expect(scoped.task(own.id).estimate).toEqual({
+      hours: 4,
+      source: "default",
+      cases: 0,
+    });
+    expect(scoped.task(own.id).dependsOn).toEqual([]);
+    expect(scoped.body.criticalPath.partial).toBe(true);
+    expect(JSON.stringify(scoped.body)).not.toContain(secret.id);
+    expect(JSON.stringify(scoped.body)).not.toContain("Excluded dependency");
+
+    const empty = await plan(app, initiative.id, "?projectIds=");
+    expect(empty.body.projectScope).toEqual([]);
+    expect(empty.body.tasks).toEqual([]);
+  });
+
   it("estimates with the median of finished tasks of the same project, level and executor", async () => {
     const { app, user, coder, project, other, initiative } = await setup();
     const alike = { level: "completa" as const, userId: coder.id };
@@ -621,6 +652,21 @@ describe("a project the caller cannot read", () => {
     const reader = await addWorkspaceMember(workspace.id, "member");
     await restrictToProjects(workspace.id, reader.id, [project.id]);
     mockAuthenticatedSession(reader);
+    const attempted = await plan(
+      app,
+      initiative.id,
+      `?projectIds=${project.id},${hidden.project.id}`,
+    );
+    expect(attempted.body.projectScope).toEqual([project.id]);
+    expect(JSON.stringify(attempted.body)).not.toContain(secret.id);
+    expect(attempted.task(own.id).estimate.source).toBe("default");
+    const hiddenInitiative = await seedInitiative(hidden.project.id);
+    const denied = await plan(
+      app,
+      hiddenInitiative.id,
+      `?projectIds=${hidden.project.id}`,
+    );
+    expect([403, 404]).toContain(denied.status);
     const limited = await plan(app, initiative.id);
     expect(limited.status).toBe(200);
     expect(limited.body.tasks.map((t: PlanTask) => t.id)).toEqual([own.id]);

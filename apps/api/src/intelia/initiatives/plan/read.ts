@@ -98,9 +98,22 @@ async function taskFacts(ids: string[]) {
 export async function getInitiativePlan(
   initiativeId: string,
   reader: InitiativeReader,
+  requestedProjectIds?: string,
 ) {
   const now = new Date(Date.now());
-  const detail = await getInitiativeDetail(initiativeId, reader);
+  const projectIds =
+    requestedProjectIds === undefined
+      ? undefined
+      : [
+          ...new Set(
+            requestedProjectIds
+              .split(",")
+              .map((id) => id.trim())
+              .filter(Boolean),
+          ),
+        ];
+  const scopedReader = { ...reader, projectIds };
+  const detail = await getInitiativeDetail(initiativeId, scopedReader);
   const tasks = [
     ...detail.tasks.map((task) => ({ ...task, external: false })),
     ...detail.externalTasks.map((task) => ({
@@ -116,7 +129,7 @@ export async function getInitiativePlan(
     db
       .select({ id: projectTable.id })
       .from(projectTable)
-      .where(readableProject(reader)),
+      .where(readableProject(scopedReader)),
     workspaceSamples(reader.workspaceId),
   ]);
   // Estimates learn only from tasks the reader can read (§3.6).
@@ -256,6 +269,10 @@ export async function getInitiativePlan(
   return {
     initiativeId: detail.id,
     projectId: detail.projectId,
+    projectScope:
+      projectIds === undefined
+        ? null
+        : readableRows.map((row) => row.id).sort(),
     name: detail.name,
     computedAt: now,
     estimatesComputedAt: cached.computedAt,
