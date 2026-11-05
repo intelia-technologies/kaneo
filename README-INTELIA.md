@@ -263,7 +263,7 @@ Reacciones con emoji en los comentarios y en la propia tarea (la tarjeta), con a
 - **Se conservan** (cuelgan del id): título, descripción, asignado, prioridad, fechas, comentarios, reacciones, actividad, adjuntos, relaciones (también con otros proyectos), `recurrence`, la rutina y el nivel de automatización.
 - **Cambia el número** al siguiente del destino (`claimTaskNumber`); el antiguo queda en `intelia.task_alias` (migración `0005_task_alias`: tarea, proyecto que deja, número, quién y cuándo; único por proyecto y número, que upstream nunca reutiliza).
 - **Remapeo**, en la transacción de la tarea (con su cerrojo):
-  - **Columna** por slug. Si el destino no la tiene, falla.
+  - **Columna** por slug. Si el destino no la tiene, falla. Una tarea archivada o planificada (`archived`, `planned`: los estados sin columna de upstream) no busca columna: sigue archivada o planificada en el destino, sin columna (`column.toColumnId: null`); así se puede vaciar un proyecto (diseño 36, PJ-02).
   - **Campos personalizados** por nombre (sin mayúsculas ni espacios de más), mismo tipo y, en `dropdown` y `multiselect`, con las opciones del valor. Los valores de la tarea, sus definiciones y las del destino quedan bloqueados (`FOR SHARE`) hasta confirmar, así que una edición del valor, del tipo o de las opciones espera. Si falta alguno, falla, salvo que su nombre vaya en `discardFields`: entonces se borra su valor.
   - **Etiquetas:** son del espacio de trabajo, que la tarea no deja, así que se quedan como están.
   - **Iniciativa:** la del destino con el mismo nombre (la regla de unicidad de las iniciativas); si no hay, se crea con el mismo diseño y aprobación, con su entrada `created` en el diario, y la pertenencia nueva queda en `task_initiative_change`.
@@ -276,6 +276,7 @@ Reacciones con emoji en los comentarios y en la propia tarea (la tarjeta), con a
   - La búsqueda (`GET /api/search`, por clave `SF-745`) y `GET /api/task/by-ticket-id/SF-745` encuentran la tarea movida, con los mismos permisos sobre su proyecto actual. La clave se compara como en upstream (NFKC, sin mayúsculas). La consulta por ticket solo cae al alias si ninguna tarea legible tiene hoy ese número, y resuelve el id de la tarea del alias, con las mismas condiciones de espacio de trabajo y acceso que una tarea viva: nunca vuelve a buscar por el ticket actual.
   - El detalle de la tarea muestra «antes SF-745» encima del título (`apps/web/src/intelia/aliases/`). Su consulta cuelga de `["task", id]`, así que cualquier evento en tiempo real de la tarea, `TASK_MOVED` incluido, la refresca.
 - **Enlace antiguo:** el enlace completo antiguo de una tarea movida, con el origen archivado, acaba en la tarea en su proyecto nuevo, con «formerly <clave antigua>».
+- **Tareas archivadas y planificadas:** se mueven y siguen archivadas o planificadas en el destino (sin columna, `column.toColumnId: null`), con su alias; el número antiguo resuelve.
 - **Fuera del fork** (KP-02, gateway): quién puede mover, la tupla `project` del grafo, el comentario en la tarea y no mover tareas con un worker vivo.
 - **Tests:** `tests/api-integration/intelia-task-move.test.ts`, `apps/web/src/intelia/aliases/use-moved-task-redirect.test.ts` y `apps/web/src/intelia/aliases/components/task-aliases.test.tsx`.
 

@@ -1,6 +1,6 @@
 // Moving a task to another project keeping its identity (design 11, annex
 // «Mover tareas»): only the number changes, and the old one stays an alias.
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   afterEach,
   beforeEach,
@@ -364,6 +364,140 @@ describe("POST /api/intelia/task/{taskId}/move", () => {
       { path: "column", message: expect.stringContaining("in-review") },
     ]);
     expect(await snapshot(task.id)).toEqual(before);
+  });
+
+  it("moves an archived task without a column to a destination that lacks an archived column, keeps status, and resolves alias", async () => {
+    const { app, sf, infra } = await setup();
+    const [destColumn] = await db
+      .select()
+      .from(schema.columnTable)
+      .where(
+        and(
+          eq(schema.columnTable.projectId, infra.project.id),
+          eq(schema.columnTable.slug, "archived"),
+        ),
+      );
+    expect(destColumn).toBeUndefined();
+
+    const archivedTask = await seedTask(sf.project, 800, {
+      status: "archived",
+      columnId: null,
+    });
+
+    const response = await move(app, archivedTask.id, {
+      projectId: infra.project.id,
+    });
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toMatchObject({
+      taskId: archivedTask.id,
+      from: { projectSlug: "SF", number: 800, ticketId: "SF-800" },
+      to: {
+        projectId: infra.project.id,
+        projectSlug: "INFRA",
+        number: 12,
+        ticketId: "INFRA-12",
+      },
+      column: {
+        slug: "archived",
+        name: "archived",
+        fromColumnId: null,
+        toColumnId: null,
+      },
+    });
+
+    const [persisted] = await db
+      .select()
+      .from(schema.taskTable)
+      .where(eq(schema.taskTable.id, archivedTask.id));
+    expect(persisted).toBeDefined();
+    expect(persisted.projectId).toBe(infra.project.id);
+    expect(persisted.number).toBe(12);
+    expect(persisted.status).toBe("archived");
+    expect(persisted.columnId).toBeNull();
+
+    const aliases = await db
+      .select()
+      .from(taskAliasTable)
+      .where(eq(taskAliasTable.taskId, archivedTask.id));
+    expect(aliases).toEqual([
+      expect.objectContaining({
+        taskId: archivedTask.id,
+        projectId: sf.project.id,
+        number: 800,
+      }),
+    ]);
+
+    const byTicket = await app.request("/api/task/by-ticket-id/SF-800");
+    expect(byTicket.status).toBe(200);
+    expect(await byTicket.json()).toMatchObject({ id: archivedTask.id });
+  });
+
+  it("moves a planned task without a column to a destination that lacks a planned column, keeps status, and resolves alias", async () => {
+    const { app, sf, infra } = await setup();
+    const [destColumn] = await db
+      .select()
+      .from(schema.columnTable)
+      .where(
+        and(
+          eq(schema.columnTable.projectId, infra.project.id),
+          eq(schema.columnTable.slug, "planned"),
+        ),
+      );
+    expect(destColumn).toBeUndefined();
+
+    const plannedTask = await seedTask(sf.project, 801, {
+      status: "planned",
+      columnId: null,
+    });
+
+    const response = await move(app, plannedTask.id, {
+      projectId: infra.project.id,
+    });
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toMatchObject({
+      taskId: plannedTask.id,
+      from: { projectSlug: "SF", number: 801, ticketId: "SF-801" },
+      to: {
+        projectId: infra.project.id,
+        projectSlug: "INFRA",
+        number: 12,
+        ticketId: "INFRA-12",
+      },
+      column: {
+        slug: "planned",
+        name: "planned",
+        fromColumnId: null,
+        toColumnId: null,
+      },
+    });
+
+    const [persisted] = await db
+      .select()
+      .from(schema.taskTable)
+      .where(eq(schema.taskTable.id, plannedTask.id));
+    expect(persisted).toBeDefined();
+    expect(persisted.projectId).toBe(infra.project.id);
+    expect(persisted.number).toBe(12);
+    expect(persisted.status).toBe("planned");
+    expect(persisted.columnId).toBeNull();
+
+    const aliases = await db
+      .select()
+      .from(taskAliasTable)
+      .where(eq(taskAliasTable.taskId, plannedTask.id));
+    expect(aliases).toEqual([
+      expect.objectContaining({
+        taskId: plannedTask.id,
+        projectId: sf.project.id,
+        number: 801,
+      }),
+    ]);
+
+    const byTicket = await app.request("/api/task/by-ticket-id/SF-801");
+    expect(byTicket.status).toBe(200);
+    expect(await byTicket.json()).toMatchObject({ id: plannedTask.id });
   });
 
   it("fails on a missing field option unless the field is discarded", async () => {

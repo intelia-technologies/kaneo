@@ -25,6 +25,7 @@ import { filterUsersWithProjectAccess } from "../../project-access/filter-users-
 import { projectAccessCondition } from "../../project-access/project-access-condition";
 import { claimTaskNumber } from "../../task/controllers/claim-task-numbers";
 import { nextTaskPosition } from "../../task/controllers/next-task-position";
+import { VIRTUAL_STATUSES } from "../../task/validate-task-fields";
 import type { InitiativeWriter } from "../initiatives/access";
 import {
   type MovedInitiative,
@@ -70,7 +71,8 @@ export type MoveResult = {
     slug: string;
     name: string;
     fromColumnId: string | null;
-    toColumnId: string;
+    /** Null for an archived or planned task, which has no column. */
+    toColumnId: string | null;
   };
   customFields: FieldPlan[];
   labels: { name: string; action: "kept" }[];
@@ -245,17 +247,26 @@ async function applyMove(
 
   const issues: ApiErrorIssue[] = [];
 
-  // Column: by slug, never a fallback.
-  const [column] = await tx
-    .select()
-    .from(columnTable)
-    .where(
-      and(
-        eq(columnTable.projectId, destinationProjectId),
-        eq(columnTable.slug, task.status),
-      ),
-    )
-    .limit(1);
+  // Column: by slug, never a fallback. An archived or planned task has no
+  // column (upstream's virtual statuses): it keeps its status and stays
+  // without a column in the destination.
+  const virtual = (VIRTUAL_STATUSES as readonly string[]).includes(task.status);
+  const [column] = virtual
+    ? [{ slug: task.status, name: task.status, id: null }]
+    : await tx
+        .select({
+          slug: columnTable.slug,
+          name: columnTable.name,
+          id: columnTable.id,
+        })
+        .from(columnTable)
+        .where(
+          and(
+            eq(columnTable.projectId, destinationProjectId),
+            eq(columnTable.slug, task.status),
+          ),
+        )
+        .limit(1);
   if (!column) {
     issues.push({
       path: "column",
