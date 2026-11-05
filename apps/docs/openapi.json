@@ -7067,7 +7067,11 @@
                 ]
               },
               "toColumnId": {
-                "type": "string"
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Null for an archived or planned task: it keeps its status, without a column."
               }
             },
             "required": [

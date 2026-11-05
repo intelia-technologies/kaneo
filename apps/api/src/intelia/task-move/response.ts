@@ -21,7 +21,10 @@ export const moveTaskResultSchema = z
       slug: z.string(),
       name: z.string(),
       fromColumnId: z.string().nullable(),
-      toColumnId: z.string(),
+      toColumnId: z.string().nullable().openapi({
+        description:
+          "Null for an archived or planned task: it keeps its status, without a column.",
+      }),
     }),
     customFields: z.array(
       z.object({
