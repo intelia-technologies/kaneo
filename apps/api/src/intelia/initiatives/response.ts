@@ -62,6 +62,18 @@ export const initiativeChangeSchema = z
 
 export const initiativeChangeListSchema = z.array(initiativeChangeSchema);
 
+export const deletedInitiativeSchema = z
+  .object({
+    id: z.string(),
+    projectId: z.string(),
+    name: z.string(),
+    unlinkedTaskIds: z.array(z.string()).openapi({
+      description:
+        "The cancelled tasks it had, now without initiative (each with a row in its initiative log). Empty when it had none.",
+    }),
+  })
+  .openapi("DeletedInitiative");
+
 export const taskInitiativeSchema = z
   .object({
     taskId: z.string(),

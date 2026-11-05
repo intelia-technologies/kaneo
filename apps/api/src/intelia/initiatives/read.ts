@@ -16,13 +16,11 @@ import {
 } from "../schema";
 import { statusSince } from "../status-since";
 import { type InitiativeReader, readableProject } from "./access";
-import { getInitiative, listProjectInitiatives } from "./service";
+import { CANCELLED, getInitiative, listProjectInitiatives } from "./service";
 
-// The factory's column slugs (design 19 §5): only Done is done, Cancelled is
-// out of the progress, Blocked carries a reason. Both spellings of Cancelled,
-// as in the «Dependencias» view.
+// The factory's column slugs (design 19 §5): only Done is done, Cancelled
+// (CANCELLED) is out of the progress, Blocked carries a reason.
 const DONE = "done";
-const CANCELLED = new Set(["cancelled", "canceled"]);
 const BLOCKED = "blocked";
 
 // Custom fields with the reason of a block: the dropdown and, from IN-07, its

@@ -168,6 +168,29 @@ function putTaskInitiative(
   });
 }
 
+function deleteInitiative(
+  app: App,
+  initiativeId: string,
+  body?: Record<string, unknown>,
+  headers: Record<string, string> = {},
+) {
+  return app.request(`/api/intelia/initiative/${initiativeId}`, {
+    method: "DELETE",
+    headers:
+      body === undefined
+        ? headers
+        : { "content-type": "application/json", ...headers },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
+function setStoredStatus(taskId: string, status: string) {
+  return db
+    .update(schema.taskTable)
+    .set({ status })
+    .where(eq(schema.taskTable.id, taskId));
+}
+
 function createTask(
   app: App,
   projectId: string,
@@ -1434,5 +1457,230 @@ describe("API integration: Intelia initiatives", () => {
     const dup = (await dupRes.json()) as { id: string };
     const dupInit = await storedTaskInitiative(dup.id);
     expect(dupInit).toHaveLength(0);
+  });
+
+  describe("DELETE /api/intelia/initiative/{initiativeId}", () => {
+    async function initiativeWithTasks(
+      app: App,
+      projectId: string,
+      name: string,
+      statuses: string[],
+    ) {
+      const initRes = await createInitiative(app, projectId, { name });
+      expect(initRes.status).toBe(201);
+      const initiative = (await initRes.json()) as { id: string };
+      const taskIds: string[] = [];
+      for (const status of statuses) {
+        const taskRes = await createTask(app, projectId, {
+          initiative: { id: initiative.id },
+        });
+        expect(taskRes.status).toBe(200);
+        const task = (await taskRes.json()) as { id: string };
+        await setStoredStatus(task.id, status);
+        taskIds.push(task.id);
+      }
+      return { initiative, taskIds };
+    }
+
+    async function snapshot(initiativeId: string, taskIds: string[]) {
+      return {
+        initiative: await storedInitiative(initiativeId),
+        changes: await initiativeChanges(initiativeId),
+        memberships: await Promise.all(taskIds.map(storedTaskInitiative)),
+        taskChanges: await Promise.all(taskIds.map(taskInitiativeChanges)),
+      };
+    }
+
+    it("deletes an initiative without tasks, with its change log, without a body", async () => {
+      const { app, project } = await setup();
+      const { initiative } = await initiativeWithTasks(
+        app,
+        project.id,
+        "Iniciativa vacía",
+        [],
+      );
+
+      const res = await deleteInitiative(app, initiative.id);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        id: initiative.id,
+        projectId: project.id,
+        name: "Iniciativa vacía",
+        unlinkedTaskIds: [],
+      });
+
+      const detail = await app.request(
+        `/api/intelia/initiative/${initiative.id}`,
+      );
+      expect(detail.status).toBe(404);
+      expect(await storedInitiative(initiative.id)).toHaveLength(0);
+      expect(await initiativeChanges(initiative.id)).toHaveLength(0);
+
+      // An assignment that comes after finds no initiative.
+      const taskRes = await createTask(app, project.id, {
+        initiative: { id: initiative.id },
+      });
+      expect(taskRes.status).toBe(400);
+      expect(await readErrorBody(taskRes)).toMatchObject({
+        code: "INITIATIVE_NOT_FOUND",
+      });
+    });
+
+    it("deletes an initiative with only cancelled tasks, which stay without initiative with a log row signed by the API key", async () => {
+      const { app, project, roleKey, roleAccount } = await setup();
+      const { initiative, taskIds } = await initiativeWithTasks(
+        app,
+        project.id,
+        "Iniciativa cancelada",
+        ["cancelled", "canceled"],
+      );
+
+      vi.restoreAllMocks();
+      mockAnonymousSession();
+      const res = await deleteInitiative(
+        app,
+        initiative.id,
+        { actor: DECLARED },
+        { "x-api-key": roleKey },
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        id: initiative.id,
+        projectId: project.id,
+        name: "Iniciativa cancelada",
+        unlinkedTaskIds: [...taskIds].sort(),
+      });
+      expect(await storedInitiative(initiative.id)).toHaveLength(0);
+
+      for (const taskId of taskIds) {
+        const [task] = await db
+          .select()
+          .from(schema.taskTable)
+          .where(eq(schema.taskTable.id, taskId));
+        expect(task).toBeDefined();
+        expect(await storedTaskInitiative(taskId)).toHaveLength(0);
+        const taskRes = await app.request(
+          `/api/intelia/task/${taskId}/initiative`,
+          { headers: { "x-api-key": roleKey } },
+        );
+        expect(taskRes.status).toBe(404);
+        const changes = await taskInitiativeChanges(taskId);
+        expect(changes).toHaveLength(2);
+        // previousInitiativeId goes null with the initiative (ON DELETE SET NULL).
+        expect(changes[1]).toMatchObject({
+          previousInitiativeId: null,
+          previousOrigin: "plan",
+          initiativeId: null,
+          origin: null,
+          changedByUserId: roleAccount.user.id,
+          changedByActor: DECLARED,
+          source: "api_key",
+        });
+        expect(changes[1]?.changedAt.getTime()).toBeGreaterThan(
+          changes[0]?.changedAt.getTime() ?? 0,
+        );
+      }
+    });
+
+    it("answers 409 INITIATIVE_NOT_EMPTY with the count of tasks not cancelled, changing nothing", async () => {
+      const { app, project } = await setup();
+      const { initiative, taskIds } = await initiativeWithTasks(
+        app,
+        project.id,
+        "Iniciativa con trabajo",
+        ["to-do", "done", "cancelled"],
+      );
+      const before = await snapshot(initiative.id, taskIds);
+
+      const res = await deleteInitiative(app, initiative.id, {});
+      expect(res.status).toBe(409);
+      const body = await readErrorBody(res);
+      expect(body).toMatchObject({ code: "INITIATIVE_NOT_EMPTY" });
+      expect(body.message).toContain("2 tasks not cancelled");
+      expect(await snapshot(initiative.id, taskIds)).toEqual(before);
+
+      const { initiative: doneOnly, taskIds: doneIds } =
+        await initiativeWithTasks(app, project.id, "Iniciativa terminada", [
+          "done",
+        ]);
+      const doneBefore = await snapshot(doneOnly.id, doneIds);
+      const doneRes = await deleteInitiative(app, doneOnly.id);
+      expect(doneRes.status).toBe(409);
+      const doneBody = await readErrorBody(doneRes);
+      expect(doneBody).toMatchObject({ code: "INITIATIVE_NOT_EMPTY" });
+      expect(doneBody.message).toContain("1 task not cancelled");
+      expect(await snapshot(doneOnly.id, doneIds)).toEqual(doneBefore);
+    });
+
+    it("checks the statuses under the tasks' locks: a task leaving Cancelled meanwhile makes it 409", async () => {
+      const { app, project } = await setup();
+      const { initiative, taskIds } = await initiativeWithTasks(
+        app,
+        project.id,
+        "Iniciativa en carrera",
+        ["cancelled"],
+      );
+      const [taskId] = taskIds as [string];
+
+      const commit = await holdTransaction((tx) =>
+        tx
+          .update(schema.taskTable)
+          .set({ status: "to-do" })
+          .where(eq(schema.taskTable.id, taskId)),
+      );
+      const pending = deleteInitiative(app, initiative.id);
+      await waitForLockWait();
+      await commit();
+
+      const res = await pending;
+      expect(res.status).toBe(409);
+      expect(await readErrorBody(res)).toMatchObject({
+        code: "INITIATIVE_NOT_EMPTY",
+      });
+      expect(await storedInitiative(initiative.id)).toHaveLength(1);
+      expect(await storedTaskInitiative(taskId)).toHaveLength(1);
+    });
+
+    it("answers 404 for an unknown initiative, 401 without credentials, 403 to a viewer and 400 to a session with actor, deleting nothing", async () => {
+      const { app, project, workspace, user } = await setup();
+      const viewer = await keyAccount(workspace.id, "viewer", "viewer");
+      const { initiative } = await initiativeWithTasks(
+        app,
+        project.id,
+        "Iniciativa protegida",
+        [],
+      );
+
+      const unknown = await deleteInitiative(app, "non-existent-initiative");
+      expect(unknown.status).toBe(404);
+      expect(await readErrorBody(unknown)).toMatchObject({
+        message: "Initiative not found",
+      });
+
+      const sessionActor = await deleteInitiative(app, initiative.id, {
+        actor: DECLARED,
+      });
+      expect(sessionActor.status).toBe(400);
+      expect(await readErrorBody(sessionActor)).toMatchObject({
+        code: "VALIDATION_ERROR",
+        issues: [expect.objectContaining({ path: "body.actor" })],
+      });
+
+      vi.restoreAllMocks();
+      mockAnonymousSession();
+      expect((await deleteInitiative(app, initiative.id)).status).toBe(401);
+      expect(
+        (
+          await deleteInitiative(app, initiative.id, undefined, {
+            "x-api-key": viewer.key,
+          })
+        ).status,
+      ).toBe(403);
+
+      expect(await storedInitiative(initiative.id)).toHaveLength(1);
+      vi.restoreAllMocks();
+      mockAuthenticatedSession(user);
+      expect((await deleteInitiative(app, initiative.id)).status).toBe(200);
+    });
   });
 });
