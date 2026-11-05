@@ -6475,7 +6475,7 @@
           },
           "partial": {
             "type": "boolean",
-            "description": "A dependency is omitted: an endpoint is unreadable, or an external task has a predecessor outside the detail's one-hop graph. No omitted task data is exposed."
+            "description": "A dependency endpoint is unreadable and was left out without any of its data."
           },
           "cycle": {
             "type": "boolean",

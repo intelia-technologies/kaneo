@@ -111,7 +111,7 @@ export const initiativePlanSchema = z
         }),
         partial: z.boolean().openapi({
           description:
-            "A dependency is omitted: an endpoint is unreadable, or an external task has a predecessor outside the detail's one-hop graph. No omitted task data is exposed.",
+            "A dependency endpoint is unreadable and was left out without any of its data.",
         }),
         cycle: z.boolean().openapi({
           description:

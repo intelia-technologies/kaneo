@@ -332,7 +332,7 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
     expect(empty.body.tasks).toEqual([]);
   });
 
-  it("keeps the plan partial when an external task has another predecessor", async () => {
+  it("follows readable external predecessors and hides unreadable ones", async () => {
     const { app, coder, project, other, initiative, workspace } = await setup();
     const hidden = await createProjectFixture({
       workspaceId: workspace.id,
@@ -347,21 +347,30 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
     const predecessor = await seedTask(other.id, {
       title: "Readable predecessor",
     });
+    const earliest = await seedTask(other.id, { title: "Earlier predecessor" });
     const secret = await seedTask(hidden.project.id, {
       title: "Hidden predecessor",
     });
     await blocks(external.id, own.id);
     await blocks(predecessor.id, external.id);
+    await blocks(earliest.id, predecessor.id);
     const visible = await plan(
       app,
       initiative.id,
       `?projectIds=${project.id},${other.id}`,
     );
-    expect(visible.body.criticalPath.partial).toBe(true);
+    expect(visible.body.criticalPath.partial).toBe(false);
+    expect(visible.body.criticalPath.taskIds).toEqual([
+      earliest.id,
+      predecessor.id,
+      external.id,
+      own.id,
+    ]);
     expect(visible.task(external.id)).toMatchObject({
-      mark: null,
-      stallReason: null,
+      mark: "waiting",
+      dependsOn: [predecessor.id],
     });
+    expect(visible.task(predecessor.id).dependsOn).toEqual([earliest.id]);
     await db
       .delete(schema.taskRelationTable)
       .where(eq(schema.taskRelationTable.sourceTaskId, predecessor.id));
@@ -385,6 +394,20 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
     });
     expect(JSON.stringify(filtered.body)).not.toContain(secret.id);
     expect(JSON.stringify(filtered.body)).not.toContain("Hidden predecessor");
+  });
+
+  it("reports a cycle among external predecessors without looping", async () => {
+    const { app, project, other, initiative } = await setup();
+    const own = await seedTask(project.id, { initiativeId: initiative.id });
+    const first = await seedTask(other.id);
+    const second = await seedTask(other.id);
+    await blocks(first.id, own.id);
+    await blocks(second.id, first.id);
+    await blocks(first.id, second.id);
+    const { body } = await plan(app, initiative.id);
+    expect(body.criticalPath.cycle).toBe(true);
+    expect(body.criticalPath.taskIds).toEqual([]);
+    expect(body.estimatedEnd).toBeNull();
   });
 
   it("estimates with the median of finished tasks of the same project, level and executor", async () => {

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, notInArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import db from "../../../database";
 import {
   activityTable,
@@ -7,7 +7,11 @@ import {
   taskRelationTable,
   userTable,
 } from "../../../database/schema";
-import { boardSignalTable, taskAutomationTable } from "../../schema";
+import {
+  boardSignalTable,
+  taskAutomationTable,
+  taskInitiativeTable,
+} from "../../schema";
 import { columnStats } from "../../status-age/read";
 import { type InitiativeReader, readableProject } from "../access";
 import { blockReasons, getInitiativeDetail } from "../read";
@@ -123,27 +127,96 @@ export async function getInitiativePlan(
       assignee: null,
     })),
   ];
+  // The detail includes only edges touching the initiative. Follow readable
+  // external predecessors transitively so the schedule does not lose a
+  // longer chain. Hidden endpoints contribute only to the aggregate flag.
+  const edges = new Map<string, { from: string; to: string }>();
+  for (const task of detail.tasks) {
+    for (const from of task.dependsOn)
+      edges.set(`${from}>${task.id}`, { from, to: task.id });
+    for (const to of task.blocks)
+      edges.set(`${task.id}>${to}`, { from: task.id, to });
+  }
+  const known = new Map(tasks.map((task) => [task.id, task]));
+  const attempted = new Set(known.keys());
+  const inspected = new Set<string>();
+  const directBlockers = new Set(
+    detail.tasks.flatMap((task) => task.dependsOn),
+  );
+  let frontier = detail.externalTasks
+    .filter((task) => directBlockers.has(task.id) && isPending(task.status))
+    .map((task) => task.id);
+  let partial = detail.pendingChain.partial;
+  while (frontier.length) {
+    for (const id of frontier) inspected.add(id);
+    const relations = await db
+      .select({
+        from: taskRelationTable.sourceTaskId,
+        to: taskRelationTable.targetTaskId,
+      })
+      .from(taskRelationTable)
+      .where(
+        and(
+          eq(taskRelationTable.relationType, "blocks"),
+          inArray(taskRelationTable.targetTaskId, frontier),
+        ),
+      );
+    const unknown = [
+      ...new Set(
+        relations
+          .map((relation) => relation.from)
+          .filter((id) => !attempted.has(id)),
+      ),
+    ];
+    for (const id of unknown) attempted.add(id);
+    const visible = unknown.length
+      ? await db
+          .select({
+            id: taskTable.id,
+            number: taskTable.number,
+            title: taskTable.title,
+            status: taskTable.status,
+            projectId: taskTable.projectId,
+            projectSlug: projectTable.slug,
+            projectName: projectTable.name,
+            initiativeId: taskInitiativeTable.initiativeId,
+          })
+          .from(taskTable)
+          .innerJoin(projectTable, eq(taskTable.projectId, projectTable.id))
+          .leftJoin(
+            taskInitiativeTable,
+            eq(taskInitiativeTable.taskId, taskTable.id),
+          )
+          .where(
+            and(inArray(taskTable.id, unknown), readableProject(scopedReader)),
+          )
+          .orderBy(
+            asc(projectTable.slug),
+            asc(taskTable.number),
+            asc(taskTable.id),
+          )
+      : [];
+    if (visible.length !== unknown.length) partial = true;
+    for (const row of visible) {
+      const task = { ...row, external: true, assignee: null };
+      tasks.push(task);
+      known.set(task.id, task);
+    }
+    const next = new Set<string>();
+    for (const relation of relations) {
+      const predecessor = known.get(relation.from);
+      if (!predecessor) continue;
+      edges.set(`${relation.from}>${relation.to}`, relation);
+      if (
+        predecessor.external &&
+        isPending(predecessor.status) &&
+        !inspected.has(predecessor.id)
+      )
+        next.add(predecessor.id);
+    }
+    frontier = [...next];
+  }
   const ids = tasks.map((task) => task.id);
-  // The detail contains only edges touching the initiative. If an external
-  // dependency has another predecessor, the plan is incomplete, even when
-  // that predecessor is readable. Only expose the aggregate partial flag.
-  const externalIds = detail.externalTasks.map((task) => task.id);
-  const ownIds = detail.tasks.map((task) => task.id);
-  const omittedExternalEdges = externalIds.length
-    ? await db
-        .select({ id: taskRelationTable.id })
-        .from(taskRelationTable)
-        .where(
-          and(
-            eq(taskRelationTable.relationType, "blocks"),
-            inArray(taskRelationTable.targetTaskId, externalIds),
-            notInArray(taskRelationTable.sourceTaskId, ownIds),
-          ),
-        )
-        .limit(1)
-    : [];
-  const partial =
-    detail.pendingChain.partial || omittedExternalEdges.length > 0;
 
   const [facts, readableRows, cached] = await Promise.all([
     taskFacts(ids),
@@ -173,16 +246,6 @@ export async function getInitiativePlan(
     changesById.set(change.taskId, list);
   }
 
-  // Edges among readable tasks, as the detail exposes them.
-  const edges = new Map<string, { from: string; to: string }>();
-  for (const task of detail.tasks) {
-    for (const from of task.dependsOn) {
-      edges.set(`${from}>${task.id}`, { from, to: task.id });
-    }
-    for (const to of task.blocks) {
-      edges.set(`${task.id}>${to}`, { from: task.id, to });
-    }
-  }
   const status = new Map(tasks.map((task) => [task.id, task.status]));
   const blockersOf = new Map<string, string[]>();
   for (const { from, to } of edges.values()) {
