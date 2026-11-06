@@ -26,6 +26,7 @@ import {
   assertValidPriority,
   assertValidTaskStatus,
 } from "../validate-task-fields";
+import { assertNoPendingBlockersOnTransition } from "./assert-no-pending-blockers-on-transition";
 
 type BulkOperation =
   | "updateStatus"
@@ -130,6 +131,13 @@ async function bulkUpdateTasks({
           .where(inArray(taskTable.id, foundIds))
           .orderBy(asc(taskTable.id))
           .for("update");
+        await assertNoPendingBlockersOnTransition(
+          tx,
+          before,
+          value,
+          userId,
+          new Map(before.map((task) => [task.id, value])),
+        );
         const beforeById = new Map(before.map((task) => [task.id, task]));
         const result: Array<{
           id: string;

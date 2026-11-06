@@ -22,6 +22,7 @@ import { roleHasWorkspacePermission } from "../../utils/require-workspace-permis
 import { boardDescription, descriptionDeferred } from "../description-pages";
 import { assertValidTaskStatus } from "../validate-task-fields";
 import { assertTaskPosition } from "./next-task-position";
+import { assertNoPendingBlockersOnTransition } from "./assert-no-pending-blockers-on-transition";
 
 async function updateTask(
   id: string,
@@ -184,6 +185,12 @@ async function updateTask(
     if (normalizedUserId && normalizedUserId !== locked.userId) {
       await assertAssignableUser(normalizedUserId, workspaceId!, projectId, tx);
     }
+    await assertNoPendingBlockersOnTransition(
+      tx,
+      [locked],
+      status,
+      currentUserId,
+    );
     existingTask = locked;
 
     const [task] = await tx
