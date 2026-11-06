@@ -39,7 +39,9 @@ export async function lockAccessChange(
     (await roleHasWorkspacePermission(
       change.workspaceId,
       actorRole,
-      { member: ["update"] },
+      change.reasignarA
+        ? { member: ["update"], task: ["assign"] }
+        : { member: ["update"] },
       database,
     ))
   ) {

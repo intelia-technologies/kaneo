@@ -6,7 +6,12 @@ import { projectAccessCondition } from "./project-access-condition";
 
 export async function unassignInaccessibleTasks(
   database: DbOrTx,
-  change: { workspaceId: string; userId: string; actorId: string },
+  change: {
+    workspaceId: string;
+    userId: string;
+    actorId: string;
+    projectIds?: string[];
+  },
 ): Promise<{ id: string; projectId: string }[]> {
   const unassigned = await database
     .update(schema.taskTable)
@@ -14,6 +19,9 @@ export async function unassignInaccessibleTasks(
     .where(
       and(
         eq(schema.taskTable.userId, change.userId),
+        change.projectIds
+          ? inArray(schema.taskTable.projectId, change.projectIds)
+          : undefined,
         inArray(
           schema.taskTable.projectId,
           database

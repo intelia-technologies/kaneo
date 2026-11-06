@@ -53,6 +53,18 @@ export const updateMemberProjectAccessResponseSchema = z.object({
   desasignadas: z.number().int().nonnegative(),
 });
 
+export const cancelOrResultProjectAccessResponseSchema = z.discriminatedUnion(
+  "estado",
+  [
+    z.object({ estado: z.literal("cancelada") }),
+    z.object({
+      estado: z.literal("aplicada"),
+      reasignadas: z.number().int().nonnegative(),
+      desasignadas: z.number().int().nonnegative(),
+    }),
+  ],
+);
+
 export const memberProjectAccessListSchema = z
   .array(memberProjectAccessSchema)
   .openapi({

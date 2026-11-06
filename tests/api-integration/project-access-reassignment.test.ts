@@ -1,6 +1,6 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { eq, sql } from "drizzle-orm";
-import { beforeEach, describe, expect, it } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import db, { schema } from "../../apps/api/src/database";
 import { mockAuthenticatedSession } from "./helpers/auth";
 import { resetTestDatabase } from "./helpers/database";
@@ -10,6 +10,11 @@ import { createRestrictedWorkspace } from "./helpers/project-access/create-restr
 import { projectAccessApi } from "./helpers/project-access/project-access-api";
 import { readMemberAccessRows } from "./helpers/project-access/read-member-access-rows";
 import { restrictToProjects } from "./helpers/project-access/restrict-to-projects";
+
+vi.mock("../../apps/api/src/events", async (original) => ({
+  ...(await original<object>()),
+  publishEvent: vi.fn(async () => undefined),
+}));
 
 beforeEach(resetTestDatabase);
 
@@ -213,6 +218,55 @@ describe("project access reassignment", () => {
     }
   });
 
+  it("rechecks task assignment permission after a concurrent role change", async () => {
+    const ctx = await createRestrictedWorkspace();
+    const actor = await addWorkspaceMember(ctx.workspace.id, "admin");
+    const replacement = await addWorkspaceMember(ctx.workspace.id);
+    await db.insert(schema.workspaceRoleTable).values({
+      workspaceId: ctx.workspace.id,
+      role: "member-editor",
+      permission: JSON.stringify({ member: ["update"] }),
+    });
+    mockAuthenticatedSession(actor);
+    let pending: Promise<Response> | undefined;
+    try {
+      await db.transaction(async (tx) => {
+        await tx
+          .update(schema.workspaceUserTable)
+          .set({ role: "member-editor" })
+          .where(eq(schema.workspaceUserTable.userId, actor.id));
+        pending = projectAccessApi()(
+          `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`,
+          {
+            method: "PUT",
+            body: {
+              projectAccess: "selected",
+              projectIds: [],
+              reasignarA: replacement.id,
+            },
+          },
+        );
+        const deadline = Date.now() + 5000;
+        let waiting = 0;
+        while (Date.now() < deadline) {
+          await tx.execute(sql`select pg_stat_clear_snapshot()`);
+          const result =
+            await tx.execute(sql`select count(*)::int as count from pg_stat_activity
+          where datname = current_database() and pid <> pg_backend_pid()
+            and wait_event_type = 'Lock' and query ilike '%workspace_member%'`);
+          waiting = Number(result.rows[0]?.count ?? 0);
+          if (waiting > 0) break;
+          await delay(10);
+        }
+        expect(waiting).toBeGreaterThan(0);
+      });
+    } finally {
+      await pending?.catch(() => undefined);
+    }
+    expect((await pending!).status).toBe(403);
+    expect(await assignee(ctx.alphaTask.id)).toBe(ctx.restricted.id);
+  });
+
   it("does not reassign tasks in a project concurrently moved to another workspace", async () => {
     const ctx = await createRestrictedWorkspace();
     const replacement = await addWorkspaceMember(ctx.workspace.id);
@@ -335,5 +389,417 @@ describe("project access reassignment", () => {
         desasignadas: 0,
       });
     }
+  });
+
+  it("replays the original outcome after a lost response and deletion of the destination", async () => {
+    const ctx = await createRestrictedWorkspace();
+    const replacement = await addWorkspaceMember(ctx.workspace.id);
+    mockAuthenticatedSession(ctx.owner);
+    const request = projectAccessApi();
+    const path = `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`;
+    const body = {
+      projectAccess: "selected",
+      projectIds: [],
+      reasignarA: replacement.id,
+      operacionId: crypto.randomUUID(),
+    };
+    const first = await request(path, { method: "PUT", body });
+    expect(first.status).toBe(200);
+    const original = await first.json();
+    expect(original).toMatchObject({ reasignadas: 1, desasignadas: 0 });
+    expect(await assignee(ctx.betaTask.id)).toBe(ctx.restricted.id);
+    await db
+      .delete(schema.userTable)
+      .where(eq(schema.userTable.id, replacement.id));
+    const replay = await request(path, { method: "PUT", body });
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual(original);
+  });
+
+  it("serializes concurrent requests with the same operation id", async () => {
+    const ctx = await createRestrictedWorkspace();
+    const replacement = await addWorkspaceMember(ctx.workspace.id);
+    mockAuthenticatedSession(ctx.owner);
+    const request = projectAccessApi();
+    const path = `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`;
+    const body = {
+      projectAccess: "selected",
+      projectIds: [],
+      reasignarA: replacement.id,
+      operacionId: crypto.randomUUID(),
+    };
+    const [first, second] = await Promise.all([
+      request(path, { method: "PUT", body }),
+      request(path, { method: "PUT", body }),
+    ]);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    const result = await first.json();
+    expect(result).toMatchObject({ reasignadas: 1, desasignadas: 0 });
+    expect(await second.json()).toEqual(result);
+    expect(await assignee(ctx.alphaTask.id)).toBe(replacement.id);
+  });
+
+  it("rejects reuse of an operation id with a different payload without further changes", async () => {
+    const ctx = await createRestrictedWorkspace();
+    const replacement = await addWorkspaceMember(ctx.workspace.id);
+    mockAuthenticatedSession(ctx.owner);
+    const request = projectAccessApi();
+    const path = `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`;
+    const body = {
+      projectAccess: "selected",
+      projectIds: [],
+      reasignarA: replacement.id,
+      operacionId: crypto.randomUUID(),
+    };
+    const first = await request(path, { method: "PUT", body });
+    expect(first.status).toBe(200);
+    const access = await readMemberAccessRows(
+      ctx.workspace.id,
+      ctx.restricted.id,
+    );
+    const conflict = await request(path, {
+      method: "PUT",
+      body: { ...body, projectIds: [ctx.alpha.id] },
+    });
+    expect(conflict.status).toBe(409);
+    expect(
+      await readMemberAccessRows(ctx.workspace.id, ctx.restricted.id),
+    ).toEqual(access);
+    expect(await assignee(ctx.alphaTask.id)).toBe(replacement.id);
+  });
+
+  it("checks current authorization before replaying a cached operation", async () => {
+    const ctx = await createRestrictedWorkspace();
+    const replacement = await addWorkspaceMember(ctx.workspace.id);
+    mockAuthenticatedSession(ctx.owner);
+    const request = projectAccessApi();
+    const path = `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`;
+    const body = {
+      projectAccess: "selected",
+      projectIds: [],
+      reasignarA: replacement.id,
+      operacionId: crypto.randomUUID(),
+    };
+    const first = await request(path, { method: "PUT", body });
+    expect(first.status).toBe(200);
+    mockAuthenticatedSession(ctx.restricted);
+    const replay = await request(path, { method: "PUT", body });
+    expect(replay.status).toBe(403);
+    expect(await assignee(ctx.alphaTask.id)).toBe(replacement.id);
+  });
+  it("requires task assignment permission when reassigning", async () => {
+    const ctx = await createRestrictedWorkspace();
+    await db.insert(schema.workspaceRoleTable).values({
+      workspaceId: ctx.workspace.id,
+      role: "member-editor",
+      permission: JSON.stringify({ member: ["update"] }),
+    });
+    const editor = await addWorkspaceMember(ctx.workspace.id, "member-editor");
+    const replacement = await addWorkspaceMember(ctx.workspace.id);
+    mockAuthenticatedSession(editor);
+    const response = await projectAccessApi()(
+      `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`,
+      {
+        method: "PUT",
+        body: {
+          projectAccess: "selected",
+          projectIds: [],
+          reasignarA: replacement.id,
+        },
+      },
+    );
+    expect(response.status).toBe(403);
+    expect(await assignee(ctx.alphaTask.id)).toBe(ctx.restricted.id);
+  });
+
+  it("rejects operations removing more than one project without changes", async () => {
+    const ctx = await createRestrictedWorkspace();
+    await restrictToProjects(ctx.workspace.id, ctx.restricted.id, [
+      ctx.alpha.id,
+      ctx.beta.id,
+    ]);
+    mockAuthenticatedSession(ctx.owner);
+    const before = await readMemberAccessRows(
+      ctx.workspace.id,
+      ctx.restricted.id,
+    );
+    const response = await projectAccessApi()(
+      `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`,
+      {
+        method: "PUT",
+        body: {
+          projectAccess: "selected",
+          projectIds: [],
+          operacionId: crypto.randomUUID(),
+        },
+      },
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: "MULTIPLE_PROJECT_ACCESS_OPERATION",
+    });
+    expect(
+      await readMemberAccessRows(ctx.workspace.id, ctx.restricted.id),
+    ).toEqual(before);
+    expect(await assignee(ctx.alphaTask.id)).toBe(ctx.restricted.id);
+    expect(await assignee(ctx.betaTask.id)).toBe(ctx.restricted.id);
+  });
+
+  it("denies another restricted admin access to an actor's results and tombstones", async () => {
+    const ctx = await createRestrictedWorkspace();
+    const admin = await addWorkspaceMember(ctx.workspace.id, "admin");
+    await restrictToProjects(ctx.workspace.id, admin.id, [ctx.beta.id]);
+    mockAuthenticatedSession(ctx.owner);
+    const request = projectAccessApi();
+    const path = `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`;
+    const body = {
+      projectAccess: "selected",
+      projectIds: [],
+      operacionId: crypto.randomUUID(),
+    };
+    const first = await request(path, { method: "PUT", body });
+    expect(first.status).toBe(200);
+    const original = await first.json();
+    const cancelledId = crypto.randomUUID();
+    const cancelPath = `${path}/operations/${cancelledId}/cancel-or-result`;
+    expect((await request(cancelPath, { method: "POST" })).status).toBe(200);
+
+    mockAuthenticatedSession(admin);
+    expect((await request(path, { method: "PUT", body })).status).toBe(403);
+    expect(
+      (
+        await request(
+          `${path}/operations/${body.operacionId}/cancel-or-result`,
+          { method: "POST" },
+        )
+      ).status,
+    ).toBe(403);
+    expect((await request(cancelPath, { method: "POST" })).status).toBe(403);
+    expect(
+      (
+        await request(path, {
+          method: "PUT",
+          body: { ...body, operacionId: cancelledId },
+        })
+      ).status,
+    ).toBe(403);
+
+    mockAuthenticatedSession(ctx.owner);
+    const replay = await request(path, { method: "PUT", body });
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual(original);
+    expect(
+      await (await request(cancelPath, { method: "POST" })).json(),
+    ).toEqual({ estado: "cancelada" });
+  });
+
+  it("canonicalizes project order and scopes operation ids to the target member", async () => {
+    const ctx = await createRestrictedWorkspace();
+    const anotherMember = await addWorkspaceMember(ctx.workspace.id);
+    await restrictToProjects(ctx.workspace.id, ctx.restricted.id, [
+      ctx.alpha.id,
+      ctx.beta.id,
+    ]);
+    mockAuthenticatedSession(ctx.owner);
+    const request = projectAccessApi();
+    const operation = crypto.randomUUID();
+    const path = `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`;
+    const body = {
+      projectAccess: "selected",
+      projectIds: [ctx.alpha.id, ctx.beta.id],
+      operacionId: operation,
+    };
+    const first = await request(path, { method: "PUT", body });
+    expect(first.status).toBe(200);
+    const original = await first.json();
+    const replay = await request(path, {
+      method: "PUT",
+      body: { ...body, projectIds: [ctx.beta.id, ctx.alpha.id] },
+    });
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual(original);
+    const other = await request(
+      `/workspace/${ctx.workspace.id}/members/${anotherMember.id}/project-access`,
+      { method: "PUT", body: { ...body, projectIds: [ctx.beta.id] } },
+    );
+    expect(other.status).toBe(200);
+  });
+
+  it("rejects stale operations that grant access without recording them, but replays recorded results after changes", async () => {
+    const ctx = await createRestrictedWorkspace();
+    const replacement = await addWorkspaceMember(ctx.workspace.id);
+    mockAuthenticatedSession(ctx.owner);
+    const request = projectAccessApi();
+    const path = `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`;
+    const operacionId = crypto.randomUUID();
+    const before = await readMemberAccessRows(
+      ctx.workspace.id,
+      ctx.restricted.id,
+    );
+    const stale = await request(path, {
+      method: "PUT",
+      body: {
+        projectAccess: "selected",
+        projectIds: [ctx.beta.id],
+        reasignarA: replacement.id,
+        operacionId,
+      },
+    });
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toMatchObject({
+      code: "STALE_ACCESS_OPERATION",
+    });
+    expect(
+      await readMemberAccessRows(ctx.workspace.id, ctx.restricted.id),
+    ).toEqual(before);
+    expect(await assignee(ctx.alphaTask.id)).toBe(ctx.restricted.id);
+
+    const validBody = {
+      projectAccess: "selected",
+      projectIds: [],
+      reasignarA: replacement.id,
+      operacionId,
+    };
+    const applied = await request(path, { method: "PUT", body: validBody });
+    expect(applied.status).toBe(200);
+    const original = await applied.json();
+    expect(original).toMatchObject({ reasignadas: 1, desasignadas: 0 });
+    await restrictToProjects(ctx.workspace.id, ctx.restricted.id, [
+      ctx.alpha.id,
+    ]);
+    const changed = await readMemberAccessRows(
+      ctx.workspace.id,
+      ctx.restricted.id,
+    );
+    const replay = await request(path, { method: "PUT", body: validBody });
+    expect(replay.status).toBe(200);
+    expect(await replay.json()).toEqual(original);
+    expect(
+      await readMemberAccessRows(ctx.workspace.id, ctx.restricted.id),
+    ).toEqual(changed);
+    expect(await assignee(ctx.alphaTask.id)).toBe(replacement.id);
+  });
+
+  it("cancels a pending operation durably and prevents a late PUT", async () => {
+    const ctx = await createRestrictedWorkspace();
+    const replacement = await addWorkspaceMember(ctx.workspace.id);
+    mockAuthenticatedSession(ctx.owner);
+    const request = projectAccessApi();
+    const path = `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`;
+    const operacionId = crypto.randomUUID();
+    const cancelPath = `${path}/operations/${operacionId}/cancel-or-result`;
+    const before = await readMemberAccessRows(
+      ctx.workspace.id,
+      ctx.restricted.id,
+    );
+    for (let i = 0; i < 2; i++) {
+      const cancelled = await request(cancelPath, { method: "POST" });
+      expect(cancelled.status).toBe(200);
+      expect(await cancelled.json()).toEqual({ estado: "cancelada" });
+    }
+    const late = await request(path, {
+      method: "PUT",
+      body: {
+        projectAccess: "selected",
+        projectIds: [],
+        reasignarA: replacement.id,
+        operacionId,
+      },
+    });
+    expect(late.status).toBe(409);
+    expect(await late.json()).toMatchObject({
+      code: "CANCELLED_ACCESS_OPERATION",
+    });
+    expect(
+      await readMemberAccessRows(ctx.workspace.id, ctx.restricted.id),
+    ).toEqual(before);
+    expect(await assignee(ctx.alphaTask.id)).toBe(ctx.restricted.id);
+  });
+
+  it("returns the original result when cancellation follows an applied operation", async () => {
+    const ctx = await createRestrictedWorkspace();
+    const replacement = await addWorkspaceMember(ctx.workspace.id);
+    mockAuthenticatedSession(ctx.owner);
+    const request = projectAccessApi();
+    const path = `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`;
+    const operacionId = crypto.randomUUID();
+    const applied = await request(path, {
+      method: "PUT",
+      body: {
+        projectAccess: "selected",
+        projectIds: [],
+        reasignarA: replacement.id,
+        operacionId,
+      },
+    });
+    expect(applied.status).toBe(200);
+    const result = await request(
+      `${path}/operations/${operacionId}/cancel-or-result`,
+      { method: "POST" },
+    );
+    expect(result.status).toBe(200);
+    expect(await result.json()).toEqual({
+      estado: "aplicada",
+      reasignadas: 1,
+      desasignadas: 0,
+    });
+    expect(await assignee(ctx.alphaTask.id)).toBe(replacement.id);
+  });
+
+  it("requires authorization to cancel or inspect an operation", async () => {
+    const ctx = await createRestrictedWorkspace();
+    mockAuthenticatedSession(ctx.restricted);
+    const operation = crypto.randomUUID();
+    const path = `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`;
+    const denied = await projectAccessApi()(
+      `${path}/operations/${operation}/cancel-or-result`,
+      { method: "POST" },
+    );
+    expect(denied.status).toBe(403);
+    mockAuthenticatedSession(ctx.owner);
+    const cancelled = await projectAccessApi()(
+      `${path}/operations/${operation}/cancel-or-result`,
+      { method: "POST" },
+    );
+    expect(cancelled.status).toBe(200);
+    expect(await cancelled.json()).toEqual({ estado: "cancelada" });
+  });
+
+  it("serializes cancellation against a concurrent PUT", async () => {
+    const ctx = await createRestrictedWorkspace();
+    const replacement = await addWorkspaceMember(ctx.workspace.id);
+    mockAuthenticatedSession(ctx.owner);
+    const request = projectAccessApi();
+    const path = `/workspace/${ctx.workspace.id}/members/${ctx.restricted.id}/project-access`;
+    const operacionId = crypto.randomUUID();
+    const body = {
+      projectAccess: "selected",
+      projectIds: [],
+      reasignarA: replacement.id,
+      operacionId,
+    };
+    const cancelPath = `${path}/operations/${operacionId.toUpperCase()}/cancel-or-result`;
+    const [put, cancel] = await Promise.all([
+      request(path, { method: "PUT", body }),
+      request(cancelPath, { method: "POST" }),
+    ]);
+    expect(cancel.status).toBe(200);
+    const outcome = await cancel.json();
+    if (outcome.estado === "aplicada") {
+      expect(put.status).toBe(200);
+      expect(outcome).toEqual({
+        estado: "aplicada",
+        reasignadas: 1,
+        desasignadas: 0,
+      });
+      expect(await assignee(ctx.alphaTask.id)).toBe(replacement.id);
+    } else {
+      expect(outcome).toEqual({ estado: "cancelada" });
+      expect(put.status).toBe(409);
+      expect(await assignee(ctx.alphaTask.id)).toBe(ctx.restricted.id);
+    }
+    const replay = await request(cancelPath, { method: "POST" });
+    expect(await replay.json()).toEqual(outcome);
   });
 });

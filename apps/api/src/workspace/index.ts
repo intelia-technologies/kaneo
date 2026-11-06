@@ -12,6 +12,7 @@ import {
   workspacePermissionChecker,
 } from "../utils/require-workspace-permission";
 import { workspaceAccess } from "../utils/workspace-access-middleware";
+import { cancelOrResultProjectAccess } from "./controllers/cancel-or-result-project-access";
 import getMyCapabilitiesCtrl from "./controllers/get-my-capabilities";
 import getMyProjectAccessCtrl from "./controllers/get-my-project-access";
 import getWorkspaceCtrl from "./controllers/get-workspace";
@@ -19,6 +20,7 @@ import getWorkspaceMembersCtrl from "./controllers/get-workspace-members";
 import listWorkspacesCtrl from "./controllers/list-workspaces";
 import updateMemberProjectAccessCtrl from "./controllers/update-member-project-access";
 import {
+  cancelOrResultProjectAccessResponseSchema,
   memberProjectAccessListSchema,
   updateMemberProjectAccessResponseSchema,
   memberProjectAccessSchema,
@@ -31,6 +33,7 @@ import {
   updateMemberProjectAccessBody,
   workspaceIdParam,
   workspaceMemberParam,
+  workspaceMemberOperationParam,
   workspaceMembersQuery,
 } from "./schema";
 
@@ -181,6 +184,30 @@ const updateMemberProjectAccessRoute = createRoute({
       "Missing member:update permission, changing your own access, or granting a project you can't access",
     ),
     404: errorResponse("Workspace or member not found"),
+    409: errorResponse(
+      "Operation ID reused with different parameters, or STALE_ACCESS_OPERATION when a new operation would grant access",
+    ),
+  },
+});
+
+const cancelOrResultProjectAccessRoute = createRoute({
+  method: "post",
+  operationId: "cancelOrResultProjectAccess",
+  path: "/{workspaceId}/members/{userId}/project-access/operations/{operacionId}/cancel-or-result",
+  tags: ["Workspaces"],
+  summary: "Cancel a pending access operation or retrieve its result",
+  middleware: [
+    workspaceAccess.fromParam("workspaceId"),
+    requireWorkspacePermission({ member: ["update"] }),
+  ] as const,
+  request: { params: workspaceMemberOperationParam },
+  responses: {
+    200: jsonResponse(
+      "Operation outcome",
+      cancelOrResultProjectAccessResponseSchema,
+    ),
+    403: errorResponse("Insufficient permissions"),
+    404: errorResponse("Workspace not found"),
   },
 });
 
@@ -222,6 +249,9 @@ const workspace = apiRouter<BaseVariables & { workspaceId: string }>()
   .openapi(updateMemberProjectAccessRoute, async (c) => {
     const { userId } = c.req.valid("param");
     const body = c.req.valid("json");
+    if (body.reasignarA !== undefined) {
+      await requireWorkspacePermission({ task: ["assign"] })(c, async () => {});
+    }
     return c.json(
       await updateMemberProjectAccessCtrl({
         workspaceId: c.get("workspaceId"),
@@ -230,6 +260,19 @@ const workspace = apiRouter<BaseVariables & { workspaceId: string }>()
         projectAccess: body.projectAccess,
         projectIds: body.projectIds,
         reasignarA: body.reasignarA,
+        operacionId: body.operacionId,
+      }),
+      200,
+    );
+  })
+  .openapi(cancelOrResultProjectAccessRoute, async (c) => {
+    const { userId, operacionId } = c.req.valid("param");
+    return c.json(
+      await cancelOrResultProjectAccess({
+        workspaceId: c.get("workspaceId"),
+        actorId: c.get("userId"),
+        userId,
+        operacionId,
       }),
       200,
     );

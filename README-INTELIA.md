@@ -41,6 +41,16 @@ Kaneo se distribuye bajo licencia MIT. Se conservan [`LICENSE`](LICENSE) y el av
 
 **Contrato de acceso con reasignación (KV-05):** esta capacidad requiere una imagen del fork construida con este cambio; no está disponible en imágenes anteriores ni en upstream. `PUT /api/workspace/{workspaceId}/members/{userId}/project-access` acepta `reasignarA` opcional, id de un usuario distinto y elegible como asignado. Al reducir acceso, las tareas abiertas asignadas al miembro en los proyectos perdidos pasan al destino y las demás tareas inaccesibles se desasignan; el destino debe poder acceder a todos los proyectos perdidos. La validación, el cambio de acceso y las asignaciones se confirman en una sola transacción; un destino inválido rechaza todo. Sin `reasignarA` se conserva la desasignación anterior. La respuesta añade `reasignadas` y `desasignadas`, enteros con los recuentos realmente modificados. Se mantienen los permisos habituales de actualización de miembros y concesión de proyectos.
 
+El PUT admite `operacionId` UUID opcional para reintentos durables: el resultado y los recuentos originales se conservan transaccionalmente y se devuelven en solicitudes equivalentes autorizadas, incluso si el destino ya no existe. La clave se limita al workspace y miembro; reutilizarla con otra petición devuelve 409. El orden y los duplicados de `projectIds` no alteran la identidad de la petición. Sin `operacionId` se mantiene el comportamiento habitual.
+
+Una operación nueva con `operacionId` no puede conceder acceso: si lo haría, devuelve 409 con `code: "STALE_ACCESS_OPERATION"` sin modificar datos ni registrar la operación. Una operación ya registrada devuelve su resultado original antes de comprobar el acceso actual.
+
+Para resolver una intención incierta sin ejecutar un PUT obsoleto, `POST /api/workspace/{workspaceId}/members/{userId}/project-access/operations/{operacionId}/cancel-or-result` devuelve `{estado:"aplicada",reasignadas,desasignadas}` si se aplicó, o registra una cancelación durable y devuelve `{estado:"cancelada"}` si no. Un PUT posterior con esa clave cancelada recibe 409. La consulta y el PUT se serializan y ambos requieren autorización de actualización de miembros.
+
+Cada operación queda vinculada a la cuenta que la creó, tanto si se aplicó como si se canceló. Otra cuenta recibe 403 al consultar, cancelar o repetir esa operación, aunque tenga permiso de administración; la rotación de credenciales de la misma cuenta no cambia su identidad.
+
+Con `operacionId` una solicitud puede retirar como máximo un proyecto; si perdería más devuelve 409 con `code: "MULTIPLE_PROJECT_ACCESS_OPERATION"`. Solo se desasignan tareas del proyecto perdido, sin limpiar tareas previamente inaccesibles en otros proyectos. La reasignación mediante `reasignarA` exige además el permiso `task:assign`, incluido en el scope de la API key.
+
 La edición general de tareas desde la web omite `userId` y conserva el asignado vigente; asignar o desasignar se hace mediante el endpoint específico de asignación, evitando sobrescribir una reasignación con datos antiguos del formulario.
 
 - **Ficheros de upstream que toca el fork:** pocos, cada uno con menos de 20 líneas cambiadas. Son ganchos para lo nuestro:
