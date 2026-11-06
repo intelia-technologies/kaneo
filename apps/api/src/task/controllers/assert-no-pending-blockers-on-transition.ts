@@ -13,6 +13,7 @@ export async function assertNoPendingBlockersOnTransition(
   tasks: Array<{ id: string; status: string }>,
   status: string,
   userId?: string,
+  proposedStatuses?: ReadonlyMap<string, string>,
 ) {
   if (!workStatuses.includes(status)) return;
   const ids = tasks
@@ -40,6 +41,10 @@ export async function assertNoPendingBlockersOnTransition(
     .orderBy(taskTable.id)
     .for("share", { of: taskTable });
   const blockers = related
+    .map((blocker) => ({
+      ...blocker,
+      status: proposedStatuses?.get(blocker.id) ?? blocker.status,
+    }))
     .filter((blocker) => blocker.status !== "done")
     .map(({ taskId, id, status, visible }) =>
       visible ? { taskId, id, status } : { taskId },

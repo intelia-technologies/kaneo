@@ -93,6 +93,11 @@ export default async function reorderTasks(
       throw new HTTPException(404, {
         message: "Tasks must belong to the requested project",
       });
+    const proposedStatuses = new Map(
+      tasks.flatMap((task) =>
+        task.status === undefined ? [] : [[task.id, task.status] as const],
+      ),
+    );
     for (const status of statuses) {
       const ids = new Set(
         tasks.filter((task) => task.status === status).map((task) => task.id),
@@ -102,6 +107,7 @@ export default async function reorderTasks(
         before.filter((task) => ids.has(task.id)),
         status,
         userId,
+        proposedStatuses,
       );
     }
     const values = tasks.map((task) => ({

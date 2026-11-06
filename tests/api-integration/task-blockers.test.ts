@@ -200,6 +200,36 @@ it("rejects a bulk transition atomically when any task is blocked", async () => 
   ).toBeNull();
 });
 
+it.each(["bulk", "reorder"] as const)(
+  "%s rejects a batch that reopens a blocker and starts its dependent",
+  async (mode) => {
+    const { blocker, blocked, initiative } = await seed("done");
+    const response = await change(mode, blocked, "in-progress", [
+      blocker.id,
+      blocked.id,
+    ]);
+    expect(response.status).toBe(409);
+    expect(
+      await db.query.taskTable.findFirst({
+        where: eq(schema.taskTable.id, blocker.id),
+      }),
+    ).toEqual(blocker);
+    expect(
+      await db.query.taskTable.findFirst({
+        where: eq(schema.taskTable.id, blocked.id),
+      }),
+    ).toEqual(blocked);
+    expect(
+      (
+        await db
+          .select()
+          .from(initiativeTable)
+          .where(eq(initiativeTable.id, initiative.id))
+      )[0].planClosedAt,
+    ).toBeNull();
+  },
+);
+
 it("rejects a drag without disclosing a blocker in an inaccessible project", async () => {
   const { user, workspace, project, blocker, blocked } = await seed();
   const { project: hidden } = await createProjectFixture({
