@@ -65,7 +65,6 @@ import {
 import {
   requireBulkTaskEntitlement,
   requireBulkTaskPermission,
-  requireTaskAssigneePermission,
   requireTaskRecurrencePermission,
 } from "./controllers/require-task-permission";
 import updateTask from "./controllers/update-task";
@@ -448,7 +447,6 @@ const updateTaskRoute = createRoute({
   middleware: [
     workspaceAccess.fromTask(),
     requireWorkspacePermission({ task: ["update"] }),
-    requireTaskAssigneePermission,
     requireEntitlement,
   ] as const,
   request: {
@@ -1123,6 +1121,10 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       userId,
       currentUserId,
       estimacion_horas,
+      userId !== undefined
+        ? await hasWorkspacePermission(c, { task: ["assign"] })
+        : false,
+      c.get("workspaceId"),
     );
 
     return c.json(task, 200);

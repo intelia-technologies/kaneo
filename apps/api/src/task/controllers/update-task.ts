@@ -1,7 +1,13 @@
-import { and, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
-import { columnTable, projectTable, taskTable } from "../../database/schema";
+import {
+  columnTable,
+  projectTable,
+  taskTable,
+  userTable,
+  workspaceUserTable,
+} from "../../database/schema";
 import { publishEvent } from "../../events";
 import {
   publishTaskMutation,
@@ -10,8 +16,9 @@ import {
 import {
   assertAssignableUser,
   getProjectWorkspaceId,
-  lockAssignableUser,
 } from "../../utils/assert-assignable-user";
+import { hasInstanceAdminRole } from "../../utils/instance-admin-role";
+import { roleHasWorkspacePermission } from "../../utils/require-workspace-permission";
 import { boardDescription, descriptionDeferred } from "../description-pages";
 import { assertValidTaskStatus } from "../validate-task-fields";
 import { assertTaskPosition } from "./next-task-position";
@@ -29,6 +36,8 @@ async function updateTask(
   userId?: string,
   currentUserId?: string,
   estimacion_horas?: number | null,
+  canAssign = false,
+  authorizedWorkspaceId?: string,
 ) {
   assertTaskPosition(position);
 
@@ -74,19 +83,43 @@ async function updateTask(
 
   const initialPosition = existingTask.position;
   const initialStatus = existingTask.status;
+  const initialAssignee = existingTask.userId;
+  const workspaceId =
+    authorizedWorkspaceId ?? (await getProjectWorkspaceId(projectId));
   const updatedTask = await db.transaction(async (tx) => {
-    if (normalizedUserId) {
-      const workspaceId = await getProjectWorkspaceId(projectId, tx);
-      await lockAssignableUser(tx, workspaceId, normalizedUserId);
-      await assertAssignableUser(normalizedUserId, workspaceId, projectId, tx);
-    }
+    const memberships =
+      userId !== undefined
+        ? await tx
+            .select({
+              userId: workspaceUserTable.userId,
+              role: workspaceUserTable.role,
+            })
+            .from(workspaceUserTable)
+            .where(
+              and(
+                eq(workspaceUserTable.workspaceId, workspaceId),
+                inArray(
+                  workspaceUserTable.userId,
+                  [currentUserId, normalizedUserId].filter(
+                    (id): id is string => !!id,
+                  ),
+                ),
+              ),
+            )
+            .orderBy(workspaceUserTable.id)
+            .for("update")
+        : [];
     const [project] = await tx
-      .select({ id: projectTable.id })
+      .select({ id: projectTable.id, workspaceId: projectTable.workspaceId })
       .from(projectTable)
       .where(eq(projectTable.id, projectId))
       .for("update");
     if (!project)
       throw new HTTPException(404, { message: "Project not found" });
+    if (project.workspaceId !== workspaceId)
+      throw new HTTPException(409, {
+        message: "Project changed workspaces; retry the update",
+      });
     const [locked] = await tx
       .select({
         id: taskTable.id,
@@ -112,6 +145,45 @@ async function updateTask(
       throw new HTTPException(409, {
         message: "Task order changed; refresh before updating",
       });
+    if (userId !== undefined && (normalizedUserId ?? null) !== locked.userId) {
+      const actorRole = memberships.find(
+        (member) => member.userId === currentUserId,
+      )?.role;
+      let allowed =
+        canAssign &&
+        !!workspaceId &&
+        !!actorRole &&
+        (await roleHasWorkspacePermission(
+          workspaceId,
+          actorRole,
+          { task: ["assign"] },
+          tx,
+        ));
+      if (canAssign && !allowed && currentUserId) {
+        const [actor] = await tx
+          .select({ role: userTable.role })
+          .from(userTable)
+          .where(eq(userTable.id, currentUserId))
+          .limit(1);
+        allowed = hasInstanceAdminRole(actor?.role);
+      }
+      if (!allowed)
+        throw new HTTPException(403, {
+          message: "Insufficient permissions to assign tasks",
+        });
+    }
+    if (
+      userId !== undefined &&
+      (normalizedUserId ?? null) === initialAssignee &&
+      locked.userId !== initialAssignee
+    ) {
+      throw new HTTPException(409, {
+        message: "Task assignee changed; refresh before updating",
+      });
+    }
+    if (normalizedUserId && normalizedUserId !== locked.userId) {
+      await assertAssignableUser(normalizedUserId, workspaceId!, projectId, tx);
+    }
     existingTask = locked;
 
     const [task] = await tx

@@ -52,6 +52,7 @@ Cada operación queda vinculada a la cuenta que la creó, tanto si se aplicó co
 Con `operacionId` una solicitud puede retirar como máximo un proyecto; si perdería más devuelve 409 con `code: "MULTIPLE_PROJECT_ACCESS_OPERATION"`. Solo se desasignan tareas del proyecto perdido, sin limpiar tareas previamente inaccesibles en otros proyectos. La reasignación mediante `reasignarA` exige además el permiso `task:assign`, incluido en el scope de la API key.
 
 La edición general de tareas desde la web omite `userId` y conserva el asignado vigente; asignar o desasignar se hace mediante el endpoint específico de asignación, evitando sobrescribir una reasignación con datos antiguos del formulario.
+Los clientes antiguos que incluyen el mismo `userId` pueden seguir editando aunque ese asignado ya no tenga acceso. Si la asignación cambia concurrentemente antes del bloqueo, la edición devuelve 409 en lugar de restaurar un asignado obsoleto; una asignación distinta sigue exigiendo acceso al proyecto.
 
 - **Ficheros de upstream que toca el fork:** pocos, cada uno con menos de 20 líneas cambiadas. Son ganchos para lo nuestro:
   - `apps/api/src/index.ts`: migrador `intelia` al arrancar, montaje de `/api/intelia` (un solo router, `apps/api/src/intelia/index.ts`, que reúne los nuestros) y `AppType`.
