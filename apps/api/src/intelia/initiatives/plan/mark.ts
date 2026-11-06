@@ -18,7 +18,6 @@ export const STALL_REASONS = [
   "worker_down",
   "worker_finished",
   "worker_idle",
-  "over_p90",
   "not_started",
 ] as const;
 export type StallReason = (typeof STALL_REASONS)[number];
@@ -49,26 +48,32 @@ export function planMark(task: {
   /** Pending blockers the reader can see. */
   openBlockers: number;
   now: Date;
-}): { mark: PlanMark; stallReason: StallReason | null } {
+}): { mark: PlanMark | null; stallReason: StallReason | null } {
   if (task.status === "blocked") return { mark: "blocked", stallReason: null };
   if (task.openBlockers > 0) return { mark: "waiting", stallReason: null };
   const stalled = (stallReason: StallReason) =>
     ({ mark: "stalled", stallReason }) as const;
-  if (task.executor === null) return stalled("unassigned");
+  const unmarked = { mark: null, stallReason: null } as const;
 
-  // An agent works only with a live worker that says it is working. A person
-  // has no worker signal: being assigned is all Kaneo can see.
+  // Only a role's ready To do task or an In progress task without anyone
+  // working is stalled. Backlog and Design are not ready.
+  if (task.status === "to-do") {
+    return task.executor === "ephemeral" ? stalled("not_started") : unmarked;
+  }
+  if (!WORKING.has(task.status)) return unmarked;
+
+  const mayStall = task.status === "in-progress";
+  if (task.executor === null)
+    return mayStall ? stalled("unassigned") : unmarked;
   if (task.executor !== "person") {
-    if (!task.worker) return stalled("no_worker");
+    if (!task.worker) return mayStall ? stalled("no_worker") : unmarked;
     if (task.worker.estado !== "activo" || !task.worker.trabajando) {
-      return stalled(WORKER_REASON[task.worker.estado]);
+      return mayStall ? stalled(WORKER_REASON[task.worker.estado]) : unmarked;
     }
   }
+  // Kaneo has no worker signal for people; an assigned person is its only
+  // available evidence of work. Old activity is not evidence of a stall.
   const ageSeconds = (task.now.getTime() - task.statusSince.getTime()) / 1000;
-  if (task.p90Seconds !== null && ageSeconds > task.p90Seconds) {
-    return stalled("over_p90");
-  }
-  return WORKING.has(task.status)
-    ? { mark: "advancing", stallReason: null }
-    : stalled("not_started");
+  if (task.p90Seconds !== null && ageSeconds > task.p90Seconds) return unmarked;
+  return { mark: "advancing", stallReason: null };
 }

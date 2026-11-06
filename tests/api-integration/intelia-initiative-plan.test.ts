@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import db, { schema } from "../../apps/api/src/database";
 import { createApp } from "../../apps/api/src/index";
@@ -260,9 +261,9 @@ type PlanTask = {
   [key: string]: unknown;
 };
 
-async function plan(app: App, initiativeId: string) {
+async function plan(app: App, initiativeId: string, query = "") {
   const response = await app.request(
-    `/api/intelia/initiative/${initiativeId}/plan`,
+    `/api/intelia/initiative/${initiativeId}/plan${query}`,
   );
   const body = await response.json();
   const task = (id: string) =>
@@ -271,6 +272,144 @@ async function plan(app: App, initiativeId: string) {
 }
 
 describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
+  it("marks stalled only for a ready role in To do or an idle In progress task", async () => {
+    const { app, coder, user, project, initiative } = await setup();
+    const own = (fields: TaskFields) =>
+      seedTask(project.id, { initiativeId: initiative.id, ...fields });
+    const backlog = await own({ status: "backlog", userId: coder.id });
+    const design = await own({ status: "design", userId: coder.id });
+    const ready = await own({ status: "to-do", userId: coder.id });
+    const waiting = await own({ status: "to-do", userId: coder.id });
+    const unassigned = await own({ status: "to-do" });
+    const person = await own({ status: "to-do", userId: user.id });
+    const idle = await own({ status: "in-progress", userId: coder.id });
+    const working = await own({ status: "in-progress", userId: coder.id });
+    await blocks(backlog.id, waiting.id);
+    await seedWorkers(project.id, {
+      [working.id]: { estado: "activo", trabajando: true },
+    });
+    const { task } = await plan(app, initiative.id);
+    for (const t of [backlog, design, unassigned, person])
+      expect(task(t.id).mark).toBeNull();
+    expect(task(ready.id).mark).toBe("stalled");
+    expect(task(waiting.id).mark).toBe("waiting");
+    expect(task(idle.id).mark).toBe("stalled");
+    expect(task(working.id).mark).toBe("advancing");
+  });
+
+  it("intersects the requested scope for tasks, dependencies and estimation samples", async () => {
+    const { app, coder, project, other, initiative } = await setup();
+    const alike = { level: "completa" as const, userId: coder.id };
+    await seedMany(10, other.id, () => 50, alike);
+    const secret = await seedTask(other.id, { title: "Excluded dependency" });
+    const own = await seedTask(project.id, {
+      ...alike,
+      initiativeId: initiative.id,
+    });
+    await blocks(secret.id, own.id);
+
+    const unrestricted = await plan(app, initiative.id);
+    expect(unrestricted.body.projectScope).toBeNull();
+    expect(unrestricted.task(own.id).estimate.source).toBe("org");
+    const scoped = await plan(app, initiative.id, `?projectIds=${project.id}`);
+    expect(scoped.body.projectScope).toEqual([project.id]);
+    expect(scoped.task(own.id).estimate).toEqual({
+      hours: 4,
+      source: "default",
+      cases: 0,
+    });
+    expect(scoped.task(own.id).dependsOn).toEqual([]);
+    expect(scoped.body.criticalPath.partial).toBe(true);
+    expect(scoped.task(own.id)).toMatchObject({
+      mark: null,
+      stallReason: null,
+    });
+    expect(JSON.stringify(scoped.body)).not.toContain(secret.id);
+    expect(JSON.stringify(scoped.body)).not.toContain("Excluded dependency");
+
+    const empty = await plan(app, initiative.id, "?projectIds=");
+    expect(empty.body.projectScope).toEqual([]);
+    expect(empty.body.tasks).toEqual([]);
+  });
+
+  it("follows readable external predecessors and hides unreadable ones", async () => {
+    const { app, coder, project, other, initiative, workspace } = await setup();
+    const hidden = await createProjectFixture({
+      workspaceId: workspace.id,
+      name: "Hidden",
+      slug: "HID",
+    });
+    const own = await seedTask(project.id, { initiativeId: initiative.id });
+    const external = await seedTask(other.id, {
+      userId: coder.id,
+      status: "to-do",
+    });
+    const predecessor = await seedTask(other.id, {
+      title: "Readable predecessor",
+    });
+    const earliest = await seedTask(other.id, { title: "Earlier predecessor" });
+    const secret = await seedTask(hidden.project.id, {
+      title: "Hidden predecessor",
+    });
+    await blocks(external.id, own.id);
+    await blocks(predecessor.id, external.id);
+    await blocks(earliest.id, predecessor.id);
+    const visible = await plan(
+      app,
+      initiative.id,
+      `?projectIds=${project.id},${other.id}`,
+    );
+    expect(visible.body.criticalPath.partial).toBe(false);
+    expect(visible.body.criticalPath.taskIds).toEqual([
+      earliest.id,
+      predecessor.id,
+      external.id,
+      own.id,
+    ]);
+    expect(visible.task(external.id)).toMatchObject({
+      mark: "waiting",
+      dependsOn: [predecessor.id],
+    });
+    expect(visible.task(predecessor.id).dependsOn).toEqual([earliest.id]);
+    await db
+      .delete(schema.taskRelationTable)
+      .where(eq(schema.taskRelationTable.sourceTaskId, predecessor.id));
+    const withoutPredecessor = await plan(
+      app,
+      initiative.id,
+      `?projectIds=${project.id},${other.id}`,
+    );
+    expect(withoutPredecessor.body.criticalPath.partial).toBe(false);
+    expect(withoutPredecessor.task(external.id).mark).toBe("stalled");
+    await blocks(secret.id, external.id);
+    const filtered = await plan(
+      app,
+      initiative.id,
+      `?projectIds=${project.id},${other.id}`,
+    );
+    expect(filtered.body.criticalPath.partial).toBe(true);
+    expect(filtered.task(external.id)).toMatchObject({
+      mark: null,
+      stallReason: null,
+    });
+    expect(JSON.stringify(filtered.body)).not.toContain(secret.id);
+    expect(JSON.stringify(filtered.body)).not.toContain("Hidden predecessor");
+  });
+
+  it("reports a cycle among external predecessors without looping", async () => {
+    const { app, project, other, initiative } = await setup();
+    const own = await seedTask(project.id, { initiativeId: initiative.id });
+    const first = await seedTask(other.id);
+    const second = await seedTask(other.id);
+    await blocks(first.id, own.id);
+    await blocks(second.id, first.id);
+    await blocks(first.id, second.id);
+    const { body } = await plan(app, initiative.id);
+    expect(body.criticalPath.cycle).toBe(true);
+    expect(body.criticalPath.taskIds).toEqual([]);
+    expect(body.estimatedEnd).toBeNull();
+  });
+
   it("estimates with the median of finished tasks of the same project, level and executor", async () => {
     const { app, user, coder, project, other, initiative } = await setup();
     const alike = { level: "completa" as const, userId: coder.id };
@@ -338,8 +477,11 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
       seedTask(project.id, { initiativeId: initiative.id, ...fields });
     // a (2 h) and b (5 h) block c (1 h); d (3 h) stands alone. Both chains to
     // c have two tasks: the critical one is b → c, with more hours.
-    const a = await own({ description: "**En llano.** Primero.\n\nResto" });
-    const b = await own();
+    const a = await own({
+      description: "**En llano.** Primero.\n\nResto",
+      userId: coder.id,
+    });
+    const b = await own({ userId: coder.id });
     const c = await own();
     const d = await own();
     await blocks(a.id, c.id);
@@ -385,7 +527,7 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
     expect(task(a.id)).toMatchObject({
       critical: false,
       mark: "stalled",
-      stallReason: "unassigned",
+      stallReason: "not_started",
       plain: "Primero.",
       dependsOn: [],
     });
@@ -522,7 +664,8 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
       );
       await seedChange(old.id, "done", "done", ago(DAY), "moved");
     }
-    // A person's task 5 h in In progress, past the column's p90 (1.5 h).
+    // A person's task 5 h in In progress, past the column's p90 (1.5 h):
+    // its age alone does not imply that nobody is working.
     const stuck = await seedTask(project.id, {
       initiativeId: initiative.id,
       status: "in-progress",
@@ -550,8 +693,8 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
       workedHours: 4,
     });
     expect(task(stuck.id)).toMatchObject({
-      mark: "stalled",
-      stallReason: "over_p90",
+      mark: null,
+      stallReason: null,
       workedHours: 5,
     });
   });
@@ -559,6 +702,8 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
   it("gives the reason of a readable Blocked dependency in another project", async () => {
     const { app, other, project, initiative } = await setup();
     const external = await seedTask(other.id, { status: "blocked" });
+    const blockedAt = ago(HOUR);
+    await seedChange(external.id, "in-progress", "blocked", blockedAt);
     const own = await seedTask(project.id, { initiativeId: initiative.id });
     await blocks(external.id, own.id);
     const [field] = await db
@@ -575,6 +720,7 @@ describe("GET /api/intelia/initiative/{initiativeId}/plan", () => {
     expect(task(external.id)).toMatchObject({
       external: true,
       mark: "blocked",
+      statusSince: blockedAt.toISOString(),
       blockReason: "dependencias",
       critical: true,
     });
@@ -621,14 +767,29 @@ describe("a project the caller cannot read", () => {
     const reader = await addWorkspaceMember(workspace.id, "member");
     await restrictToProjects(workspace.id, reader.id, [project.id]);
     mockAuthenticatedSession(reader);
+    const attempted = await plan(
+      app,
+      initiative.id,
+      `?projectIds=${project.id},${hidden.project.id}`,
+    );
+    expect(attempted.body.projectScope).toEqual([project.id]);
+    expect(JSON.stringify(attempted.body)).not.toContain(secret.id);
+    expect(attempted.task(own.id).estimate.source).toBe("default");
+    const hiddenInitiative = await seedInitiative(hidden.project.id);
+    const denied = await plan(
+      app,
+      hiddenInitiative.id,
+      `?projectIds=${hidden.project.id}`,
+    );
+    expect([403, 404]).toContain(denied.status);
     const limited = await plan(app, initiative.id);
     expect(limited.status).toBe(200);
     expect(limited.body.tasks.map((t: PlanTask) => t.id)).toEqual([own.id]);
     expect(limited.task(own.id)).toMatchObject({
       estimate: { hours: 4, source: "default", cases: 0 },
       dependsOn: [],
-      mark: "stalled",
-      stallReason: "no_worker",
+      mark: null,
+      stallReason: null,
     });
     expect(limited.body.criticalPath).toMatchObject({
       taskIds: [own.id],

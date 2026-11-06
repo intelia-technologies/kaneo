@@ -4,9 +4,14 @@ import {
   activityTable,
   projectTable,
   taskTable,
+  taskRelationTable,
   userTable,
 } from "../../../database/schema";
-import { boardSignalTable, taskAutomationTable } from "../../schema";
+import {
+  boardSignalTable,
+  taskAutomationTable,
+  taskInitiativeTable,
+} from "../../schema";
 import { columnStats } from "../../status-age/read";
 import { type InitiativeReader, readableProject } from "../access";
 import { blockReasons, getInitiativeDetail } from "../read";
@@ -98,9 +103,22 @@ async function taskFacts(ids: string[]) {
 export async function getInitiativePlan(
   initiativeId: string,
   reader: InitiativeReader,
+  requestedProjectIds?: string,
 ) {
   const now = new Date(Date.now());
-  const detail = await getInitiativeDetail(initiativeId, reader);
+  const projectIds =
+    requestedProjectIds === undefined
+      ? undefined
+      : [
+          ...new Set(
+            requestedProjectIds
+              .split(",")
+              .map((id) => id.trim())
+              .filter(Boolean),
+          ),
+        ];
+  const scopedReader = { ...reader, projectIds };
+  const detail = await getInitiativeDetail(initiativeId, scopedReader);
   const tasks = [
     ...detail.tasks.map((task) => ({ ...task, external: false })),
     ...detail.externalTasks.map((task) => ({
@@ -109,6 +127,95 @@ export async function getInitiativePlan(
       assignee: null,
     })),
   ];
+  // The detail includes only edges touching the initiative. Follow readable
+  // external predecessors transitively so the schedule does not lose a
+  // longer chain. Hidden endpoints contribute only to the aggregate flag.
+  const edges = new Map<string, { from: string; to: string }>();
+  for (const task of detail.tasks) {
+    for (const from of task.dependsOn)
+      edges.set(`${from}>${task.id}`, { from, to: task.id });
+    for (const to of task.blocks)
+      edges.set(`${task.id}>${to}`, { from: task.id, to });
+  }
+  const known = new Map(tasks.map((task) => [task.id, task]));
+  const attempted = new Set(known.keys());
+  const inspected = new Set<string>();
+  const directBlockers = new Set(
+    detail.tasks.flatMap((task) => task.dependsOn),
+  );
+  let frontier = detail.externalTasks
+    .filter((task) => directBlockers.has(task.id) && isPending(task.status))
+    .map((task) => task.id);
+  let partial = detail.pendingChain.partial;
+  while (frontier.length) {
+    for (const id of frontier) inspected.add(id);
+    const relations = await db
+      .select({
+        from: taskRelationTable.sourceTaskId,
+        to: taskRelationTable.targetTaskId,
+      })
+      .from(taskRelationTable)
+      .where(
+        and(
+          eq(taskRelationTable.relationType, "blocks"),
+          inArray(taskRelationTable.targetTaskId, frontier),
+        ),
+      );
+    const unknown = [
+      ...new Set(
+        relations
+          .map((relation) => relation.from)
+          .filter((id) => !attempted.has(id)),
+      ),
+    ];
+    for (const id of unknown) attempted.add(id);
+    const visible = unknown.length
+      ? await db
+          .select({
+            id: taskTable.id,
+            number: taskTable.number,
+            title: taskTable.title,
+            status: taskTable.status,
+            projectId: taskTable.projectId,
+            projectSlug: projectTable.slug,
+            projectName: projectTable.name,
+            initiativeId: taskInitiativeTable.initiativeId,
+          })
+          .from(taskTable)
+          .innerJoin(projectTable, eq(taskTable.projectId, projectTable.id))
+          .leftJoin(
+            taskInitiativeTable,
+            eq(taskInitiativeTable.taskId, taskTable.id),
+          )
+          .where(
+            and(inArray(taskTable.id, unknown), readableProject(scopedReader)),
+          )
+          .orderBy(
+            asc(projectTable.slug),
+            asc(taskTable.number),
+            asc(taskTable.id),
+          )
+      : [];
+    if (visible.length !== unknown.length) partial = true;
+    for (const row of visible) {
+      const task = { ...row, external: true, assignee: null };
+      tasks.push(task);
+      known.set(task.id, task);
+    }
+    const next = new Set<string>();
+    for (const relation of relations) {
+      const predecessor = known.get(relation.from);
+      if (!predecessor) continue;
+      edges.set(`${relation.from}>${relation.to}`, relation);
+      if (
+        predecessor.external &&
+        isPending(predecessor.status) &&
+        !inspected.has(predecessor.id)
+      )
+        next.add(predecessor.id);
+    }
+    frontier = [...next];
+  }
   const ids = tasks.map((task) => task.id);
 
   const [facts, readableRows, cached] = await Promise.all([
@@ -116,7 +223,7 @@ export async function getInitiativePlan(
     db
       .select({ id: projectTable.id })
       .from(projectTable)
-      .where(readableProject(reader)),
+      .where(readableProject(scopedReader)),
     workspaceSamples(reader.workspaceId),
   ]);
   // Estimates learn only from tasks the reader can read (§3.6).
@@ -139,16 +246,6 @@ export async function getInitiativePlan(
     changesById.set(change.taskId, list);
   }
 
-  // Edges among readable tasks, as the detail exposes them.
-  const edges = new Map<string, { from: string; to: string }>();
-  for (const task of detail.tasks) {
-    for (const from of task.dependsOn) {
-      edges.set(`${from}>${task.id}`, { from, to: task.id });
-    }
-    for (const to of task.blocks) {
-      edges.set(`${task.id}>${to}`, { from: task.id, to });
-    }
-  }
   const status = new Map(tasks.map((task) => [task.id, task.status]));
   const blockersOf = new Map<string, string[]>();
   for (const { from, to } of edges.values()) {
@@ -202,7 +299,7 @@ export async function getInitiativePlan(
     const openBlockers = (blockersOf.get(task.id) ?? []).filter((id) =>
       isPending(status.get(id)!),
     ).length;
-    const { mark, stallReason } = pending
+    const classified = pending
       ? planMark({
           status: task.status,
           executor: executorKind(fact.email),
@@ -214,6 +311,12 @@ export async function getInitiativePlan(
           now,
         })
       : { mark: null, stallReason: null };
+    // A partial plan hides which task has an unreadable relation. Do not
+    // assert that a To do task is ready, or reveal which relation is hidden.
+    const { mark, stallReason } =
+      classified.mark === "stalled" && task.status === "to-do" && partial
+        ? { mark: null, stallReason: null }
+        : classified;
     const reason = reasons.get(task.id);
     return {
       task,
@@ -256,6 +359,10 @@ export async function getInitiativePlan(
   return {
     initiativeId: detail.id,
     projectId: detail.projectId,
+    projectScope:
+      projectIds === undefined
+        ? null
+        : readableRows.map((row) => row.id).sort(),
     name: detail.name,
     computedAt: now,
     estimatesComputedAt: cached.computedAt,
@@ -264,7 +371,7 @@ export async function getInitiativePlan(
       taskIds: schedule.critical?.taskIds ?? [],
       hours: round(schedule.critical?.hours ?? 0),
       goalTaskId,
-      partial: detail.pendingChain.partial,
+      partial,
       cycle: schedule.critical === null,
       summary,
     },
@@ -273,6 +380,7 @@ export async function getInitiativePlan(
       number: p.task.number,
       title: p.task.title,
       status: p.task.status,
+      statusSince: p.history.statusSince,
       external: p.task.external,
       projectId: p.fact.projectId,
       assignee: p.task.assignee,

@@ -39,6 +39,7 @@ const task: InitiativePlan["tasks"][number] = {
   number: 1,
   title: "Evaluador",
   status: "in-progress",
+  statusSince: "2026-11-04T09:00:00Z",
   external: false,
   projectId: "project",
   assignee: null,
@@ -60,6 +61,7 @@ const task: InitiativePlan["tasks"][number] = {
 const plan: InitiativePlan = {
   initiativeId: "initiative",
   projectId: "project",
+  projectScope: null,
   name: "Plan",
   computedAt: "2026-11-04T11:00:00Z",
   estimatesComputedAt: "2026-11-04T11:00:00Z",

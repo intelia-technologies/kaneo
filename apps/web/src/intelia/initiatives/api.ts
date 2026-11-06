@@ -269,6 +269,7 @@ export async function getInitiativePlan(
 ): Promise<InitiativePlan> {
   const response = await client.intelia.initiative[":initiativeId"].plan.$get({
     param: { initiativeId },
+    query: {},
   });
   if (!response.ok) throw await HttpError.fromResponse(response);
   return response.json();

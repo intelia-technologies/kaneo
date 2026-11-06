@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Context, Next } from "hono";
 import { HTTPException } from "hono/http-exception";
 import db, { schema } from "../../database";
@@ -50,7 +50,11 @@ export function callerInitiativeWriter(c: Context): InitiativeWriter {
 }
 
 /** Who reads: the caller and the workspace its request resolved to. */
-export type InitiativeReader = { userId: string; workspaceId: string };
+export type InitiativeReader = {
+  userId: string;
+  workspaceId: string;
+  projectIds?: string[];
+};
 
 export function initiativeReader(c: Context): InitiativeReader {
   return { userId: c.get("userId"), workspaceId: c.get("workspaceId") };
@@ -65,6 +69,9 @@ export function readableProject(reader: InitiativeReader) {
   return and(
     eq(schema.projectTable.workspaceId, reader.workspaceId),
     projectAccessCondition(reader.userId, schema.projectTable.id),
+    reader.projectIds === undefined
+      ? undefined
+      : inArray(schema.projectTable.id, reader.projectIds),
   );
 }
 
