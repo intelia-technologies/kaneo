@@ -35,6 +35,8 @@ describe("managing member project access", () => {
       userId: member.id,
       projectAccess: "selected",
       projectIds: [ctx.beta.id],
+      reasignadas: 0,
+      desasignadas: 0,
     });
 
     const listed = await request(

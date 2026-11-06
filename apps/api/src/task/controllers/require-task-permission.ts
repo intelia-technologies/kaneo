@@ -1,9 +1,6 @@
-import { eq } from "drizzle-orm";
 import type { Context, Next } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { requireEntitlement } from "../../billing/require-entitlement-middleware";
-import db from "../../database";
-import { taskTable } from "../../database/schema";
 import { requireWorkspacePermission } from "../../utils/require-workspace-permission";
 
 type BulkTaskOperation =
@@ -77,24 +74,6 @@ export async function requireBulkTaskEntitlement(c: Context, next: Next) {
   }
 
   return requireEntitlement(c, next);
-}
-
-export async function requireTaskAssigneePermission(c: Context, next: Next) {
-  const id = c.req.param("id");
-  const { userId } = await readJsonBody(c);
-  const nextAssignee = typeof userId === "string" ? userId : null;
-
-  const [existingTask] = await db
-    .select({ userId: taskTable.userId })
-    .from(taskTable)
-    .where(eq(taskTable.id, id ?? ""))
-    .limit(1);
-
-  if (existingTask && existingTask.userId !== nextAssignee) {
-    return requireWorkspacePermission({ task: ["assign"] })(c, next);
-  }
-
-  return next();
 }
 
 export async function requireTaskRecurrencePermission(c: Context, next: Next) {

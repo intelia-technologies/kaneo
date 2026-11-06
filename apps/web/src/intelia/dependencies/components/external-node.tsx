@@ -108,6 +108,12 @@ export const ExternalNode = memo(function ExternalNode({
       <p className="line-clamp-1 text-xs font-medium text-foreground break-words">
         {data.title}
       </p>
+      {data.planMark && (
+        <p className="text-xs font-medium" title={data.planReason}>
+          ◆ {data.planMark}
+          {data.planReason ? `: ${data.planReason}` : ""}
+        </p>
+      )}
 
       <div className="flex items-center justify-between text-[9px] text-muted-foreground">
         <span className="truncate">{data.status}</span>

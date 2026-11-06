@@ -717,6 +717,29 @@ describe("API integration: workspace RBAC enforcement", () => {
       expect(persisted?.userId).toBe(member.user.id);
     });
 
+    it("allows a member to edit an assigned task with the assignee omitted", async () => {
+      const member = await createWorkspaceMember({ role: "member" });
+      const { project, columns } = await createProjectFixture({
+        workspaceId: member.workspace.id,
+      });
+      const task = await seedTask(project.id, columns.todo.id, member.user.id);
+      mockAuthenticatedSession(member.user);
+      const { app } = createApp();
+      const response = await app.request(`/api/task/${task.id}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title: "Edited without assignment permission",
+          priority: "high",
+          status: "to-do",
+          projectId: project.id,
+          position: 1,
+        }),
+      });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ userId: member.user.id });
+    });
+
     it("blocks a member from assigning an unassigned task through full update", async () => {
       const member = await createWorkspaceMember({ role: "member" });
       const { project, columns } = await createProjectFixture({

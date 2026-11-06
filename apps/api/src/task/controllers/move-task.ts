@@ -14,6 +14,7 @@ import { publishEvent } from "../../events";
 import { dropTaskInitiativeOnProjectMove } from "../../intelia/initiatives/service";
 import { assertProjectAccess } from "../../project-access/assert-project-access";
 import { filterUsersWithProjectAccess } from "../../project-access/filter-users-with-project-access";
+import { lockAssignableUser } from "../../utils/assert-assignable-user";
 import { claimTaskNumber } from "./claim-task-numbers";
 import { nextTaskPosition } from "./next-task-position";
 
@@ -121,6 +122,12 @@ async function moveTask({
   );
 
   const movedTask = await db.transaction(async (tx) => {
+    if (existingTask.userId)
+      await lockAssignableUser(
+        tx,
+        sourceProject.workspaceId,
+        existingTask.userId,
+      );
     for (const projectId of [sourceProject.id, destinationProjectId].sort()) {
       const [project] = await tx
         .select({ id: projectTable.id })
@@ -167,6 +174,10 @@ async function moveTask({
         message: "Task was moved concurrently, please try again",
       });
     }
+    if (updatedTask.userId !== existingTask.userId)
+      throw new HTTPException(409, {
+        message: "Task assignee changed, please try again",
+      });
 
     let movedTask = updatedTask;
     const assigneeId = updatedTask.userId;

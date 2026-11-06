@@ -5,6 +5,8 @@ import { columnTable, projectTable, taskTable } from "../../database/schema";
 import { publishEvent } from "../../events";
 import { filterUsersWithProjectAccess } from "../../project-access/filter-users-with-project-access";
 import {
+  assertAssignableUser,
+  lockAssignableUser,
   NO_PROJECT_ACCESS,
   NOT_ASSIGNABLE,
 } from "../../utils/assert-assignable-user";
@@ -98,6 +100,15 @@ async function importTasks(
       const warnings = [statusWarning, priorityWarning].filter(Boolean);
 
       const createdTask = await db.transaction(async (tx) => {
+        if (assigneeId) {
+          await lockAssignableUser(tx, project.workspaceId, assigneeId);
+          await assertAssignableUser(
+            assigneeId,
+            project.workspaceId,
+            projectId,
+            tx,
+          );
+        }
         const taskNumber = await claimTaskNumber(projectId, tx);
         // Recheck the snapshot's column and retain it until the insert commits.
         const [column] = await tx

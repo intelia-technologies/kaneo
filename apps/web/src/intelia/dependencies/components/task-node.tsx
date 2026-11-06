@@ -114,6 +114,12 @@ export const TaskNode = memo(function TaskNode({
           )}
         </div>
       </div>
+      {data.planMark && (
+        <p className="text-xs font-medium" title={data.planReason}>
+          ◆ {data.planMark}
+          {data.planReason ? `: ${data.planReason}` : ""}
+        </p>
+      )}
 
       <p
         className={cn(

@@ -8,6 +8,10 @@ export const workspaceMemberParam = z.object({
   userId: z.string(),
 });
 
+export const workspaceMemberOperationParam = workspaceMemberParam.extend({
+  operacionId: z.string().uuid(),
+});
+
 export const workspaceMembersQuery = z.object({
   projectId: z.string().optional().openapi({
     description:
@@ -23,5 +27,13 @@ export const updateMemberProjectAccessBody = z.object({
   projectIds: z.array(z.string()).default([]).openapi({
     description:
       'Projects the member can access when projectAccess is "selected".',
+  }),
+  reasignarA: z.string().min(1).optional().openapi({
+    description:
+      "Eligible destination assignee for open tasks in projects whose access is revoked.",
+  }),
+  operacionId: z.string().uuid().optional().openapi({
+    description:
+      "Durable idempotency key; retries with the same request return the original result.",
   }),
 });

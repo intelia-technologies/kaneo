@@ -31,6 +31,7 @@ import {
 import {
   assertAssignableUser,
   getProjectWorkspaceId,
+  lockAssignableUser,
 } from "../../utils/assert-assignable-user";
 import type { TaskRecurrence } from "../recurrence/schema";
 import {
@@ -154,12 +155,6 @@ async function createTask({
   let assignee: { name: string } | undefined;
 
   if (normalizedUserId) {
-    await assertAssignableUser(
-      normalizedUserId,
-      await getProjectWorkspaceId(projectId),
-      projectId,
-    );
-
     [assignee] = await db
       .select({ name: userTable.name })
       .from(userTable)
@@ -183,6 +178,11 @@ async function createTask({
     : null;
 
   const createdTask = await db.transaction(async (tx) => {
+    if (normalizedUserId) {
+      const workspaceId = await getProjectWorkspaceId(projectId, tx);
+      await lockAssignableUser(tx, workspaceId, normalizedUserId);
+      await assertAssignableUser(normalizedUserId, workspaceId, projectId, tx);
+    }
     const taskNumber = await claimTaskNumber(projectId, tx);
     const nextPosition = await nextTaskPosition(
       tx,

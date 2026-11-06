@@ -45,6 +45,26 @@ export const memberProjectAccessSchema = z
   })
   .openapi("MemberProjectAccess");
 
+export const updateMemberProjectAccessResponseSchema = z.object({
+  userId: z.string(),
+  projectAccess: z.enum(PROJECT_ACCESS_MODES),
+  projectIds: z.array(z.string()),
+  reasignadas: z.number().int().nonnegative(),
+  desasignadas: z.number().int().nonnegative(),
+});
+
+export const cancelOrResultProjectAccessResponseSchema = z.discriminatedUnion(
+  "estado",
+  [
+    z.object({ estado: z.literal("cancelada") }),
+    z.object({
+      estado: z.literal("aplicada"),
+      reasignadas: z.number().int().nonnegative(),
+      desasignadas: z.number().int().nonnegative(),
+    }),
+  ],
+);
+
 export const memberProjectAccessListSchema = z
   .array(memberProjectAccessSchema)
   .openapi({

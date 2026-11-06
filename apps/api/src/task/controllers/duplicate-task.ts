@@ -30,6 +30,7 @@ import { copyTaskAssetObject, deleteS3Object } from "../../storage/s3";
 import { filterUsersWithProjectAccess } from "../../project-access/filter-users-with-project-access";
 import {
   filterAssignableUsers,
+  lockAssignableUser,
   NOT_ASSIGNABLE,
 } from "../../utils/assert-assignable-user";
 import { nextOccurrenceDates } from "../recurrence/next-occurrence-date";
@@ -213,22 +214,6 @@ async function duplicateTask({
   // A manual copy reports a departed assignee; an occurrence goes unassigned
   // so the series keeps going.
   let userId = sourceTask.userId;
-  if (userId) {
-    const members = await filterAssignableUsers([userId], project.workspaceId);
-    if (!members.has(userId)) {
-      if (!occurrence) {
-        throw new HTTPException(403, { message: NOT_ASSIGNABLE });
-      }
-      userId = null;
-    }
-  }
-  if (userId) {
-    const permitted = await filterUsersWithProjectAccess(
-      [userId],
-      sourceTask.projectId,
-    );
-    if (!permitted.has(userId)) userId = null;
-  }
   const column = await db.query.columnTable.findFirst({
     where: and(
       eq(columnTable.projectId, sourceTask.projectId),
@@ -344,9 +329,48 @@ async function duplicateTask({
 
   try {
     duplicated = await db.transaction(async (tx) => {
-      // Locks the project row before the task row, the same order task updates
-      // use.
+      if (userId) {
+        await lockAssignableUser(tx, project.workspaceId, userId);
+      }
+      // Lock in the same order as task updates: assignee, project, task.
       const taskNumber = await claimTaskNumber(sourceTask.projectId, tx);
+      const [lockedSource] = await tx
+        .select({ userId: taskTable.userId, projectId: taskTable.projectId })
+        .from(taskTable)
+        .where(eq(taskTable.id, sourceTask.id))
+        .for("update");
+      if (!lockedSource || lockedSource.projectId !== sourceTask.projectId) {
+        if (occurrence) throw new OccurrenceProjectChangedError();
+        throw new HTTPException(409, {
+          message: "Source task changed during duplication",
+        });
+      }
+      if (lockedSource.userId !== sourceTask.userId) {
+        throw new HTTPException(409, {
+          message: "Source task changed during duplication",
+        });
+      }
+      if (userId) {
+        const members = await filterAssignableUsers(
+          [userId],
+          project.workspaceId,
+          tx,
+        );
+        if (!members.has(userId)) {
+          if (!occurrence) {
+            throw new HTTPException(403, { message: NOT_ASSIGNABLE });
+          }
+          userId = null;
+        }
+      }
+      if (userId) {
+        const permitted = await filterUsersWithProjectAccess(
+          [userId],
+          sourceTask.projectId,
+          tx,
+        );
+        if (!permitted.has(userId)) userId = null;
+      }
 
       // Moving the rule off the completed task is the claim. The row lock makes
       // a concurrent claim wait and then see no rule, so each completion

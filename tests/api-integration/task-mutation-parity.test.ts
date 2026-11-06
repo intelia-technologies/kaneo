@@ -7,19 +7,24 @@ import db, { getDatabase, schema } from "../../apps/api/src/database";
 import updateTask from "../../apps/api/src/task/controllers/update-task";
 import bulkUpdateTasks from "../../apps/api/src/task/controllers/bulk-update-tasks";
 import { resetTestDatabase } from "./helpers/database";
+import { mockAuthenticatedSession } from "./helpers/auth";
+import { projectAccessApi } from "./helpers/project-access/project-access-api";
 import {
   createProjectFixture,
   createWorkspaceMember,
 } from "./helpers/fixtures";
 const publish = vi.hoisted(() => vi.fn(async () => undefined));
-vi.mock("../../apps/api/src/events", () => ({ publishEvent: publish }));
+vi.mock("../../apps/api/src/events", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  publishEvent: publish,
+}));
 beforeEach(async () => {
   await resetTestDatabase();
   vi.clearAllMocks();
 });
 afterEach(() => vi.restoreAllMocks());
 it("full updates store title history, assignment events and reset reminders together", async () => {
-  const { user, workspace } = await createWorkspaceMember();
+  const { user, workspace } = await createWorkspaceMember({ role: "admin" });
   const { project } = await createProjectFixture({ workspaceId: workspace.id });
   const due = new Date("2030-01-01");
   const [task] = await db
@@ -48,6 +53,8 @@ it("full updates store title history, assignment events and reset reminders toge
     0,
     user.id,
     user.id,
+    undefined,
+    true,
   );
   expect(await db.query.activityTable.findMany()).toEqual([
     expect.objectContaining({
@@ -61,6 +68,201 @@ it("full updates store title history, assignment events and reset reminders toge
     expect.objectContaining({ newAssigneeId: user.id }),
   );
 });
+it("full updates preserve a concurrent reassignment when userId is omitted", async () => {
+  const { user, workspace } = await createWorkspaceMember();
+  const { project } = await createProjectFixture({ workspaceId: workspace.id });
+  const [task] = await db
+    .insert(schema.taskTable)
+    .values({
+      projectId: project.id,
+      title: "old",
+      status: "to-do",
+      priority: "low",
+      position: 0,
+    })
+    .returning();
+  mockAuthenticatedSession(user);
+  const request = projectAccessApi();
+  const database = getDatabase();
+  const transaction = database.transaction.bind(database);
+  vi.spyOn(database, "transaction").mockImplementationOnce(
+    async (apply, config) => {
+      await db
+        .update(schema.taskTable)
+        .set({ userId: user.id })
+        .where(eq(schema.taskTable.id, task.id));
+      return transaction(apply, config);
+    },
+  );
+
+  const response = await request(`/task/${task.id}`, {
+    method: "PUT",
+    body: {
+      title: "new",
+      description: "",
+      status: "to-do",
+      priority: "low",
+      position: 0,
+      projectId: project.id,
+    },
+  });
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ userId: user.id });
+  expect(
+    (
+      await db.query.taskTable.findFirst({
+        where: eq(schema.taskTable.id, task.id),
+      })
+    )?.userId,
+  ).toBe(user.id);
+  expect(publish).not.toHaveBeenCalledWith(
+    "task.assignee_changed",
+    expect.anything(),
+  );
+});
+it.each([
+  ["owner", 409],
+  ["member", 403],
+] as const)(
+  "rejects a stale assignee for %s when it changes before the task lock",
+  async (role, expectedStatus) => {
+    const { user, workspace } = await createWorkspaceMember({ role });
+    const { project } = await createProjectFixture({
+      workspaceId: workspace.id,
+    });
+    const [task] = await db
+      .insert(schema.taskTable)
+      .values({
+        projectId: project.id,
+        title: "old",
+        status: "to-do",
+        priority: "low",
+        position: 0,
+        userId: user.id,
+      })
+      .returning();
+    mockAuthenticatedSession(user);
+    const database = getDatabase();
+    const transaction = database.transaction.bind(database);
+    vi.spyOn(database, "transaction").mockImplementationOnce(
+      async (apply, config) => {
+        await db
+          .update(schema.taskTable)
+          .set({ userId: null })
+          .where(eq(schema.taskTable.id, task.id));
+        return transaction(apply, config);
+      },
+    );
+    const response = await projectAccessApi()(`/task/${task.id}`, {
+      method: "PUT",
+      body: {
+        title: "new",
+        status: "to-do",
+        priority: "low",
+        position: 0,
+        projectId: project.id,
+        userId: user.id,
+      },
+    });
+    expect(response.status).toBe(expectedStatus);
+    const persisted = await db.query.taskTable.findFirst({
+      where: eq(schema.taskTable.id, task.id),
+    });
+    expect(persisted).toMatchObject({ userId: null, title: "old" });
+  },
+);
+
+it("rechecks assignment permission after the actor's role changes", async () => {
+  const { user, workspace } = await createWorkspaceMember({ role: "admin" });
+  const { project } = await createProjectFixture({ workspaceId: workspace.id });
+  const [task] = await db
+    .insert(schema.taskTable)
+    .values({
+      projectId: project.id,
+      title: "old",
+      status: "to-do",
+      priority: "low",
+      position: 0,
+    })
+    .returning();
+  mockAuthenticatedSession(user);
+  const database = getDatabase();
+  const transaction = database.transaction.bind(database);
+  vi.spyOn(database, "transaction").mockImplementationOnce(
+    async (apply, config) => {
+      await db
+        .update(schema.workspaceUserTable)
+        .set({ role: "member" })
+        .where(eq(schema.workspaceUserTable.userId, user.id));
+      return transaction(apply, config);
+    },
+  );
+  const response = await projectAccessApi()(`/task/${task.id}`, {
+    method: "PUT",
+    body: {
+      title: "new",
+      status: "to-do",
+      priority: "low",
+      position: 0,
+      projectId: project.id,
+      userId: user.id,
+    },
+  });
+  expect(response.status).toBe(403);
+  const persisted = await db.query.taskTable.findFirst({
+    where: eq(schema.taskTable.id, task.id),
+  });
+  expect(persisted).toMatchObject({ userId: null, title: "old" });
+});
+
+it.each([false, true])(
+  "rejects an edit after a project changes workspace (assignee supplied: %s)",
+  async (includeAssignee) => {
+    const { user, workspace } = await createWorkspaceMember({ role: "owner" });
+    const destination = await createWorkspaceMember({ role: "owner" });
+    const { project } = await createProjectFixture({
+      workspaceId: workspace.id,
+    });
+    const [task] = await db
+      .insert(schema.taskTable)
+      .values({
+        projectId: project.id,
+        title: "old",
+        status: "to-do",
+        priority: "low",
+        position: 0,
+      })
+      .returning();
+    mockAuthenticatedSession(user);
+    const database = getDatabase();
+    const transaction = database.transaction.bind(database);
+    vi.spyOn(database, "transaction").mockImplementationOnce(
+      async (apply, config) => {
+        await db
+          .update(schema.projectTable)
+          .set({ workspaceId: destination.workspace.id })
+          .where(eq(schema.projectTable.id, project.id));
+        return transaction(apply, config);
+      },
+    );
+    const response = await projectAccessApi()(`/task/${task.id}`, {
+      method: "PUT",
+      body: {
+        title: "new",
+        status: "to-do",
+        priority: "low",
+        position: 0,
+        projectId: project.id,
+        ...(includeAssignee ? { userId: user.id } : {}),
+      },
+    });
+    expect(response.status).toBe(409);
+    const persisted = await db.query.taskTable.findFirst({
+      where: eq(schema.taskTable.id, task.id),
+    });
+    expect(persisted).toMatchObject({ userId: null, title: "old" });
+  },
+);
 it("bulk due date updates clear claims and preserve claims for unchanged dates", async () => {
   const { user, workspace } = await createWorkspaceMember();
   const { project } = await createProjectFixture({ workspaceId: workspace.id });
