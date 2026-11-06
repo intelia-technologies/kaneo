@@ -311,7 +311,11 @@ export function createApp() {
   );
 
   api.get("/health", (c) => {
-    return c.json({ status: "ok" });
+    return c.json({
+      status: "ok",
+      version: process.env.KANEO_IMAGE_VERSION ?? "unknown",
+      git_commit: process.env.GIT_COMMIT ?? "unknown",
+    });
   });
 
   api.openapi(

@@ -98,6 +98,10 @@ RUN pnpm run build && find dist -type f -name '*.map' -delete
 
 FROM node:24.22.1-alpine AS runtime
 
+ARG GIT_COMMIT=unknown
+ARG KANEO_IMAGE_VERSION=unknown
+ENV GIT_COMMIT=$GIT_COMMIT KANEO_IMAGE_VERSION=$KANEO_IMAGE_VERSION
+
 # Alpine replaces older package patches, so accept later security fixes too.
 RUN apk add --no-cache 'nginx>=1.30.6' && \
   addgroup -g 1001 appuser && \

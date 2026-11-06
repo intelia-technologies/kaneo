@@ -37,6 +37,7 @@ Kaneo se distribuye bajo licencia MIT. Se conservan [`LICENSE`](LICENSE) y el av
 
 - **Versiones:** `vX.Y.Z-intelia.N` (por ejemplo `v2.48.0-intelia.1`), sobre la versión de upstream que llevan dentro.
 - **Imagen:** la «todo en uno» de upstream (`Dockerfile.kaneo`: API en Node más Nginx con la SPA), publicada como `ghcr.io/intelia-technologies/kaneo:X.Y.Z-intelia.N`.
+- **Identificación del despliegue:** `/api/health` devuelve `status`, `version` (etiqueta de la imagen sin `v`) y `git_commit` (SHA construido). En imágenes sin metadatos, ambos valores son `unknown`; no acreditan un despliegue.
 - **CI y versión:** ver «CI y versiones».
 
 **Contrato de acceso con reasignación (KV-05):** esta capacidad requiere una imagen del fork construida con este cambio; no está disponible en imágenes anteriores ni en upstream. `PUT /api/workspace/{workspaceId}/members/{userId}/project-access` acepta `reasignarA` opcional, id de un usuario distinto y elegible como asignado. Al reducir acceso, las tareas abiertas asignadas al miembro en los proyectos perdidos pasan al destino y las demás tareas inaccesibles se desasignan; el destino debe poder acceder a todos los proyectos perdidos. La validación, el cambio de acceso y las asignaciones se confirman en una sola transacción; un destino inválido rechaza todo. Sin `reasignarA` se conserva la desasignación anterior. La respuesta añade `reasignadas` y `desasignadas`, enteros con los recuentos realmente modificados. Se mantienen los permisos habituales de actualización de miembros y concesión de proyectos.

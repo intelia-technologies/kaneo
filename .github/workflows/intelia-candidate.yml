@@ -57,6 +57,9 @@ jobs:
           file: ./Dockerfile.kaneo
           platforms: linux/amd64
           push: true
+          build-args: |
+            GIT_COMMIT=${{ inputs.sha || github.event.pull_request.head.sha }}
+            KANEO_IMAGE_VERSION=${{ steps.meta.outputs.tag }}
           tags: ghcr.io/${{ github.repository_owner }}/kaneo:${{ steps.meta.outputs.tag }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

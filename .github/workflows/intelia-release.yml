@@ -93,6 +93,9 @@ jobs:
           file: ./Dockerfile.kaneo
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            KANEO_IMAGE_VERSION=${{ needs.verify.outputs.version }}
           # Repo público: por defecto sería mode=max, que publica el payload del evento de GitHub.
           provenance: mode=min
           tags: ghcr.io/${{ github.repository_owner }}/kaneo:${{ needs.verify.outputs.version }}
