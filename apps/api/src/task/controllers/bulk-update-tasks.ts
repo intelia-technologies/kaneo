@@ -131,7 +131,7 @@ async function bulkUpdateTasks({
           .where(inArray(taskTable.id, foundIds))
           .orderBy(asc(taskTable.id))
           .for("update");
-        await assertNoPendingBlockersOnTransition(tx, before, value);
+        await assertNoPendingBlockersOnTransition(tx, before, value, userId);
         const beforeById = new Map(before.map((task) => [task.id, task]));
         const result: Array<{
           id: string;

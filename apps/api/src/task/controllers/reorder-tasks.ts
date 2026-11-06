@@ -6,6 +6,7 @@ import { publishEvent } from "../../events";
 import { assertValidTaskStatus } from "../validate-task-fields";
 import { assertTaskPosition } from "./next-task-position";
 import { publishTaskMutation } from "./task-mutation-effects";
+import { assertNoPendingBlockersOnTransition } from "./assert-no-pending-blockers-on-transition";
 
 type Reorder = { id: string; position: number; status?: string };
 export default async function reorderTasks(
@@ -92,6 +93,17 @@ export default async function reorderTasks(
       throw new HTTPException(404, {
         message: "Tasks must belong to the requested project",
       });
+    for (const status of statuses) {
+      const ids = new Set(
+        tasks.filter((task) => task.status === status).map((task) => task.id),
+      );
+      await assertNoPendingBlockersOnTransition(
+        tx,
+        before.filter((task) => ids.has(task.id)),
+        status,
+        userId,
+      );
+    }
     const values = tasks.map((task) => ({
       id: task.id,
       position: task.position,

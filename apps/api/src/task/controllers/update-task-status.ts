@@ -20,7 +20,12 @@ async function updateTaskStatus({
     id,
     async (tx, existingTask) => {
       await assertValidTaskStatus(status, existingTask.projectId, tx);
-      await assertNoPendingBlockersOnTransition(tx, [existingTask], status);
+      await assertNoPendingBlockersOnTransition(
+        tx,
+        [existingTask],
+        status,
+        currentUserId,
+      );
 
       const column = await tx.query.columnTable.findFirst({
         where: and(

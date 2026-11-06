@@ -78,10 +78,10 @@ async function seed(blockerStatus = "to-do") {
     source: "session",
   });
   mockAuthenticatedSession(user);
-  return { project, blocker, blocked, free, initiative };
+  return { user, workspace, project, blocker, blocked, free, initiative };
 }
 
-type Mode = "status" | "update" | "bulk";
+type Mode = "status" | "update" | "bulk" | "reorder";
 function change(
   mode: Mode,
   task: typeof schema.taskTable.$inferSelect,
@@ -93,7 +93,9 @@ function change(
       ? `/api/task/status/${task.id}`
       : mode === "update"
         ? `/api/task/${task.id}`
-        : "/api/task/bulk";
+        : mode === "bulk"
+          ? "/api/task/bulk"
+          : "/api/task/reorder";
   const body =
     mode === "status"
       ? { status }
@@ -105,15 +107,20 @@ function change(
             position: task.position,
             status,
           }
-        : { taskIds, operation: "updateStatus", value: status };
+        : mode === "bulk"
+          ? { taskIds, operation: "updateStatus", value: status }
+          : {
+              projectId: task.projectId,
+              tasks: taskIds.map((id) => ({ id, position: 1, status })),
+            };
   return createApp().app.request(url, {
-    method: mode === "bulk" ? "PATCH" : "PUT",
+    method: mode === "bulk" ? "PATCH" : mode === "reorder" ? "POST" : "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 }
 
-it.each(["status", "update", "bulk"] as const)(
+it.each(["status", "update", "bulk", "reorder"] as const)(
   "%s rejects active transitions without changing the task or closing its plan",
   async (mode) => {
     const { blocker, blocked, initiative } = await seed();
@@ -143,7 +150,7 @@ it.each(["status", "update", "bulk"] as const)(
   },
 );
 
-it.each(["status", "update", "bulk"] as const)(
+it.each(["status", "update", "bulk", "reorder"] as const)(
   "%s allows unblocked tasks and completed or cancelled destinations",
   async (mode) => {
     const { blocked, free } = await seed();
@@ -153,7 +160,7 @@ it.each(["status", "update", "bulk"] as const)(
   },
 );
 
-it.each(["status", "update", "bulk"] as const)(
+it.each(["status", "update", "bulk", "reorder"] as const)(
   "%s treats only a done blocker as satisfied",
   async (mode) => {
     const { blocker, blocked } = await seed("cancelled");
@@ -191,4 +198,35 @@ it("rejects a bulk transition atomically when any task is blocked", async () => 
         .where(eq(initiativeTable.id, initiative.id))
     )[0].planClosedAt,
   ).toBeNull();
+});
+
+it("rejects a drag without disclosing a blocker in an inaccessible project", async () => {
+  const { user, workspace, project, blocker, blocked } = await seed();
+  const { project: hidden } = await createProjectFixture({
+    workspaceId: workspace.id,
+  });
+  await db
+    .update(schema.taskTable)
+    .set({ projectId: hidden.id })
+    .where(eq(schema.taskTable.id, blocker.id));
+  await db
+    .update(schema.workspaceUserTable)
+    .set({ role: "member" })
+    .where(eq(schema.workspaceUserTable.userId, user.id));
+  await db.insert(schema.workspaceMemberAccessTable).values({
+    workspaceId: workspace.id,
+    userId: user.id,
+    projectAccess: "selected",
+  });
+  await db.insert(schema.workspaceMemberProjectTable).values({
+    workspaceId: workspace.id,
+    userId: user.id,
+    projectId: project.id,
+  });
+  const response = await change("reorder", blocked, "in-progress");
+  expect(response.status).toBe(409);
+  const text = await response.text();
+  expect(text).not.toContain(blocker.id);
+  expect(text).not.toContain(blocker.status);
+  expect(text).toContain("PENDING_BLOCKERS");
 });

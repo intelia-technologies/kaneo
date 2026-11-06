@@ -185,7 +185,12 @@ async function updateTask(
     if (normalizedUserId && normalizedUserId !== locked.userId) {
       await assertAssignableUser(normalizedUserId, workspaceId!, projectId, tx);
     }
-    await assertNoPendingBlockersOnTransition(tx, [locked], status);
+    await assertNoPendingBlockersOnTransition(
+      tx,
+      [locked],
+      status,
+      currentUserId,
+    );
     existingTask = locked;
 
     const [task] = await tx
