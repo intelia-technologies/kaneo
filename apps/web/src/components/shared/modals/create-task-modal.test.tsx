@@ -623,6 +623,9 @@ function chooseInitiative() {
 
 // Level and verification are required to create a task.
 function chooseAutomation() {
+  fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
+    target: { value: "validacion" },
+  });
   for (const name of ["levels.manual", "yes"]) {
     fireEvent.click(
       screen.getByRole("radio", { name: `intelia:automation.${name}` }),

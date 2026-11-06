@@ -67,6 +67,7 @@ try {
   await taskDialog
     .getByPlaceholder("Task title", { exact: true })
     .fill("Browser persistence task");
+  await taskDialog.getByLabel("Tipo de tarea").selectOption("diseno");
   // Not the manual/true test default: proves the form really sends the choice.
   await taskDialog
     .getByRole("radio", { name: "Arranque", exact: true })
@@ -89,6 +90,7 @@ try {
   ]);
   assert.ok(taskResponse.ok(), await taskResponse.text());
   const task = await taskResponse.json();
+  assert.equal(task.type, "diseno");
   const automation = await owner.json(
     `/api/intelia/task/${task.id}/automation`,
   );
