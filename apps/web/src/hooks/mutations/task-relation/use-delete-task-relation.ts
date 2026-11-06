@@ -9,9 +9,17 @@ function useDeleteTaskRelation(taskId: string) {
   return useMutation({
     mutationFn: deleteTaskRelation,
     onSuccess: (relation) => {
-      void invalidateRelationTaskProject(queryClient, relation.sourceTaskId);
+      void invalidateRelationTaskProject(queryClient);
       queryClient.invalidateQueries({
         queryKey: ["task-relations", taskId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [
+          "task-relations",
+          relation.sourceTaskId === taskId
+            ? relation.targetTaskId
+            : relation.sourceTaskId,
+        ],
       });
     },
   });

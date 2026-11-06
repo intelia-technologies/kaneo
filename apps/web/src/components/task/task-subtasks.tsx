@@ -54,9 +54,24 @@ export default function TaskSubtasks({
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [automation, setAutomation] = useState<AutomationInput | null>(null);
+  const [taskType, setTaskType] = useState<
+    "" | "implementacion" | "validacion" | "operacion" | "diseno"
+  >("");
+  const [productionValidation, setProductionValidation] = useState<
+    "" | "requerida" | "no_aplica"
+  >("");
+  const [validationReason, setValidationReason] = useState("");
   const { data: parentInitiative, isLoading: isLoadingInitiative } =
     useTaskInitiative(taskId);
-  const readyToAdd = Boolean(newTitle.trim() && automation && parentInitiative);
+  const readyToAdd = Boolean(
+    newTitle.trim() &&
+    automation &&
+    parentInitiative &&
+    taskType &&
+    ((taskType !== "implementacion" && taskType !== "operacion") ||
+      (productionValidation &&
+        (productionValidation !== "no_aplica" || validationReason.trim()))),
+  );
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -252,6 +267,7 @@ export default function TaskSubtasks({
       !canEdit ||
       !newTitle.trim() ||
       !automation ||
+      !readyToAdd ||
       !parentInitiative
     )
       return;
@@ -267,6 +283,20 @@ export default function TaskSubtasks({
         priority: "no-priority",
         automation,
         initiative: { parentTaskId: taskId },
+        type: taskType as
+          | "implementacion"
+          | "validacion"
+          | "operacion"
+          | "diseno",
+        validationInProduction:
+          taskType === "implementacion" || taskType === "operacion"
+            ? (productionValidation as "requerida" | "no_aplica")
+            : null,
+        validationInProductionReason:
+          (taskType === "implementacion" || taskType === "operacion") &&
+          productionValidation === "no_aplica"
+            ? validationReason.trim()
+            : null,
       });
 
       await createRelation.mutateAsync({
@@ -408,6 +438,43 @@ export default function TaskSubtasks({
               }}
               autoFocus
             />
+            <select
+              aria-label="Tipo de tarea"
+              value={taskType}
+              onChange={(e) => {
+                setTaskType(e.target.value as typeof taskType);
+                setProductionValidation("");
+              }}
+            >
+              <option value="">Tipo de tarea</option>
+              <option value="implementacion">Implementación</option>
+              <option value="validacion">Validación</option>
+              <option value="operacion">Operación</option>
+              <option value="diseno">Diseño</option>
+            </select>
+            {(taskType === "implementacion" || taskType === "operacion") && (
+              <select
+                aria-label="Validación en producción"
+                value={productionValidation}
+                onChange={(e) =>
+                  setProductionValidation(
+                    e.target.value as typeof productionValidation,
+                  )
+                }
+              >
+                <option value="">Validación en producción</option>
+                <option value="requerida">Requerida</option>
+                <option value="no_aplica">No aplica</option>
+              </select>
+            )}
+            {productionValidation === "no_aplica" &&
+              (taskType === "implementacion" || taskType === "operacion") && (
+                <input
+                  aria-label="Motivo"
+                  value={validationReason}
+                  onChange={(e) => setValidationReason(e.target.value)}
+                />
+              )}
             <Button
               size="xs"
               onClick={handleAddSubtask}

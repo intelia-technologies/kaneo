@@ -35,6 +35,7 @@ describe("API integration: task creation", () => {
         description: "Should not be created",
         priority: "low",
         status: "to-do",
+        type: "diseno",
       }),
     });
 
@@ -82,6 +83,7 @@ describe("API integration: task creation", () => {
         description: "Cover the first create-task path",
         priority: "high",
         status: "to-do",
+        type: "diseno",
         userId: member.user.id,
       }),
     });
@@ -159,6 +161,7 @@ describe("API integration: task creation", () => {
         description: "Should not be created",
         priority: "low",
         status: "to-do",
+        type: "diseno",
       }),
     });
 
@@ -197,6 +200,7 @@ describe("API integration: task creation", () => {
         description: "Track optional fields too",
         priority: "medium",
         status: "in-progress",
+        type: "diseno",
         startDate: "2026-04-01T09:00:00.000Z",
         dueDate: "2026-04-05T17:00:00.000Z",
       }),
@@ -257,6 +261,7 @@ describe("API integration: task creation", () => {
         description: "Status does not map to a seeded column",
         priority: "low",
         status: "planned",
+        type: "diseno",
       }),
     });
 
@@ -306,6 +311,7 @@ describe("API integration: task creation", () => {
         description: "Should fail because the assignee does not exist",
         priority: "low",
         status: "to-do",
+        type: "diseno",
         userId: missingAssigneeId,
       }),
     });
@@ -347,6 +353,7 @@ describe("API integration: task creation", () => {
         description: "Whitespace around userId should be trimmed",
         priority: "medium",
         status: "to-do",
+        type: "diseno",
         userId: paddedAssigneeId,
       }),
     });
@@ -399,6 +406,7 @@ describe("API integration: task creation", () => {
           description: "Blank userId means unassigned",
           priority: "low",
           status: "to-do",
+          type: "diseno",
           userId,
         }),
       });

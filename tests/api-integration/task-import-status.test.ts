@@ -31,7 +31,7 @@ describe("JSON imports after column renames", () => {
           "to-do",
           "planned",
           "unknown",
-        ].map((status) => ({ title: status, status })),
+        ].map((status) => ({ title: status, status, type: "diseno" })),
       }),
     });
     expect(response.status).toBe(200);

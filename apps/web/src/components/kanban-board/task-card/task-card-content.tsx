@@ -41,6 +41,7 @@ import { BoardSignalChips } from "@/intelia/board-signals/components/board-signa
 import { StatusAgeChip } from "@/intelia/status-age/components/status-age-chip";
 import { useTaskCardClick } from "./use-task-card-click";
 import { useTouchDragMenu } from "./use-touch-drag-menu";
+import { TaskReadinessChips } from "./task-readiness-chips";
 
 type TaskCardContentProps = {
   task: Task;
@@ -195,9 +196,15 @@ function TaskCardContent({
             </div>
 
             <TaskCardAutomation task={task} />
+            {taskIsCompleted && (
+              <div className="mt-2.5 flex flex-wrap items-center gap-1">
+                <TaskReadinessChips task={task} completed />
+              </div>
+            )}
 
             {!taskIsCompleted && (
               <div className="mt-2.5 flex flex-wrap items-center gap-1 empty:hidden">
+                <TaskReadinessChips task={task} completed={false} />
                 {showPriority && hasPriority && <PriorityChip task={task} />}
                 {showDueDates && <DueDateChip task={task} />}
                 <StatusAgeChip task={task} />

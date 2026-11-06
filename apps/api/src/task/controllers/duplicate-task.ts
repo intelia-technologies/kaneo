@@ -1,4 +1,5 @@
 import { createId } from "@paralleldrive/cuid2";
+import { taskClassificationTable } from "../../intelia/schema";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
@@ -448,6 +449,15 @@ async function duplicateTask({
         });
       }
 
+      const [classification] = await tx
+        .select()
+        .from(taskClassificationTable)
+        .where(eq(taskClassificationTable.taskId, sourceTask.id));
+      if (classification) {
+        await tx
+          .insert(taskClassificationTable)
+          .values({ ...classification, taskId: task.id });
+      }
       await writeCopyAutomation(tx, sourceTask.id, task.id, automation);
       await writeCopyInitiative(tx, sourceTask.id, task, initiative);
 

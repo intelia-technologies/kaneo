@@ -75,6 +75,12 @@ export function taskMatchesFilters(
   context: TaskFilterContext,
 ) {
   if (!matchesQuery(task, context)) return false;
+  if (
+    filters.readiness?.length &&
+    (task.status !== "to-do" || !task.blockersSummary)
+  ) {
+    return false;
+  }
 
   const negated = new Set(filters.negated ?? []);
   const passes = (subject: string, matches: boolean) =>
@@ -84,6 +90,20 @@ export function taskMatchesFilters(
       "status",
       filters.status,
       () => filters.status?.includes(task.status) ?? false,
+    ],
+    [
+      "readiness",
+      filters.readiness,
+      () => {
+        if (task.status !== "to-do" || !task.blockersSummary) return false;
+        const waiting =
+          task.blockersSummary.pendingCount > 0 ||
+          task.blockersSummary.hasCancelledBlocker ||
+          task.blockersSummary.waitingRelease;
+        return (
+          filters.readiness?.includes(waiting ? "waiting" : "ready") ?? false
+        );
+      },
     ],
     [
       "priority",

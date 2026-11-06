@@ -98,6 +98,9 @@ export async function seed(origin, label) {
     description: "Upgrade and realtime fixture",
     priority: "medium",
     status: "to-do",
+    type: "implementacion",
+    validationInProduction: "no_aplica",
+    validationInProductionReason: "Fixture de CI",
     automation: { level: "manual", verification: true },
   });
   return { client, account, workspace, project, task };

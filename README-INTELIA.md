@@ -207,7 +207,7 @@ El test `tests/api-integration/intelia-schema-migrations.test.ts` reproduce el a
 
 ### Ganchos sobre `public.task`
 
-Dependemos de la tabla de upstream `public.task` de dos formas: el trigger `intelia_close_plan_on_start` (con su función `intelia.close_plan_on_start`) y **ocho claves ajenas** de nuestras tablas a `task(id)`: `comment_reaction`, `routine`, `task_automation`, `task_automation_change`, `initiative_change` (`ON DELETE SET NULL`), `task_initiative`, `task_initiative_change` y `task_alias` (las demás, `ON DELETE CASCADE`). Una migración de upstream que **recree** `task` (`DROP TABLE … CASCADE` y `CREATE TABLE`) se lleva el trigger y las ocho claves sin ningún error; el diario de migraciones `intelia` no lo ve, porque nuestras migraciones ya están aplicadas.
+Dependemos de la tabla de upstream `public.task` de dos formas: el trigger `intelia_close_plan_on_start` (con su función `intelia.close_plan_on_start`) y **nueve claves ajenas** de nuestras tablas a `task(id)`: `comment_reaction`, `routine`, `task_automation`, `task_automation_change`, `initiative_change` (`ON DELETE SET NULL`), `task_initiative`, `task_initiative_change`, `task_alias` y `task_classification` (las demás, `ON DELETE CASCADE`; todas, `ON UPDATE CASCADE`). Una migración de upstream que **recree** `task` (`DROP TABLE … CASCADE` y `CREATE TABLE`) se lleva el trigger y las nueve claves sin ningún error; el diario de migraciones `intelia` no lo ve, porque nuestras migraciones ya están aplicadas.
 
 - **En cada arranque**, después de los dos migradores (`task-hooks.ts`):
   1. `installTaskHooks` reinstala la función y el trigger en una transacción (`CREATE OR REPLACE FUNCTION`, `DROP TRIGGER IF EXISTS` y `CREATE TRIGGER`, con un cerrojo consultivo para varias réplicas a la vez). Es re-ejecutable: dos arranques dejan lo mismo.
@@ -229,7 +229,7 @@ Señal: el arranque de Kaneo falla con `Intelia: public.task lacks …` (en el l
 
 4. **Arrancar Kaneo**: el arranque reinstala el trigger (el paso 3 no lo toca) y la comprobación pasa. Si sigue fallando, el mensaje nombra lo que falta.
 
-Probado en `tests/api-integration/intelia-task-hooks.test.ts`, en una base aparte con datos: dos arranques dejan el mismo catálogo y los mismos datos; tras recrear `task` como lo haría upstream (con sus datos y los mismos ids) y perder una tarea, el arranque reinstala el trigger y falla nombrando las ocho claves; la comprobación muestra la huérfana; la reparación borra sus filas, vacía la columna del diario, restaura las claves (que vuelven a rechazar una tarea inexistente) y el siguiente arranque pasa; repetir la reparación no cambia nada y el trigger vuelve a cerrar el plan. Si se añade una clave a `task` en el esquema, hay que añadirla a los dos ficheros de `repair/` (si falta en el de reparación, ese test falla).
+Probado en `tests/api-integration/intelia-task-hooks.test.ts`, en una base aparte con datos: dos arranques dejan el mismo catálogo y los mismos datos; tras recrear `task` como lo haría upstream (con sus datos y los mismos ids) y perder una tarea, el arranque reinstala el trigger y falla nombrando las nueve claves; la comprobación muestra las huérfanas, incluida la clasificación; la reparación borra sus filas, conserva la clasificación de la tarea existente, vacía la columna del diario y restaura las claves (que vuelven a rechazar una tarea inexistente); el siguiente arranque pasa, repetir la reparación no cambia nada y el trigger vuelve a cerrar el plan. Si se añade una clave a `task` en el esquema, hay que añadirla a los dos ficheros de `repair/` (si falta en el de reparación, ese test falla).
 
 ## Reacciones en comentarios y tarjetas
 
@@ -383,6 +383,14 @@ Una rutina es una tarea que se **reabre a In progress** según una expresión cr
   - **Ficheros de upstream:** dos líneas en `task-details-content.tsx` (el panel) y dos en `nav-main.tsx` (el enlace); `routeTree.gen.ts` lo regenera el plugin de TanStack Router. Las traducciones (en y es) van en `intelia/routines/i18n.ts`, con el registro común de `intelia/i18n.ts`.
   - **Tests:** `schedule.test.ts`, `components/routine-panel.test.tsx` y `components/routines-page.test.tsx`.
 - **Test:** `tests/api-integration/intelia-routines.test.ts`, con un receptor HTTP real que comprueba la firma, y los casos de fallo cerrado: inicio de sesión y clave de API de la cuenta rechazados, email reservado ocupado por un usuario registrado (ningún tick reabre y ese usuario queda intacto), instancia vacía (la primera persona sigue siendo administradora), invariantes rotos y recurrencia añadida después.
+
+## Tipos de tarea y espera de dependencias
+
+La clasificación se guarda en `intelia.task_classification` (migración `0011`), sin alterar `public.task`. `POST /api/task/{projectId}` admite `type` ausente o nulo: la tarea queda sin fila de clasificación y devuelve `type: null`. Si se declara, debe ser `implementacion`, `validacion`, `operacion` o `diseno`. Implementación y operación exigen `validationInProduction` (`requerida` o `no_aplica`); `no_aplica` necesita `validationInProductionReason` no vacío y de una línea. Validación y diseño no llevan declaración, tampoco las tareas sin tipo. El formulario web y el gateway siguen exigiendo tipo. Duplicados y recurrencias copian la clasificación del origen.
+
+En `POST /api/task/import/{projectId}`, las entradas con `type` ausente o nulo se importan sin clasificación salvo que se indique `classificationForUnclassified`, que permite declarar explícitamente `{ type, validationInProduction?, validationInProductionReason? }` para ellas. Esta opción se valida antes de importar y no modifica las clasificaciones presentes.
+
+`PUT /api/task/classification/{id}` cambia solo la clasificación con permiso `task:update`, sin sobrescribir el contenido de la tarea. El tablero recibe un resumen de bloqueantes por página: solo Done cumple, los cancelados siguen pendientes y las tareas de proyectos no legibles solo contribuyen a un recuento anónimo. En una validación sin bloqueantes pendientes, el campo personalizado `release` solo deja de mostrar espera si vale exactamente `desplegada`; un valor ausente o diferente falla cerrado. El distintivo y el filtro «Lista / Esperando» son informativos: no autorizan el arranque, que comprueba el despachador.
 
 ## Nivel de automatización de las tareas
 

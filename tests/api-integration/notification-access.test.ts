@@ -10,6 +10,7 @@ import {
 import createComment from "../../apps/api/src/activity/controllers/create-comment";
 import db, { schema } from "../../apps/api/src/database";
 import { taskReminderSentTable } from "../../apps/api/src/database/schema";
+import { taskClassificationTable } from "../../apps/api/src/intelia/schema";
 import clearNotifications from "../../apps/api/src/notification/controllers/clear-notifications";
 import createNotification, {
   persistNotification,
@@ -417,7 +418,11 @@ describe("notification recipient boundaries", () => {
         project.id,
         [
           { title: "Valid", status: "to-do" },
-          { title: "Invalid", status: "to-do", userId: outsider.user.id },
+          {
+            title: "Invalid",
+            status: "to-do",
+            userId: outsider.user.id,
+          },
         ],
         actor.user.id,
         {
@@ -440,6 +445,17 @@ describe("notification recipient boundaries", () => {
     });
     const tasks = await db.select().from(schema.taskTable);
     expect(tasks).toHaveLength(2);
+    expect(
+      await db
+        .select()
+        .from(taskClassificationTable)
+        .where(
+          eq(
+            taskClassificationTable.taskId,
+            tasks.find((row) => row.title === "Valid")!.id,
+          ),
+        ),
+    ).toHaveLength(0);
     expect(tasks).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: task.id, userId: member.user.id }),

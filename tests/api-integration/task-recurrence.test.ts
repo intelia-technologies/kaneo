@@ -156,6 +156,7 @@ describe("API integration: recurring tasks", () => {
       description: "",
       priority: "no-priority",
       status: "to-do",
+      type: "diseno",
       dueDate: "2026-03-10T00:00:00.000Z",
       recurrence,
     });
@@ -173,6 +174,7 @@ describe("API integration: recurring tasks", () => {
       description: "",
       priority: "no-priority",
       status: "to-do",
+      type: "diseno",
       recurrence: { ...weekly, frequency: "daily", weekdays: [1] },
     });
     expect(invalid.status).toBe(400);
@@ -422,6 +424,7 @@ describe("API integration: recurring tasks", () => {
       description: "",
       priority: "no-priority",
       status: "done",
+      type: "diseno",
       recurrence: weekly,
     });
 

@@ -34,6 +34,7 @@ function createTask(
       description: "",
       priority: "low",
       status: "to-do",
+      type: "diseno",
     }),
   });
 }

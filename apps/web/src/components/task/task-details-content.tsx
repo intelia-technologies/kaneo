@@ -14,6 +14,7 @@ import TaskDescription from "./task-description";
 import TaskRelations from "./task-relations";
 import TaskSubtasks from "./task-subtasks";
 import TaskTitle from "./task-title";
+import { TaskClassification } from "./task-classification";
 import { ReactionBar } from "../intelia/reaction-bar";
 import { TaskRoutinePanel } from "@/intelia/routines/components/routine-panel";
 import { TaskAutomationPanel } from "@/intelia/automation/components/automation-panel";
@@ -83,6 +84,7 @@ export default function TaskDetailsContent({
       </div>
 
       {properties}
+      {task && <TaskClassification key={task.id} task={task} />}
 
       <TaskDescription taskId={taskId} />
 

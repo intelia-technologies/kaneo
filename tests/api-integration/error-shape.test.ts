@@ -45,6 +45,7 @@ const validTask = {
   description: "",
   priority: "low",
   status: "to-do",
+  type: "diseno",
 };
 
 describe("API integration: error shape", () => {

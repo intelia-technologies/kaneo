@@ -73,6 +73,7 @@ async function fixture(
         description: "",
         status: "to-do",
         priority: "no-priority",
+        type: "diseno",
         customFields: [{ fieldId: definition.id, value }],
       }),
   };

@@ -1,4 +1,8 @@
 import { and, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { taskClassificationTable } from "../../intelia/schema";
+import { validTaskClassification } from "../schema";
+import type { z } from "zod";
+import type { updateTaskBody } from "../schema";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
 import {
@@ -39,6 +43,10 @@ async function updateTask(
   estimacion_horas?: number | null,
   canAssign = false,
   authorizedWorkspaceId?: string,
+  classification?: Pick<
+    z.infer<typeof updateTaskBody>,
+    "type" | "validationInProduction" | "validationInProductionReason"
+  >,
 ) {
   assertTaskPosition(position);
 
@@ -142,6 +150,52 @@ async function updateTask(
       throw new HTTPException(409, {
         message: "Task changed projects; retry the update",
       });
+    if (
+      classification &&
+      Object.values(classification).some((value) => value !== undefined)
+    ) {
+      const [previous] = await tx
+        .select()
+        .from(taskClassificationTable)
+        .where(eq(taskClassificationTable.taskId, id));
+      const merged = {
+        type: classification.type ?? previous?.type,
+        validationInProduction:
+          classification.validationInProduction === undefined
+            ? previous?.validationInProduction
+            : classification.validationInProduction,
+        validationInProductionReason:
+          classification.validationInProductionReason === undefined
+            ? previous?.validationInProductionReason
+            : classification.validationInProductionReason,
+      };
+      if (
+        !merged.type ||
+        !validTaskClassification({ ...merged, type: merged.type })
+      ) {
+        throw new HTTPException(400, {
+          message: "Invalid production validation declaration",
+        });
+      }
+      await tx
+        .insert(taskClassificationTable)
+        .values({
+          taskId: id,
+          type: merged.type,
+          validationInProduction: merged.validationInProduction ?? null,
+          validationInProductionReason:
+            merged.validationInProductionReason ?? null,
+        })
+        .onConflictDoUpdate({
+          target: taskClassificationTable.taskId,
+          set: {
+            type: merged.type,
+            validationInProduction: merged.validationInProduction ?? null,
+            validationInProductionReason:
+              merged.validationInProductionReason ?? null,
+          },
+        });
+    }
     if (locked.position !== initialPosition || locked.status !== initialStatus)
       throw new HTTPException(409, {
         message: "Task order changed; refresh before updating",

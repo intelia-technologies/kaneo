@@ -38,6 +38,54 @@ function task(overrides: Partial<Task>): Task {
   } as Task;
 }
 
+const summary = {
+  pendingCount: 0,
+  hasCancelledBlocker: false,
+  waitingRelease: false,
+  blockers: [],
+  externalCount: 0,
+};
+
+describe("readiness filter", () => {
+  it.each([
+    ["ready", {}, true],
+    ["waiting", {}, false],
+    ["waiting", { pendingCount: 1 }, true],
+    ["waiting", { hasCancelledBlocker: true }, true],
+    ["waiting", { waitingRelease: true }, true],
+    ["ready", { waitingRelease: true }, false],
+  ])("%s matches summary %o: %s", (value, changes, expected) => {
+    const candidate = task({
+      status: "to-do",
+      blockersSummary: { ...summary, ...changes },
+    });
+    expect(
+      taskMatchesFilters(
+        candidate,
+        { ...noFilters, readiness: [value] },
+        context,
+      ),
+    ).toBe(expected);
+  });
+
+  it("limits readiness to To do and does not assume missing summaries are ready", () => {
+    const filters = { ...noFilters, readiness: ["ready"] };
+    expect(
+      taskMatchesFilters(
+        task({ status: "in-progress", blockersSummary: summary }),
+        filters,
+        context,
+      ),
+    ).toBe(false);
+    expect(
+      taskMatchesFilters(task({ status: "to-do" }), filters, context),
+    ).toBe(false);
+    expect(
+      taskMatchesFilters(task({ status: "in-progress" }), noFilters, context),
+    ).toBe(true);
+  });
+});
+
 describe("taskMatchesFilters", () => {
   it.each([
     ["pricing", true],

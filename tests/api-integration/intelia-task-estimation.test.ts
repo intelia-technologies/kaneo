@@ -34,6 +34,7 @@ describe("task estimation", () => {
       description: "",
       priority: "low",
       status: "to-do",
+      type: "diseno",
     };
     const created = await app.request(`/api/task/${project.id}`, {
       method: "POST",
@@ -152,6 +153,7 @@ describe("task estimation", () => {
           description: "",
           priority: "low",
           status: "to-do",
+          type: "diseno",
           estimacion_horas,
         }),
       });

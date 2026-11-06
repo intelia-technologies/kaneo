@@ -141,6 +141,9 @@ function enterTitle(title: string) {
     ),
     { target: { value: title } },
   );
+  fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
+    target: { value: "validacion" },
+  });
 }
 
 function chooseLevel(level: "manual" | "arranque" | "completa") {
@@ -159,6 +162,24 @@ function submit() {
 }
 
 describe("CreateTaskModal automation", () => {
+  it("requires a task type even when all other fields are complete", () => {
+    renderModal();
+    enterTitle("Task");
+    fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
+      target: { value: "" },
+    });
+    chooseLevel("manual");
+    chooseVerification("yes");
+    chooseInitiative();
+    expect(screen.getByLabelText("Tipo de tarea")).toBeInvalid();
+    submit();
+    expect(createTask).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
+      target: { value: "validacion" },
+    });
+    expect(screen.getByLabelText("Tipo de tarea")).toBeValid();
+  });
+
   it("keeps Create Task disabled, with the reason visible, until level and verification are chosen", async () => {
     renderModal();
     enterTitle("Task");

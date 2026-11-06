@@ -22,7 +22,11 @@ async function importTitles(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      tasks: titles.map((title) => ({ title, status: "to-do" })),
+      tasks: titles.map((title) => ({
+        title,
+        status: "to-do",
+        type: "diseno",
+      })),
     }),
   });
   expect(response.status).toBe(200);

@@ -1,4 +1,5 @@
 import { boundedTaskRead } from "../bounded-read";
+import { taskClassificationTable } from "../../intelia/schema";
 import { alias } from "drizzle-orm/pg-core";
 import { boardDescription, descriptionDeferred } from "../description-pages";
 import { getSubtaskCounts } from "../get-subtask-counts";
@@ -18,6 +19,10 @@ async function getTask(taskId: string, board = false, userId?: string) {
       id: taskTable.id,
       title: taskTable.title,
       number: taskTable.number,
+      type: taskClassificationTable.type,
+      validationInProduction: taskClassificationTable.validationInProduction,
+      validationInProductionReason:
+        taskClassificationTable.validationInProductionReason,
       description: board ? boardDescription : taskTable.description,
       ...(board
         ? {
@@ -41,6 +46,10 @@ async function getTask(taskId: string, board = false, userId?: string) {
     })
     .from(taskTable)
     .leftJoin(userTable, eq(taskTable.userId, userTable.id))
+    .leftJoin(
+      taskClassificationTable,
+      eq(taskClassificationTable.taskId, taskTable.id),
+    )
     .where(eq(taskTable.id, taskId))
     .limit(1);
 

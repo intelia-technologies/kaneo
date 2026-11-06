@@ -185,6 +185,7 @@ describe("date defaults", () => {
           description: "",
           priority: "low",
           status: "to-do",
+          type: "diseno",
         }),
       });
       expect(created.status, await created.text()).toBe(200);

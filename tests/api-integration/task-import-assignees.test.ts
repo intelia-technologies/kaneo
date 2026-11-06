@@ -26,6 +26,7 @@ async function fixture() {
         tasks: references.map((userId, index) => ({
           title: `Task ${index}`,
           status: "to-do",
+          type: "diseno",
           userId,
         })),
       }),

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import db, { schema } from "../../apps/api/src/database";
 import { createApp } from "../../apps/api/src/index";
@@ -351,3 +351,102 @@ it.each(["label", "link", "assignee", "project", "subtask"])(
     ).not.toBe(before);
   },
 );
+
+it.each([
+  "create blocker",
+  "delete blocker",
+  "blocker status",
+  "type",
+  "release",
+])(
+  "changes the public revision after %s on an earlier page",
+  async (change) => {
+    const { app, project, tasks, member } = await fixture(2, true);
+    const { project: other } = await createProjectFixture({
+      workspaceId: member.workspace.id,
+    });
+    await db
+      .update(schema.projectTable)
+      .set({ isPublic: true })
+      .where(eq(schema.projectTable.id, other.id));
+    const [blocker] = await db
+      .insert(schema.taskTable)
+      .values({ projectId: other.id, title: "Blocker", status: "to-do" })
+      .returning();
+    let relation: typeof schema.taskRelationTable.$inferSelect | undefined;
+    if (change === "delete blocker" || change === "blocker status") {
+      [relation] = await db
+        .insert(schema.taskRelationTable)
+        .values({
+          sourceTaskId: blocker.id,
+          targetTaskId: tasks[0].id,
+          relationType: "blocks",
+        })
+        .returning();
+    }
+    mockAnonymousSession();
+    const path = `/api/public-project/${project.id}?limit=1`;
+    const before = (await (await app.request(path)).json()).pagination.revision;
+    if (change === "create blocker")
+      await db.insert(schema.taskRelationTable).values({
+        sourceTaskId: blocker.id,
+        targetTaskId: tasks[0].id,
+        relationType: "blocks",
+      });
+    if (change === "delete blocker" && relation)
+      await db
+        .delete(schema.taskRelationTable)
+        .where(eq(schema.taskRelationTable.id, relation.id));
+    if (change === "blocker status")
+      await db
+        .update(schema.taskTable)
+        .set({ status: "done" })
+        .where(eq(schema.taskTable.id, blocker.id));
+    if (change === "type")
+      await db.execute(
+        sql`insert into intelia.task_classification (task_id, type) values (${tasks[0].id}, 'validacion')`,
+      );
+    if (change === "release") {
+      const [field] = await db
+        .insert(schema.customFieldDefinitionTable)
+        .values({ projectId: project.id, name: "release", type: "text" })
+        .returning();
+      await db.insert(schema.customFieldValueTable).values({
+        taskId: tasks[0].id,
+        fieldId: field.id,
+        value: "desplegada",
+      });
+    }
+    expect(
+      (await (await app.request(path + "&page=2")).json()).pagination.revision,
+    ).not.toBe(before);
+  },
+);
+
+it("keeps private blocker details out of the public revision while counting edges", async () => {
+  const { app, project, tasks, member } = await fixture(2, true);
+  const { project: other } = await createProjectFixture({
+    workspaceId: member.workspace.id,
+  });
+  const [blocker] = await db
+    .insert(schema.taskTable)
+    .values({ projectId: other.id, title: "Private", status: "to-do" })
+    .returning();
+  mockAnonymousSession();
+  const path = `/api/public-project/${project.id}?limit=1`;
+  const revision = async () =>
+    (await (await app.request(path)).json()).pagination.revision;
+  const before = await revision();
+  await db.insert(schema.taskRelationTable).values({
+    sourceTaskId: blocker.id,
+    targetTaskId: tasks[0].id,
+    relationType: "blocks",
+  });
+  const withBlocker = await revision();
+  expect(withBlocker).not.toBe(before);
+  await db
+    .update(schema.taskTable)
+    .set({ status: "done", number: 42 })
+    .where(eq(schema.taskTable.id, blocker.id));
+  expect(await revision()).toBe(withBlocker);
+});

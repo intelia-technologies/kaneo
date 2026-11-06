@@ -23,6 +23,9 @@ function useCreateTask() {
       recurrence,
       automation,
       initiative,
+      type,
+      validationInProduction,
+      validationInProductionReason,
     }: CreateTaskInput) =>
       createTask(
         title,
@@ -35,6 +38,9 @@ function useCreateTask() {
         priority,
         automation,
         initiative,
+        type,
+        validationInProduction,
+        validationInProductionReason,
         customFields,
         draftAssetIds,
         recurrence,

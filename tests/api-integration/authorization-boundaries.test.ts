@@ -106,6 +106,7 @@ describe("task assignees stay inside the workspace", () => {
         description: "",
         priority: "low",
         status: "to-do",
+        type: "diseno",
         userId: outsider.user.id,
       }),
     });
@@ -246,6 +247,7 @@ describe("every assignee write path is workspace scoped", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        classificationForUnclassified: { type: "diseno" },
         tasks: [
           { title: "Good", status: "to-do", priority: "low" },
           {
@@ -282,6 +284,7 @@ describe("every assignee write path is workspace scoped", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        classificationForUnclassified: { type: "diseno" },
         tasks: [
           {
             title: "Imported",
@@ -316,6 +319,7 @@ describe("every assignee write path is workspace scoped", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        classificationForUnclassified: { type: "diseno" },
         tasks: [
           {
             title: "Imported",

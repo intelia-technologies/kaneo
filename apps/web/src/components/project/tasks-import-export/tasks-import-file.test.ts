@@ -4,8 +4,10 @@ import { isJsonFile, parseTasksImport } from "./tasks-import-file";
 describe("parseTasksImport", () => {
   it("returns the tasks array from an export file", () => {
     expect(
-      parseTasksImport(JSON.stringify({ tasks: [{ title: "Ship" }] })),
-    ).toEqual([{ title: "Ship" }]);
+      parseTasksImport(
+        JSON.stringify({ tasks: [{ title: "Ship", type: "validacion" }] }),
+      ),
+    ).toEqual([{ title: "Ship", type: "validacion" }]);
   });
 
   it("returns null when the file has no tasks array", () => {

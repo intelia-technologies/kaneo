@@ -103,6 +103,7 @@ describe("API integration: recurrence permissions and project moves", () => {
           description: "",
           status: "to-do",
           priority: "no-priority",
+          type: "diseno",
         }),
       });
       expect(directCreate.status).toBe(403);

@@ -128,6 +128,9 @@ describe("TaskSubtasks automation", () => {
   it("blocks subtask creation until level and verification are chosen, then sends them", async () => {
     const input = openAddRow();
     fireEvent.change(input, { target: { value: "Needs a level" } });
+    fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
+      target: { value: "validacion" },
+    });
     expect(radio("intelia:automation.levels.manual")).toHaveAttribute(
       "aria-checked",
       "false",
@@ -180,6 +183,9 @@ describe("TaskSubtasks automation", () => {
   it("asks for the choice again when the add row is reopened", () => {
     const input = openAddRow();
     fireEvent.change(input, { target: { value: "Discarded" } });
+    fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
+      target: { value: "validacion" },
+    });
     fireEvent.click(radio("intelia:automation.levels.manual"));
     fireEvent.click(radio("intelia:automation.yes"));
     fireEvent.click(
@@ -195,6 +201,9 @@ describe("TaskSubtasks automation", () => {
       screen.getByPlaceholderText("tasks:subtasks.inputPlaceholder"),
       { target: { value: "Another" } },
     );
+    fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
+      target: { value: "validacion" },
+    });
     expect(
       screen.getByRole("button", { name: "tasks:subtasks.addAction" }),
     ).toBeDisabled();
@@ -236,6 +245,9 @@ describe("TaskSubtasks automation", () => {
   it("shows inherits from parent and sends { parentTaskId }", async () => {
     const input = openAddRow();
     fireEvent.change(input, { target: { value: "Child subtask" } });
+    fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
+      target: { value: "validacion" },
+    });
     expect(
       screen.getByText("intelia:initiative.inheritsFromParent"),
     ).toBeInTheDocument();
@@ -259,6 +271,9 @@ describe("TaskSubtasks automation", () => {
     mocks.parentInitiative = null;
     const input = openAddRow();
     fireEvent.change(input, { target: { value: "Orphan subtask" } });
+    fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
+      target: { value: "validacion" },
+    });
     fireEvent.click(radio("intelia:automation.levels.manual"));
     fireEvent.click(radio("intelia:automation.yes"));
 

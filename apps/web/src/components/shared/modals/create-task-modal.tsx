@@ -242,6 +242,13 @@ function CreateTaskModalContent({
   const canCreateLabelCapability = canCreateLabels();
 
   const [title, setTitle] = useState("");
+  const [taskType, setTaskType] = useState<
+    "" | "implementacion" | "validacion" | "operacion" | "diseno"
+  >("");
+  const [productionValidation, setProductionValidation] = useState<
+    "" | "requerida" | "no_aplica"
+  >("");
+  const [validationReason, setValidationReason] = useState("");
   const titleRef = useAutoGrowTextarea(title);
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("no-priority");
@@ -560,6 +567,14 @@ function CreateTaskModalContent({
       return;
     }
     if (!automation || !initiativeId) return;
+    if (
+      !taskType ||
+      ((taskType === "implementacion" || taskType === "operacion") &&
+        (!productionValidation ||
+          (productionValidation === "no_aplica" &&
+            (!validationReason.trim() || /[\r\n]/.test(validationReason)))))
+    )
+      return;
     submittingRef.current = true;
     setIsSubmitting(true);
     try {
@@ -580,6 +595,16 @@ function CreateTaskModalContent({
           priority,
           automation,
           initiative: { id: initiativeId },
+          type: taskType,
+          validationInProduction:
+            taskType === "implementacion" || taskType === "operacion"
+              ? (productionValidation as "requerida" | "no_aplica")
+              : null,
+          validationInProductionReason:
+            productionValidation === "no_aplica" &&
+            (taskType === "implementacion" || taskType === "operacion")
+              ? validationReason.trim()
+              : null,
           projectId: resolvedProjectId,
           startDate: startDate ? startDate.toISOString() : undefined,
           dueDate: dueDate ? dueDate.toISOString() : undefined,
@@ -822,6 +847,56 @@ function CreateTaskModalContent({
           className="flex flex-col flex-1 min-h-0 space-y-6"
         >
           <div className="flex-1 min-h-0 overflow-y-auto space-y-6 px-6">
+            <label className="block">
+              Tipo de tarea
+              <select
+                required
+                value={taskType}
+                onChange={(e) => {
+                  setTaskType(e.target.value as typeof taskType);
+                  setProductionValidation("");
+                  setValidationReason("");
+                }}
+                className="block w-full border rounded p-2"
+              >
+                <option value="">Seleccionar</option>
+                <option value="implementacion">Implementación</option>
+                <option value="validacion">Validación</option>
+                <option value="operacion">Operación</option>
+                <option value="diseno">Diseño</option>
+              </select>
+            </label>
+            {(taskType === "implementacion" || taskType === "operacion") && (
+              <label className="block">
+                Validación en producción
+                <select
+                  required
+                  value={productionValidation}
+                  onChange={(e) =>
+                    setProductionValidation(
+                      e.target.value as typeof productionValidation,
+                    )
+                  }
+                  className="block w-full border rounded p-2"
+                >
+                  <option value="">Seleccionar</option>
+                  <option value="requerida">Requerida</option>
+                  <option value="no_aplica">No aplica</option>
+                </select>
+              </label>
+            )}
+            {productionValidation === "no_aplica" &&
+              (taskType === "implementacion" || taskType === "operacion") && (
+                <label className="block">
+                  Motivo
+                  <input
+                    required
+                    value={validationReason}
+                    onChange={(e) => setValidationReason(e.target.value)}
+                    className="block w-full border rounded p-2"
+                  />
+                </label>
+              )}
             <textarea
               ref={titleRef}
               rows={1}

@@ -1,5 +1,6 @@
 import { eq, inArray } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
+import { taskClassificationTable } from "../../intelia/schema";
 import db from "../../database";
 import {
   labelTable,
@@ -22,6 +23,10 @@ async function exportTasks(projectId: string) {
   const tasks = await db
     .select({
       id: taskTable.id,
+      type: taskClassificationTable.type,
+      validationInProduction: taskClassificationTable.validationInProduction,
+      validationInProductionReason:
+        taskClassificationTable.validationInProductionReason,
       title: taskTable.title,
       number: taskTable.number,
       description: taskTable.description,
@@ -36,6 +41,10 @@ async function exportTasks(projectId: string) {
       assigneeId: userTable.id,
     })
     .from(taskTable)
+    .leftJoin(
+      taskClassificationTable,
+      eq(taskTable.id, taskClassificationTable.taskId),
+    )
     .leftJoin(userTable, eq(taskTable.userId, userTable.id))
     .where(eq(taskTable.projectId, projectId))
     .orderBy(taskTable.position);
@@ -79,6 +88,9 @@ async function exportTasks(projectId: string) {
       exportedAt: new Date().toISOString(),
     },
     tasks: tasks.map((task) => ({
+      type: task.type,
+      validationInProduction: task.validationInProduction,
+      validationInProductionReason: task.validationInProductionReason,
       title: task.title,
       description: task.description || "",
       status: task.status,

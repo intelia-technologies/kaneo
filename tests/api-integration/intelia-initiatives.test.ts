@@ -205,6 +205,7 @@ function createTask(
       description: "",
       priority: "medium",
       status: "to-do",
+      type: "diseno",
       ...extra,
     }),
   });
@@ -1462,7 +1463,7 @@ describe("API integration: Intelia initiatives", () => {
 
     // 1. Import without initiativeId -> 400, no tasks created
     const missingImportInitRes = await importTasks(app, project.id, {
-      tasks: [{ title: "Importada 1", status: "to-do" }],
+      tasks: [{ title: "Importada 1", status: "to-do", type: "diseno" }],
     });
     expect(missingImportInitRes.status).toBe(400);
     expect(await taskCount()).toBe(0);
@@ -1471,8 +1472,8 @@ describe("API integration: Intelia initiatives", () => {
     const validImportRes = await importTasks(app, project.id, {
       initiativeId: initiative.id,
       tasks: [
-        { title: "Importada 1", status: "to-do" },
-        { title: "Importada 2", status: "to-do" },
+        { title: "Importada 1", status: "to-do", type: "diseno" },
+        { title: "Importada 2", status: "to-do", type: "diseno" },
       ],
     });
     expect(validImportRes.status).toBe(200);
