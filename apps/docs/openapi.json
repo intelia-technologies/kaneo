@@ -25036,6 +25036,16 @@
                     },
                     "default": [],
                     "description": "Projects the member can access when projectAccess is \"selected\"."
+                  },
+                  "reasignarA": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Eligible destination assignee for open tasks in projects whose access is revoked."
+                  },
+                  "operacionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Durable idempotency key; retries with the same request return the original result."
                   }
                 },
                 "required": [
@@ -25047,11 +25057,44 @@
         },
         "responses": {
           "200": {
-            "description": "The member's project access",
+            "description": "The member's project access and task counts",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MemberProjectAccess"
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string"
+                    },
+                    "projectAccess": {
+                      "type": "string",
+                      "enum": [
+                        "all",
+                        "selected"
+                      ]
+                    },
+                    "projectIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "reasignadas": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "desasignadas": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "projectAccess",
+                    "projectIds",
+                    "reasignadas",
+                    "desasignadas"
+                  ]
                 }
               }
             }
@@ -25088,6 +25131,136 @@
           },
           "404": {
             "description": "Workspace or member not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Operation ID reused with different parameters, or STALE_ACCESS_OPERATION when a new operation would grant access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/workspace/{workspaceId}/members/{userId}/project-access/operations/{operacionId}/cancel-or-result": {
+      "post": {
+        "operationId": "cancelOrResultProjectAccess",
+        "tags": [
+          "Workspaces"
+        ],
+        "summary": "Cancel a pending access operation or retrieve its result",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "workspaceId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "operacionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation outcome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "estado": {
+                          "type": "string",
+                          "enum": [
+                            "cancelada"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "estado"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "estado": {
+                          "type": "string",
+                          "enum": [
+                            "aplicada"
+                          ]
+                        },
+                        "reasignadas": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "desasignadas": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "required": [
+                        "estado",
+                        "reasignadas",
+                        "desasignadas"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found",
             "content": {
               "application/json": {
                 "schema": {

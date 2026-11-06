@@ -1,11 +1,12 @@
 import { eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
-import { withLockedTask } from "./with-locked-task";
+import db from "../../database";
 import { taskTable } from "../../database/schema";
 import { publishTaskMutation } from "./task-mutation-effects";
 import {
   assertAssignableUser,
   getProjectWorkspaceId,
+  lockAssignableUser,
 } from "../../utils/assert-assignable-user";
 
 async function updateTaskAssignee({
@@ -17,21 +18,38 @@ async function updateTaskAssignee({
   userId: string | null;
   currentUserId: string;
 }) {
-  const { before: existingTask, after: updatedTask } = await withLockedTask(
-    id,
-    async (tx, existingTask) => {
-      const nextAssigneeId = userId?.trim() || null;
-      if (existingTask.userId === nextAssigneeId) {
-        return existingTask;
-      }
-
+  const nextAssigneeId = userId?.trim() || null;
+  const { before: existingTask, after: updatedTask } = await db.transaction(
+    async (tx) => {
+      const [snapshot] = await tx
+        .select({ projectId: taskTable.projectId })
+        .from(taskTable)
+        .where(eq(taskTable.id, id));
+      if (!snapshot)
+        throw new HTTPException(404, { message: "Task not found" });
       if (nextAssigneeId) {
+        const workspaceId = await getProjectWorkspaceId(snapshot.projectId, tx);
+        await lockAssignableUser(tx, workspaceId, nextAssigneeId);
         await assertAssignableUser(
           nextAssigneeId,
-          await getProjectWorkspaceId(existingTask.projectId, tx),
-          existingTask.projectId,
+          workspaceId,
+          snapshot.projectId,
           tx,
         );
+      }
+      const [existingTask] = await tx
+        .select()
+        .from(taskTable)
+        .where(eq(taskTable.id, id))
+        .for("update");
+      if (!existingTask)
+        throw new HTTPException(404, { message: "Task not found" });
+      if (existingTask.projectId !== snapshot.projectId)
+        throw new HTTPException(409, {
+          message: "Task changed projects; retry the update",
+        });
+      if (existingTask.userId === nextAssigneeId) {
+        return { before: existingTask, after: existingTask };
       }
 
       const [updatedTask] = await tx
@@ -46,7 +64,7 @@ async function updateTaskAssignee({
         });
       }
 
-      return updatedTask;
+      return { before: existingTask, after: updatedTask };
     },
   );
 

@@ -26,6 +26,7 @@ import { projectAccessCondition } from "../../project-access/project-access-cond
 import { claimTaskNumber } from "../../task/controllers/claim-task-numbers";
 import { nextTaskPosition } from "../../task/controllers/next-task-position";
 import { VIRTUAL_STATUSES } from "../../task/validate-task-fields";
+import { lockAssignableUser } from "../../utils/assert-assignable-user";
 import type { InitiativeWriter } from "../initiatives/access";
 import {
   type MovedInitiative,
@@ -181,9 +182,16 @@ async function applyMove(
   request: MoveRequest,
 ): Promise<AppliedMove> {
   const { taskId, destinationProjectId, writer } = request;
+  const [snapshot] = await tx
+    .select({ userId: taskTable.userId })
+    .from(taskTable)
+    .where(eq(taskTable.id, taskId))
+    .limit(1);
+  if (!snapshot) throw new HTTPException(404, { message: "Task not found" });
+  if (snapshot.userId)
+    await lockAssignableUser(tx, request.workspaceId, snapshot.userId);
 
-  // The task's row lock first: every other write of the task waits for the
-  // move, so the plan below cannot go stale before commit.
+  // Lock the task after its assignee's membership so the plan stays current.
   const [task] = await tx
     .select()
     .from(taskTable)
@@ -191,6 +199,10 @@ async function applyMove(
     .limit(1)
     .for("update");
   if (!task) throw new HTTPException(404, { message: "Task not found" });
+  if (task.userId !== snapshot.userId)
+    throw new HTTPException(409, {
+      message: "Task assignee changed; retry the move",
+    });
   if (task.projectId === destinationProjectId) {
     throw new ApiError(400, {
       message: "Task is already in that project",

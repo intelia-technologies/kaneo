@@ -16,7 +16,10 @@ import { publishEvent } from "../../events";
 import { removeLabelFromGitea } from "../../plugins/gitea/utils/sync-label-to-gitea";
 import { removeLabelFromGitHub } from "../../plugins/github/utils/sync-label-to-github";
 import { removeLabelFromGitlab } from "../../plugins/gitlab/utils/sync-label-to-gitlab";
-import { assertAssignableUser } from "../../utils/assert-assignable-user";
+import {
+  assertAssignableUser,
+  lockAssignableUser,
+} from "../../utils/assert-assignable-user";
 import { publishTaskMutation } from "./task-mutation-effects";
 import { getSubtaskParentProjects } from "../get-subtask-parent-projects";
 import {
@@ -245,14 +248,6 @@ async function bulkUpdateTasks({
     case "updateAssignee": {
       const assigneeId = value?.trim() || null;
 
-      if (assigneeId) {
-        await assertAssignableUser(
-          assigneeId,
-          workspaceId,
-          tasks.map((task) => task.projectId),
-        );
-      }
-
       const assignee = assigneeId
         ? await db.query.userTable.findFirst({
             columns: { name: true },
@@ -260,6 +255,15 @@ async function bulkUpdateTasks({
           })
         : undefined;
       const before = await db.transaction(async (tx) => {
+        if (assigneeId) {
+          await lockAssignableUser(tx, workspaceId, assigneeId);
+          await assertAssignableUser(
+            assigneeId,
+            workspaceId,
+            tasks.map((task) => task.projectId),
+            tx,
+          );
+        }
         const locked = await tx
           .select({
             id: taskTable.id,
