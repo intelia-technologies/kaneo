@@ -1061,11 +1061,14 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       draftAssetIds,
       automation: automationOnCreateBy(c, automation),
       initiative: { input: initiative, writer: callerInitiativeWriter(c) },
-      classification: {
-        type,
-        validationInProduction,
-        validationInProductionReason,
-      },
+      classification:
+        type == null
+          ? undefined
+          : {
+              type,
+              validationInProduction,
+              validationInProductionReason,
+            },
     });
 
     return c.json(task, 200);
@@ -1192,7 +1195,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
     const classifiedTasks = tasks.map((task) =>
       task.type != null
         ? { ...task, type: task.type }
-        : { ...task, ...classificationForUnclassified! },
+        : { ...task, ...classificationForUnclassified },
     );
     const currentUserId = c.get("userId");
 

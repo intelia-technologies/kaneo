@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import db, { schema } from "../../apps/api/src/database";
+import { taskClassificationTable } from "../../apps/api/src/intelia/schema";
 import deleteColumn from "../../apps/api/src/column/controllers/delete-column";
 import { createApp } from "../../apps/api/src/index";
 import importTasks from "../../apps/api/src/task/controllers/import-tasks";
@@ -77,6 +78,7 @@ describe("task import column deletion", () => {
       );
       expect(result.results.successful).toBe(2);
       expect(result.results.failed).toBe(0);
+      expect(await db.select().from(taskClassificationTable)).toHaveLength(0);
       expect(result.results.tasks[1]).toMatchObject({
         task: { status: "planned", columnId: null },
         warnings: [expect.stringContaining('"planned"')],

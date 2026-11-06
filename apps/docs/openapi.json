@@ -13795,12 +13795,16 @@
                 "type": "object",
                 "properties": {
                   "type": {
-                    "type": "string",
+                    "type": [
+                      "string",
+                      "null"
+                    ],
                     "enum": [
                       "implementacion",
                       "validacion",
                       "operacion",
-                      "diseno"
+                      "diseno",
+                      null
                     ]
                   },
                   "validationInProduction": {
@@ -13976,7 +13980,6 @@
                   }
                 },
                 "required": [
-                  "type",
                   "title",
                   "description",
                   "priority",
@@ -14937,7 +14940,7 @@
                     "required": [
                       "type"
                     ],
-                    "description": "Explicit classification applied only to tasks with a missing or null type. Required if any task is unclassified."
+                    "description": "Explicit classification applied only to tasks with a missing or null type."
                   },
                   "automation": {
                     "oneOf": [

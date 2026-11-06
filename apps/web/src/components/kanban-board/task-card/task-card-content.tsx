@@ -196,7 +196,7 @@ function TaskCardContent({
             </div>
 
             <TaskCardAutomation task={task} />
-            {taskIsCompleted && task.type && (
+            {taskIsCompleted && (
               <div className="mt-2.5 flex flex-wrap items-center gap-1">
                 <TaskReadinessChips task={task} completed />
               </div>

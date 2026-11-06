@@ -2,7 +2,7 @@
 -- transaction: for each foreign key of the intelia schema to public.task that
 -- is missing, applies its ON DELETE to the rows whose task no longer exists
 -- (what the key would have done: delete them, or empty the column) and adds the
--- key back as migrations 0001-0005 created it. Keys already in place are left
+-- key back as the migrations created it. Keys already in place are left
 -- alone, so running it twice changes nothing the second time. The list must
 -- match the Drizzle schema: the startup check (apps/api/src/intelia/task-hooks.ts)
 -- refuses to start while one is missing. The trigger is not here: every
@@ -21,7 +21,8 @@ BEGIN
 		('initiative_change', 'initiative_change_task_id_task_id_fk', 'set null'),
 		('task_initiative', 'task_initiative_task_id_task_id_fk', 'cascade'),
 		('task_initiative_change', 'task_initiative_change_task_id_task_id_fk', 'cascade'),
-		('task_alias', 'task_alias_task_id_task_id_fk', 'cascade')
+		('task_alias', 'task_alias_task_id_task_id_fk', 'cascade'),
+		('task_classification', 'task_classification_task_id_task_id_fk', 'cascade')
 	) AS v(tbl, constraint_name, on_delete)
 	LOOP
 		IF EXISTS (

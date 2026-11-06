@@ -24,7 +24,7 @@ import {
 import { resolveImportAssignees } from "../resolve-import-assignees";
 
 export type ImportTask = {
-  type: "implementacion" | "validacion" | "operacion" | "diseno";
+  type?: "implementacion" | "validacion" | "operacion" | "diseno" | null;
   validationInProduction?: "requerida" | "no_aplica" | null;
   validationInProductionReason?: string | null;
   title: string;
@@ -160,7 +160,7 @@ async function importTasks(
           })
           .returning();
 
-        if (task) {
+        if (task && taskData.type != null) {
           await tx.insert(taskClassificationTable).values({
             taskId: task.id,
             type: taskData.type,

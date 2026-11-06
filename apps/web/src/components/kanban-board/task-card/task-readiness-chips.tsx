@@ -52,11 +52,16 @@ export function TaskReadinessChips({
 
   return (
     <>
-      {task.type && (
-        <span className={cn(taskChipClass, "cursor-default")} title={task.type}>
-          {typeLabels[task.type]}
-        </span>
-      )}
+      <span
+        className={cn(taskChipClass, "cursor-default")}
+        title={
+          task.type ?? t("tasks:readiness.noType", { defaultValue: "sin tipo" })
+        }
+      >
+        {task.type
+          ? typeLabels[task.type]
+          : t("tasks:readiness.noType", { defaultValue: "sin tipo" })}
+      </span>
       {!completed && label && (
         <span
           className={cn(

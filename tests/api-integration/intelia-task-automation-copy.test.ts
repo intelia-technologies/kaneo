@@ -559,7 +559,7 @@ describe("API integration: Intelia level of copied and imported tasks", () => {
   });
 
   describe("legacy task import classification", () => {
-    it("rejects unclassified records before writing and preserves classified records with an explicit fallback", async () => {
+    it("imports unclassified records and applies an explicit fallback only when supplied", async () => {
       const { app, project } = await setup();
       const [initiative] = await db
         .insert(initiativeTable)
@@ -578,10 +578,30 @@ describe("API integration: Intelia level of copied and imported tasks", () => {
         automation: { level: "manual", verification: true },
         initiativeId: initiative.id,
       };
-      expect((await importTasks(app, project.id, body)).status).toBe(400);
-      expect(await taskCount()).toBe(0);
+      const unclassified = await importTasks(app, project.id, body);
+      expect(unclassified.status).toBe(200);
+      const initialTasks = await db
+        .select({
+          title: schema.taskTable.title,
+          type: taskClassificationTable.type,
+        })
+        .from(schema.taskTable)
+        .leftJoin(
+          taskClassificationTable,
+          eq(schema.taskTable.id, taskClassificationTable.taskId),
+        );
+      expect(initialTasks).toEqual(
+        expect.arrayContaining([
+          { title: "Legacy", type: null },
+          { title: "Already classified", type: "diseno" },
+        ]),
+      );
       const response = await importTasks(app, project.id, {
         ...body,
+        tasks: body.tasks.map((task) => ({
+          ...task,
+          title: `${task.title} fallback`,
+        })),
         classificationForUnclassified: { type: "validacion" },
       });
       expect(response.status).toBe(200);
@@ -597,8 +617,8 @@ describe("API integration: Intelia level of copied and imported tasks", () => {
         );
       expect(storedTasks).toEqual(
         expect.arrayContaining([
-          { title: "Legacy", type: "validacion" },
-          { title: "Already classified", type: "diseno" },
+          { title: "Legacy fallback", type: "validacion" },
+          { title: "Already classified fallback", type: "diseno" },
         ]),
       );
     });

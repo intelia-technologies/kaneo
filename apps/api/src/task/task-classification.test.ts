@@ -1,7 +1,28 @@
 import { describe, expect, it } from "vite-plus/test";
-import { validTaskClassification } from "./schema";
+import { createTaskBody, validTaskClassification } from "./schema";
 
 describe("task classification", () => {
+  it("accepts unclassified creates only without production declarations", () => {
+    const body = {
+      title: "Task",
+      description: "",
+      status: "planned",
+      priority: "low",
+      automation: { level: "manual", verification: true },
+      initiative: { id: "initiative" },
+    };
+    expect(createTaskBody.safeParse(body).success).toBe(true);
+    expect(createTaskBody.safeParse({ ...body, type: null }).success).toBe(
+      true,
+    );
+    expect(
+      createTaskBody.safeParse({ ...body, validationInProduction: "requerida" })
+        .success,
+    ).toBe(false);
+    expect(
+      createTaskBody.safeParse({ ...body, type: "implementacion" }).success,
+    ).toBe(false);
+  });
   it.each(["implementacion", "operacion"] as const)(
     "requires a declaration for %s",
     (type) => {

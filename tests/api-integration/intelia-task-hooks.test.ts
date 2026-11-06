@@ -18,6 +18,7 @@ import {
   initiativeChangeTable,
   initiativeTable,
   taskAutomationTable,
+  taskClassificationTable,
   taskInitiativeTable,
 } from "../../apps/api/src/intelia/schema";
 import {
@@ -78,7 +79,8 @@ async function counts() {
       (SELECT count(*)::int FROM public.task) AS tasks,
       (SELECT count(*)::int FROM intelia.initiative) AS initiatives,
       (SELECT count(*)::int FROM intelia.task_initiative) AS memberships,
-      (SELECT count(*)::int FROM intelia.task_automation) AS levels`);
+      (SELECT count(*)::int FROM intelia.task_automation) AS levels,
+      (SELECT count(*)::int FROM intelia.task_classification) AS classifications`);
   return result.rows[0];
 }
 
@@ -141,6 +143,10 @@ async function seed() {
       level: "manual",
       verification: true,
       source: "migration",
+    });
+    await db.insert(taskClassificationTable).values({
+      taskId: id,
+      type: "validacion",
     });
   }
   await db.insert(initiativeTable).values({
@@ -251,6 +257,14 @@ describe("Intelia hooks on public.task", () => {
         foreign_key: false,
       }),
     );
+    expect(check.rows).toContainEqual(
+      expect.objectContaining({
+        column: "task_classification.task_id",
+        rows: "2",
+        orphans: "1",
+        foreign_key: false,
+      }),
+    );
 
     await runSqlFile("task-references-repair.sql");
     await startup();
@@ -261,6 +275,10 @@ describe("Intelia hooks on public.task", () => {
     expect(memberships.map((row) => row.taskId)).toEqual([ids.kept]);
     const levels = await db.select().from(taskAutomationTable);
     expect(levels.map((row) => row.taskId)).toEqual([ids.kept]);
+    const classifications = await db.select().from(taskClassificationTable);
+    expect(classifications).toEqual([
+      expect.objectContaining({ taskId: ids.kept, type: "validacion" }),
+    ]);
     const [log] = await db.select().from(initiativeChangeTable);
     expect(log?.taskId).toBeNull();
 
@@ -273,8 +291,26 @@ describe("Intelia hooks on public.task", () => {
         source: "migration",
       }),
     ).rejects.toMatchObject({ cause: { code: "23503" } });
+    await expect(
+      db.insert(taskClassificationTable).values({
+        taskId: "no-such-task",
+        type: "validacion",
+      }),
+    ).rejects.toMatchObject({ cause: { code: "23503" } });
     await runSqlFile("task-references-repair.sql");
     expect(await catalog()).toEqual(healthy);
+    expect(await db.select().from(taskClassificationTable)).toEqual(
+      classifications,
+    );
+    const repairedCheck = await runSqlFile("task-references-check.sql");
+    expect(repairedCheck.rows).toContainEqual(
+      expect.objectContaining({
+        column: "task_classification.task_id",
+        rows: "1",
+        orphans: "0",
+        foreign_key: true,
+      }),
+    );
 
     // And the trigger closes the plan again.
     expect(await planClosedAt()).toBeNull();

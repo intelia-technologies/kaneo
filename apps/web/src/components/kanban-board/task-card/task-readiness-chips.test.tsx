@@ -41,6 +41,16 @@ describe("TaskReadinessChips", () => {
     show({ type });
     expect(screen.getByText(label)).toBeTruthy();
   });
+  it.each([null, undefined])(
+    "shows unclassified type %s for active and completed tasks",
+    (type) => {
+      const active = show({ type });
+      expect(screen.getByText("sin tipo")).toBeTruthy();
+      active.unmount();
+      show({ type }, true);
+      expect(screen.getByText("sin tipo")).toBeTruthy();
+    },
+  );
   it("shows visible blockers and only an anonymous external count", () => {
     show({
       blockersSummary: {
@@ -85,7 +95,8 @@ describe("TaskReadinessChips", () => {
     expect(screen.queryByText("Espera release")).toBeNull();
   });
   it("does not show a dependency chip when ready", () => {
-    const { container } = show({ blockersSummary: summary });
-    expect(container.textContent).toBe("");
+    show({ type: "diseno", blockersSummary: summary });
+    expect(screen.getByText("dis")).toBeTruthy();
+    expect(screen.queryByText(/Espera/)).toBeNull();
   });
 });

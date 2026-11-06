@@ -40,4 +40,9 @@ UNION ALL
 SELECT 'task_alias.task_id', count(*),
 	count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM public.task t WHERE t.id = o.task_id)),
 	EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'task_alias_task_id_task_id_fk')
-FROM intelia.task_alias o;
+FROM intelia.task_alias o
+UNION ALL
+SELECT 'task_classification.task_id', count(*),
+	count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM public.task t WHERE t.id = o.task_id)),
+	EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'task_classification_task_id_task_id_fk')
+FROM intelia.task_classification o;

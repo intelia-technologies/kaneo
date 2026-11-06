@@ -114,6 +114,7 @@ export const bulkUpdateBody = z.object({
 export const createTaskBody = z
   .object({
     ...taskClassificationFields,
+    type: taskClassificationFields.type.nullable().optional(),
     title: z.string(),
     description: z.string(),
     startDate: z.string().optional(),
@@ -133,9 +134,16 @@ export const createTaskBody = z
     automation: automationInput,
     initiative: initiativeOnCreateInput,
   })
-  .refine(validTaskClassification, {
-    message: "Invalid production validation declaration",
-  });
+  .refine(
+    (value) =>
+      value.type == null
+        ? value.validationInProduction == null &&
+          value.validationInProductionReason == null
+        : validTaskClassification({ ...value, type: value.type }),
+    {
+      message: "Invalid production validation declaration",
+    },
+  );
 
 export const updateTaskBody = z.object({
   type: taskClassificationFields.type.optional(),
@@ -164,66 +172,56 @@ export const moveTaskBody = z.object({
   }),
 });
 
-export const importTasksBody = z
-  .object({
-    tasks: z.array(
-      z
-        .object({
-          ...taskClassificationFields,
-          type: taskClassificationFields.type.nullable().optional(),
-          title: z.string(),
-          description: z.string().optional(),
-          status: z.string().openapi({
-            description:
-              "Column slug, current column name, or slugified current name. Unknown values map to planned with a warning; ambiguous names fail the task import.",
-          }),
-          priority: z.string().optional(),
-          startDate: z.string().nullable().optional(),
-          dueDate: z.string().nullable().optional(),
-          userId: z.string().nullable().optional().openapi({
-            description:
-              "Assignable user's ID or email address. Emails match case-insensitively. Null, empty, or omitted leaves the task unassigned.",
-          }),
-        })
-        .refine(
-          (task) =>
-            task.type == null
-              ? task.validationInProduction == null &&
-                task.validationInProductionReason == null
-              : validTaskClassification({ ...task, type: task.type }),
-          { message: "Invalid production validation declaration" },
-        ),
-    ),
-    classificationForUnclassified: z
-      .object(taskClassificationFields)
-      .refine(validTaskClassification, {
-        message: "Invalid production validation declaration",
+export const importTasksBody = z.object({
+  tasks: z.array(
+    z
+      .object({
+        ...taskClassificationFields,
+        type: taskClassificationFields.type.nullable().optional(),
+        title: z.string(),
+        description: z.string().optional(),
+        status: z.string().openapi({
+          description:
+            "Column slug, current column name, or slugified current name. Unknown values map to planned with a warning; ambiguous names fail the task import.",
+        }),
+        priority: z.string().optional(),
+        startDate: z.string().nullable().optional(),
+        dueDate: z.string().nullable().optional(),
+        userId: z.string().nullable().optional().openapi({
+          description:
+            "Assignable user's ID or email address. Emails match case-insensitively. Null, empty, or omitted leaves the task unassigned.",
+        }),
       })
-      .optional()
-      .openapi({
-        description:
-          "Explicit classification applied only to tasks with a missing or null type. Required if any task is unclassified.",
-      }),
-    // Intelia fork: required automation level, applied to every imported task.
-    automation: automationInput.openapi({
+      .refine(
+        (task) =>
+          task.type == null
+            ? task.validationInProduction == null &&
+              task.validationInProductionReason == null
+            : validTaskClassification({ ...task, type: task.type }),
+        { message: "Invalid production validation declaration" },
+      ),
+  ),
+  classificationForUnclassified: z
+    .object(taskClassificationFields)
+    .refine(validTaskClassification, {
+      message: "Invalid production validation declaration",
+    })
+    .optional()
+    .openapi({
       description:
-        "The automation level and verification of every imported task. Required, with no default.",
+        "Explicit classification applied only to tasks with a missing or null type.",
     }),
-    // Intelia fork: required initiative, the same for every imported task.
-    initiativeId: z.string().min(1).openapi({
-      description:
-        "An initiative of the project, for every imported task. Required, with no default.",
-    }),
-  })
-  .refine(
-    (body) =>
-      body.classificationForUnclassified != null ||
-      body.tasks.every((task) => task.type != null),
-    {
-      message: "Classification required for unclassified tasks",
-      path: ["classificationForUnclassified"],
-    },
-  );
+  // Intelia fork: required automation level, applied to every imported task.
+  automation: automationInput.openapi({
+    description:
+      "The automation level and verification of every imported task. Required, with no default.",
+  }),
+  // Intelia fork: required initiative, the same for every imported task.
+  initiativeId: z.string().min(1).openapi({
+    description:
+      "An initiative of the project, for every imported task. Required, with no default.",
+  }),
+});
 
 export const updateStatusBody = z.object({ status: z.string() });
 export const updatePriorityBody = z.object({ priority });

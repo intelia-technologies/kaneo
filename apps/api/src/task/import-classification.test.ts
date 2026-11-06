@@ -9,9 +9,9 @@ const input = (entry: object) => ({
 });
 
 describe("import task classification", () => {
-  it("requires an explicit classification for missing or null types", () => {
+  it("accepts missing or null types with or without an explicit fallback", () => {
     for (const entry of [{}, { type: null }]) {
-      expect(importTasksBody.safeParse(input(entry)).success).toBe(false);
+      expect(importTasksBody.safeParse(input(entry)).success).toBe(true);
       expect(
         importTasksBody.safeParse({
           ...input(entry),
@@ -25,6 +25,10 @@ describe("import task classification", () => {
   });
 
   it("validates both existing and fallback classifications", () => {
+    expect(
+      importTasksBody.safeParse(input({ validationInProduction: "requerida" }))
+        .success,
+    ).toBe(false);
     expect(
       importTasksBody.safeParse(input({ type: "implementacion" })).success,
     ).toBe(false);

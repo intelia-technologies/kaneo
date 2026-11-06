@@ -36,8 +36,19 @@ async function setup() {
 }
 
 describe("task creation classification", () => {
+  it.each([{}, { type: null }])(
+    "creates a task without classification for %o",
+    async (classification) => {
+      const create = await setup();
+      const response = await create(classification);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ type: null });
+      expect(await db.select().from(taskClassificationTable)).toHaveLength(0);
+    },
+  );
+
   it.each([
-    {},
+    { validationInProduction: "requerida" },
     { type: "unknown" },
     { type: "implementacion" },
     { type: "operacion", validationInProduction: "no_aplica" },

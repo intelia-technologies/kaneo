@@ -81,14 +81,14 @@ export function ImportTasksDialog({
         return;
       }
       const missingClassification = tasks.some((task) => task.type == null);
-      if (missingClassification && !classificationValid) {
+      if (missingClassification && type && !classificationValid) {
         toast.error(
           "Seleccione una clasificación válida para las tareas sin clasificar.",
         );
         return;
       }
       const classifiedTasks = tasks.map((task) =>
-        task.type != null
+        task.type != null || !type
           ? task
           : {
               ...task,

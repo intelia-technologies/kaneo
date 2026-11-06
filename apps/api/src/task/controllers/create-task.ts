@@ -103,8 +103,8 @@ async function createTask({
   initiative?: { input: InitiativeOnCreate; writer: InitiativeWriter };
   classification?: Pick<
     z.infer<typeof createTaskBody>,
-    "type" | "validationInProduction" | "validationInProductionReason"
-  >;
+    "validationInProduction" | "validationInProductionReason"
+  > & { type: NonNullable<z.infer<typeof createTaskBody>["type"]> };
 }) {
   const resolvedStatus = status || "to-do";
   const resolvedPriority = priority || "no-priority";

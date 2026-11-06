@@ -172,7 +172,29 @@ describe("ImportTasksDialog automation", () => {
       ),
     );
   });
-  it("requires an explicit classification for legacy records and preserves classified records", async () => {
+  it("imports legacy records without inventing a classification", async () => {
+    mocks.importTasks.mockResolvedValue({
+      results: { successful: 2, failed: 0 },
+    });
+    renderDialog();
+    fireEvent.click(radio("intelia:automation.levels.manual"));
+    fireEvent.click(radio("intelia:automation.yes"));
+    chooseInitiative();
+    const tasks = [
+      { title: "Old", status: "to-do", type: null },
+      { title: "Older", status: "to-do" },
+    ];
+    const file = new File([JSON.stringify({ tasks })], "tasks.json", {
+      type: "application/json",
+    });
+    fireEvent.change(fileInput(), { target: { files: [file] } });
+    await waitFor(() =>
+      expect(mocks.importTasks).toHaveBeenCalledWith(
+        expect.objectContaining({ tasks }),
+      ),
+    );
+  });
+  it("applies an explicitly chosen classification only to legacy records", async () => {
     mocks.importTasks.mockResolvedValue({
       results: { successful: 2, failed: 0 },
     });
@@ -192,13 +214,6 @@ describe("ImportTasksDialog automation", () => {
       "tasks.json",
       { type: "application/json" },
     );
-    fireEvent.change(fileInput(), { target: { files: [file] } });
-    await waitFor(() =>
-      expect(
-        screen.getByLabelText("Tipo para tareas sin clasificar"),
-      ).toBeInTheDocument(),
-    );
-    expect(mocks.importTasks).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Tipo para tareas sin clasificar"), {
       target: { value: "validacion" },
     });
