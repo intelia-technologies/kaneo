@@ -25,7 +25,7 @@ import { boardCollisionDetection } from "./board-collision-detection";
 import { findTaskColumn } from "./drag-preview/find-task-column";
 import { moveBoardTask } from "./move-task";
 import { useDragPreview } from "./drag-preview/use-drag-preview";
-import { useReducedMotion } from "framer-motion";
+import { useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useTaskViewShortcuts } from "@/components/project/task-view-keys/use-task-view-shortcuts";
 import { useProjectBackground } from "@/hooks/use-project-background";
@@ -60,6 +60,8 @@ function KanbanBoard({
   const queryClient = useQueryClient();
   const isFetching =
     useIsFetching({ queryKey: ["tasks", project.id], exact: true }) > 0;
+  const isLoadingPages =
+    isFetching && queryClient.getQueryData(["tasks", project.id]) === undefined;
   const { project: storedProject, setProject } = useProjectStore();
   const setAvailableTasks = useBulkSelectionStore(
     (state) => state.setAvailableTasks,
@@ -357,7 +359,12 @@ function KanbanBoard({
               >
                 <Column
                   column={column}
-                  activeTaskId={activeId?.toString() ?? null}
+                  activeTaskId={
+                    activeId !== null &&
+                    column.tasks.some((task) => task.id === activeId)
+                      ? activeId.toString()
+                      : null
+                  }
                   sortHint={
                     column.id === sortHintColumnId
                       ? t("tasks:kanban.automaticallySortedHint", {
@@ -372,6 +379,7 @@ function KanbanBoard({
                   disableDragDrop={disableDragDrop}
                   disableSorting={isAutomaticallySorted}
                   disableCollectionActions={disableCollectionActions}
+                  animateEntries={!isLoadingPages}
                 />
               </div>
             ))}

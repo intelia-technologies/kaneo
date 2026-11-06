@@ -138,7 +138,6 @@ export function InitiativeDetailPage({
             ? `${initiative.name} • ${t("intelia:initiatives.title")}`
             : t("intelia:initiatives.title")
         }
-        hideAppName
       />
 
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto bg-background p-6">

@@ -72,7 +72,7 @@ async function updateMemberProjectAccess(request: {
           desasignadas: number;
         } | null;
       }>(sql`SELECT actor_id, request = ${canonicalRequest}::jsonb AS matches, response
-          FROM project_access_operation
+          FROM intelia.project_access_operation
           WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
             AND operation_id = ${operacionId}::uuid`);
       if (stored.rows[0]) {
@@ -223,7 +223,7 @@ async function updateMemberProjectAccess(request: {
       desasignadas: unassigned.length,
     };
     if (operacionId) {
-      await tx.execute(sql`INSERT INTO project_access_operation
+      await tx.execute(sql`INSERT INTO intelia.project_access_operation
           (workspace_id, user_id, actor_id, operation_id, request, response)
           VALUES (${workspaceId}, ${userId}, ${actorId}, ${operacionId}::uuid,
             ${canonicalRequest}::jsonb, ${JSON.stringify(response)}::jsonb)`);

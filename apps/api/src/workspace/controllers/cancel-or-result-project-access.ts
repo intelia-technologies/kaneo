@@ -27,7 +27,7 @@ export async function cancelOrResultProjectAccess(request: {
     const stored = await tx.execute<{
       actor_id: string;
       response: { reasignadas: number; desasignadas: number } | null;
-    }>(sql`SELECT actor_id, response FROM project_access_operation
+    }>(sql`SELECT actor_id, response FROM intelia.project_access_operation
       WHERE workspace_id = ${workspaceId} AND user_id = ${userId}
         AND operation_id = ${operacionId}::uuid`);
     if (stored.rows[0] && stored.rows[0].actor_id !== actorId) {
@@ -40,7 +40,7 @@ export async function cancelOrResultProjectAccess(request: {
       return { estado: "aplicada" as const, reasignadas, desasignadas };
     }
     if (!stored.rows[0]) {
-      await tx.execute(sql`INSERT INTO project_access_operation
+      await tx.execute(sql`INSERT INTO intelia.project_access_operation
         (workspace_id, user_id, actor_id, operation_id, request, response)
         VALUES (${workspaceId}, ${userId}, ${actorId}, ${operacionId}::uuid, NULL, NULL)`);
     }

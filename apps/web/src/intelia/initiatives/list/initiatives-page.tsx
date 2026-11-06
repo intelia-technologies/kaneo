@@ -174,10 +174,7 @@ export function InitiativesPage({
       workspaceId={workspaceId}
       activeView="initiatives"
     >
-      <PageTitle
-        title={`${t("intelia:initiatives.title")} • ${projectName}`}
-        hideAppName
-      />
+      <PageTitle title={`${t("intelia:initiatives.title")} • ${projectName}`} />
 
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto bg-background">
         <div className="mx-auto w-full max-w-[1400px] space-y-6 p-4 sm:p-5 lg:p-8">

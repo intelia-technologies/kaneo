@@ -174,7 +174,6 @@ export function DependenciesPage({
     >
       <PageTitle
         title={`${t("intelia:dependencies.title")} • ${project?.name ?? ""}`}
-        hideAppName
       />
       <div className="flex h-full min-h-0 flex-col bg-background">
         <DependenciesView

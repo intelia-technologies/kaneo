@@ -78,6 +78,13 @@
       "when": 1793860160592,
       "tag": "0011_task_classification",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793860160593,
+      "tag": "0012_project_access_operation",
+      "breakpoints": true
     }
   ]
 }
