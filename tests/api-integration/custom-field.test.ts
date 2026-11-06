@@ -234,6 +234,7 @@ describe("custom fields API", () => {
         description: "",
         status,
         priority: "no-priority",
+        type: "diseno",
       }),
     });
 
@@ -318,6 +319,7 @@ describe("custom fields API", () => {
         description: "",
         status,
         priority: "no-priority",
+        type: "diseno",
       }),
     });
 
@@ -391,6 +393,7 @@ describe("custom fields API", () => {
           description: "",
           status: secondStatus,
           priority: "no-priority",
+          type: "diseno",
         }),
       },
     );
@@ -540,6 +543,7 @@ describe("custom fields API", () => {
           description: "",
           status,
           priority: "no-priority",
+          type: "diseno",
           customFields: [{ fieldId: field.id, value }],
         }),
       });
@@ -561,6 +565,7 @@ describe("custom fields API", () => {
           description: "",
           status,
           priority: "no-priority",
+          type: "diseno",
           customFields: [{ fieldId: field.id, value }],
         }),
       });
@@ -583,6 +588,7 @@ describe("custom fields API", () => {
         description: "",
         status,
         priority: "no-priority",
+        type: "diseno",
       }),
     });
 
@@ -675,6 +681,7 @@ describe("custom fields API", () => {
         description: "",
         status,
         priority: "no-priority",
+        type: "diseno",
         customFields: [
           {
             fieldId: field.id,
@@ -751,6 +758,7 @@ describe("custom fields API", () => {
         description: "",
         status,
         priority: "no-priority",
+        type: "diseno",
       }),
     });
 
@@ -792,6 +800,7 @@ describe("custom fields API", () => {
         description: "",
         status,
         priority: "no-priority",
+        type: "diseno",
         customFields: [
           {
             fieldId: field.id,
@@ -847,6 +856,7 @@ describe("custom fields API", () => {
         description: "",
         status,
         priority: "no-priority",
+        type: "diseno",
       }),
     });
 

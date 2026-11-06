@@ -42,6 +42,16 @@ type Task = {
   assigneeImage?: string | null;
   projectId: string;
   columnId?: string | null;
+  type?: "implementacion" | "validacion" | "operacion" | "diseno" | null;
+  validationInProduction?: "requerida" | "no_aplica" | null;
+  validationInProductionReason?: string | null;
+  blockersSummary?: {
+    pendingCount: number;
+    hasCancelledBlocker: boolean;
+    waitingRelease: boolean;
+    blockers: { id: string; ticket: string; status: string }[];
+    externalCount: number;
+  };
   subtaskCounts?: { completed: number; total: number };
   labels?: TaskLabel[];
   externalLinks?: TaskExternalLink[];

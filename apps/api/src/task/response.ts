@@ -43,6 +43,11 @@ export const taskSchema = z
 
 export const taskWithAssigneeSchema = taskSchema
   .extend({
+    type: z
+      .enum(["implementacion", "validacion", "operacion", "diseno"])
+      .nullable(),
+    validationInProduction: z.enum(["requerida", "no_aplica"]).nullable(),
+    validationInProductionReason: z.string().nullable(),
     workspaceId: z.string().optional().openapi({
       description:
         "The workspace currently owning the task's project. Included in the detail view; omitted from the compact board view.",
@@ -109,6 +114,18 @@ export const boardTaskSchema = z
         "True when the list omits a large description; load the task detail or description pages to read it. Do not replace stored text with this null summary.",
     }),
     status: z.string(),
+    type: z
+      .enum(["implementacion", "validacion", "operacion", "diseno"])
+      .nullable(),
+    blockersSummary: z.object({
+      pendingCount: z.number().int().nonnegative(),
+      hasCancelledBlocker: z.boolean(),
+      waitingRelease: z.boolean(),
+      blockers: z.array(
+        z.object({ id: z.string(), ticket: z.string(), status: z.string() }),
+      ),
+      externalCount: z.number().int().nonnegative(),
+    }),
     priority: z.string().openapi({ description: priorityDescription }),
     startDate: nullableResponseTimestamp,
     dueDate: nullableResponseTimestamp,

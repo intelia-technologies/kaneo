@@ -29,6 +29,7 @@ const EXAMPLE_FORMAT = `{
       "title": "Task title",
       "description": "Description text",
       "status": "to-do",
+      "type": "validacion",
       "priority": "low",
       "startDate": "2025-04-18T00:00:00.000Z",
       "dueDate": "2025-04-20T00:00:00.000Z",
@@ -54,6 +55,20 @@ export function ImportTasksDialog({
   const { mutateAsync: importTasks, isPending } = useImportTasks();
   const automation = useAutomationDraft();
   const [initiativeId, setInitiativeId] = useState<string | null>(null);
+  const [type, setType] = useState<
+    "" | "implementacion" | "validacion" | "operacion" | "diseno"
+  >("");
+  const [validation, setValidation] = useState<"" | "requerida" | "no_aplica">(
+    "",
+  );
+  const [reason, setReason] = useState("");
+  const needsValidation = type === "implementacion" || type === "operacion";
+  const classificationValid =
+    !!type &&
+    (!needsValidation ||
+      (!!validation &&
+        (validation !== "no_aplica" ||
+          (!!reason.trim() && !/[\r\n]/.test(reason)))));
 
   const importFile = async (file: File) => {
     const input = automation.input;
@@ -65,12 +80,34 @@ export function ImportTasksDialog({
         toast.error(t("settings:tasksImportExport.invalidFormat"));
         return;
       }
+      const missingClassification = tasks.some((task) => task.type == null);
+      if (missingClassification && !classificationValid) {
+        toast.error(
+          "Seleccione una clasificación válida para las tareas sin clasificar.",
+        );
+        return;
+      }
+      const classifiedTasks = tasks.map((task) =>
+        task.type != null
+          ? task
+          : {
+              ...task,
+              type: type as NonNullable<typeof task.type>,
+              validationInProduction: needsValidation
+                ? (validation as "requerida" | "no_aplica")
+                : null,
+              validationInProductionReason:
+                needsValidation && validation === "no_aplica"
+                  ? reason.trim()
+                  : null,
+            },
+      );
 
       toast.loading(t("settings:tasksImportExport.importing"));
 
       const result = await importTasks({
         projectId,
-        tasks,
+        tasks: classifiedTasks,
         automation: input,
         initiativeId,
       });
@@ -152,6 +189,48 @@ export function ImportTasksDialog({
               {EXAMPLE_FORMAT}
             </pre>
           </div>
+          <fieldset className="space-y-2">
+            <legend>Clasificación para tareas sin clasificar (opcional)</legend>
+            <select
+              aria-label="Tipo para tareas sin clasificar"
+              value={type}
+              onChange={(event) => {
+                setType(event.target.value as typeof type);
+                setValidation("");
+                setReason("");
+              }}
+            >
+              <option value="">Seleccionar</option>
+              <option value="implementacion">Implementación</option>
+              <option value="validacion">Validación</option>
+              <option value="operacion">Operación</option>
+              <option value="diseno">Diseño</option>
+            </select>
+            {needsValidation && (
+              <select
+                aria-label="Validación en producción para importación"
+                value={validation}
+                onChange={(event) =>
+                  setValidation(event.target.value as typeof validation)
+                }
+              >
+                <option value="">Seleccionar</option>
+                <option value="requerida">Requerida</option>
+                <option value="no_aplica">No aplica</option>
+              </select>
+            )}
+            {needsValidation && validation === "no_aplica" && (
+              <input
+                aria-label="Motivo para importación"
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+              />
+            )}
+            <p>
+              Solo se aplica a registros sin tipo; las clasificaciones
+              existentes se conservan.
+            </p>
+          </fieldset>
           <ImportAutomationFields control={automation} disabled={isPending} />
           <div className="space-y-1.5">
             <label

@@ -731,6 +731,7 @@ describe("API integration: import from other tools", () => {
           description: "",
           priority: "low",
           status: "to-do",
+          type: "diseno",
         }),
       },
     );

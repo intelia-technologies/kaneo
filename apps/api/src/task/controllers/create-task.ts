@@ -1,4 +1,7 @@
 import { extractAssetIds } from "../../storage/cleanup-assets";
+import { taskClassificationTable } from "../../intelia/schema";
+import type { z } from "zod";
+import type { createTaskBody } from "../schema";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
@@ -79,6 +82,7 @@ async function createTask({
   draftAssetIds,
   automation,
   initiative,
+  classification,
 }: {
   projectId: string;
   currentUserId: string;
@@ -97,6 +101,10 @@ async function createTask({
   automation?: AutomationChange;
   // Intelia: the task's initiative, committed with the task.
   initiative?: { input: InitiativeOnCreate; writer: InitiativeWriter };
+  classification?: Pick<
+    z.infer<typeof createTaskBody>,
+    "type" | "validationInProduction" | "validationInProductionReason"
+  >;
 }) {
   const resolvedStatus = status || "to-do";
   const resolvedPriority = priority || "no-priority";
@@ -209,6 +217,17 @@ async function createTask({
         position: nextPosition,
       })
       .returning();
+    if (!task) throw new Error("Task insert returned no row");
+
+    if (classification) {
+      await tx.insert(taskClassificationTable).values({
+        taskId: task.id,
+        type: classification.type,
+        validationInProduction: classification.validationInProduction ?? null,
+        validationInProductionReason:
+          classification.validationInProductionReason ?? null,
+      });
+    }
 
     if (task && draftAssetIds?.length) {
       const referenced = extractAssetIds(description);
@@ -282,6 +301,10 @@ async function createTask({
 
   return {
     ...createdTask,
+    type: classification?.type ?? null,
+    validationInProduction: classification?.validationInProduction ?? null,
+    validationInProductionReason:
+      classification?.validationInProductionReason ?? null,
     assigneeName: assignee?.name,
   };
 }

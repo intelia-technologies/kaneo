@@ -26,6 +26,25 @@ export const inteliaSchema = pgSchema(INTELIA_SCHEMA);
 
 const utcNow = sql`(now() AT TIME ZONE 'utc')`;
 
+export const taskClassificationTable = inteliaSchema.table(
+  "task_classification",
+  {
+    taskId: text("task_id")
+      .primaryKey()
+      .references(() => taskTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    type: text("type")
+      .$type<"implementacion" | "validacion" | "operacion" | "diseno">()
+      .notNull(),
+    validationInProduction: text("validation_in_production").$type<
+      "requerida" | "no_aplica"
+    >(),
+    validationInProductionReason: text("validation_in_production_reason"),
+  },
+);
+
 export const commentReactionTable = inteliaSchema.table(
   "comment_reaction",
   {

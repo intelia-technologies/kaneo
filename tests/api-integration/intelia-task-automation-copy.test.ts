@@ -17,6 +17,8 @@ import { createApp } from "../../apps/api/src/index";
 import {
   type AutomationLevel,
   type AutomationSource,
+  initiativeTable,
+  taskClassificationTable,
   taskAutomationChangeTable,
   taskAutomationTable,
 } from "../../apps/api/src/intelia/schema";
@@ -164,9 +166,9 @@ function importTasks(
 }
 
 const rows = [
-  { title: "First", status: "to-do" },
-  { title: "Second", status: "in-progress" },
-  { title: "Third", status: "done" },
+  { title: "First", status: "to-do", type: "diseno" },
+  { title: "Second", status: "in-progress", type: "diseno" },
+  { title: "Third", status: "done", type: "diseno" },
 ];
 
 function stored(taskId: string) {
@@ -556,6 +558,51 @@ describe("API integration: Intelia level of copied and imported tasks", () => {
     });
   });
 
+  describe("legacy task import classification", () => {
+    it("rejects unclassified records before writing and preserves classified records with an explicit fallback", async () => {
+      const { app, project } = await setup();
+      const [initiative] = await db
+        .insert(initiativeTable)
+        .values({
+          projectId: project.id,
+          name: "Import",
+          nameKey: "import",
+          source: "migration",
+        })
+        .returning();
+      const body = {
+        tasks: [
+          { title: "Legacy", status: "to-do", type: null },
+          { title: "Already classified", status: "to-do", type: "diseno" },
+        ],
+        automation: { level: "manual", verification: true },
+        initiativeId: initiative.id,
+      };
+      expect((await importTasks(app, project.id, body)).status).toBe(400);
+      expect(await taskCount()).toBe(0);
+      const response = await importTasks(app, project.id, {
+        ...body,
+        classificationForUnclassified: { type: "validacion" },
+      });
+      expect(response.status).toBe(200);
+      const storedTasks = await db
+        .select({
+          title: schema.taskTable.title,
+          type: taskClassificationTable.type,
+        })
+        .from(schema.taskTable)
+        .innerJoin(
+          taskClassificationTable,
+          eq(schema.taskTable.id, taskClassificationTable.taskId),
+        );
+      expect(storedTasks).toEqual(
+        expect.arrayContaining([
+          { title: "Legacy", type: "validacion" },
+          { title: "Already classified", type: "diseno" },
+        ]),
+      );
+    });
+  });
   describe("importing tasks", () => {
     it("gives every imported task the level of the request, logged as the caller's", async () => {
       const { app, user, project } = await setup();

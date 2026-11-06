@@ -40,6 +40,9 @@ describe("createTask", () => {
         "no-priority",
         automation,
         initiative,
+        "diseno",
+        null,
+        null,
       );
       expect(mocks.post).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -71,6 +74,9 @@ describe("createTask", () => {
       "no-priority",
       automation,
       initiative,
+      "diseno",
+      null,
+      null,
     );
 
     expect(mocks.post).toHaveBeenCalledWith(
@@ -92,6 +98,9 @@ describe("createTask", () => {
       "no-priority",
       automation,
       { parentTaskId: "parent-1" },
+      "diseno",
+      null,
+      null,
     );
 
     expect(mocks.post).toHaveBeenCalledWith(

@@ -78,7 +78,11 @@ function renderDialog(onOpenChange = vi.fn()) {
 
 function pickFile() {
   const file = new File(
-    [JSON.stringify({ tasks: [{ title: "Imported", status: "to-do" }] })],
+    [
+      JSON.stringify({
+        tasks: [{ title: "Imported", status: "to-do", type: "validacion" }],
+      }),
+    ],
     "tasks.json",
     { type: "application/json" },
   );
@@ -126,7 +130,7 @@ describe("ImportTasksDialog automation", () => {
     await waitFor(() =>
       expect(mocks.importTasks).toHaveBeenCalledWith({
         projectId: "project-1",
-        tasks: [{ title: "Imported", status: "to-do" }],
+        tasks: [{ title: "Imported", status: "to-do", type: "validacion" }],
         automation: { level: "arranque", verification: false },
         initiativeId: "init-import",
       }),
@@ -164,6 +168,54 @@ describe("ImportTasksDialog automation", () => {
           projectId: "project-1",
           automation: { level: "manual", verification: true },
           initiativeId: "init-import",
+        }),
+      ),
+    );
+  });
+  it("requires an explicit classification for legacy records and preserves classified records", async () => {
+    mocks.importTasks.mockResolvedValue({
+      results: { successful: 2, failed: 0 },
+    });
+    renderDialog();
+    fireEvent.click(radio("intelia:automation.levels.manual"));
+    fireEvent.click(radio("intelia:automation.yes"));
+    chooseInitiative();
+    const file = new File(
+      [
+        JSON.stringify({
+          tasks: [
+            { title: "Old", status: "to-do", type: null },
+            { title: "Existing", status: "to-do", type: "diseno" },
+          ],
+        }),
+      ],
+      "tasks.json",
+      { type: "application/json" },
+    );
+    fireEvent.change(fileInput(), { target: { files: [file] } });
+    await waitFor(() =>
+      expect(
+        screen.getByLabelText("Tipo para tareas sin clasificar"),
+      ).toBeInTheDocument(),
+    );
+    expect(mocks.importTasks).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Tipo para tareas sin clasificar"), {
+      target: { value: "validacion" },
+    });
+    fireEvent.change(fileInput(), { target: { files: [file] } });
+    await waitFor(() =>
+      expect(mocks.importTasks).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tasks: [
+            {
+              title: "Old",
+              status: "to-do",
+              type: "validacion",
+              validationInProduction: null,
+              validationInProductionReason: null,
+            },
+            { title: "Existing", status: "to-do", type: "diseno" },
+          ],
         }),
       ),
     );

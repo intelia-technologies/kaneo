@@ -114,6 +114,7 @@ function createTask(
       description: "",
       priority: "medium",
       status: "to-do",
+      type: "diseno",
       ...extra,
     }),
   });
@@ -1114,7 +1115,7 @@ describe("API integration: Intelia task automation level", () => {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            tasks: [{ title: "Importada", status: "to-do" }],
+            tasks: [{ title: "Importada", status: "to-do", type: "diseno" }],
             automation: { level: "arranque", verification: false },
           }),
         });

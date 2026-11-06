@@ -3,27 +3,15 @@ import { describe, expect, it } from "vite-plus/test";
 import { invalidateRelationTaskProject } from "./invalidate-relation-task-project";
 
 describe("invalidateRelationTaskProject", () => {
-  it.each(["columns", "plannedTasks", "archivedTasks"])(
-    "refreshes the parent in %s without invalidating unrelated boards",
-    async (location) => {
-      const client = new QueryClient();
-      const parent = { id: "parent" };
-      client.setQueryData(["tasks", "parent-project"], {
-        columns: location === "columns" ? [{ tasks: [parent] }] : [],
-        plannedTasks: location === "plannedTasks" ? [parent] : [],
-        archivedTasks: location === "archivedTasks" ? [parent] : [],
-      });
-      client.setQueryData(["tasks", "unrelated-project"], {
-        columns: [{ tasks: [{ id: "other" }] }],
-      });
-      await invalidateRelationTaskProject(client, "parent");
-      expect(
-        client.getQueryState(["tasks", "parent-project"])?.isInvalidated,
-      ).toBe(true);
-      expect(
-        client.getQueryState(["tasks", "unrelated-project"])?.isInvalidated,
-      ).toBe(false);
-      client.clear();
-    },
-  );
+  it("invalidates all cached task boards, including partial and cross-project pages", async () => {
+    const client = new QueryClient();
+    client.setQueryData(["tasks", "source"], { columns: [] });
+    client.setQueryData(["tasks", "target"], { columns: [] });
+    client.setQueryData(["other"], {});
+    await invalidateRelationTaskProject(client);
+    expect(client.getQueryState(["tasks", "source"])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(["tasks", "target"])?.isInvalidated).toBe(true);
+    expect(client.getQueryState(["other"])?.isInvalidated).toBe(false);
+    client.clear();
+  });
 });

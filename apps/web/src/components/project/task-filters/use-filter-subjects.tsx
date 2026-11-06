@@ -1,4 +1,10 @@
-import { CalendarDays, CircleDot, Tag, UserRound } from "lucide-react";
+import {
+  CalendarDays,
+  CircleDot,
+  Hourglass,
+  Tag,
+  UserRound,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getColumnIcon } from "@/lib/column";
 import { getPriorityLabel } from "@/lib/i18n/domain";
@@ -66,7 +72,7 @@ export function useFilterSubjects({
   });
 
   const listSubject = (
-    key: "status" | "priority" | "assignee" | "dueDate",
+    key: "status" | "priority" | "assignee" | "dueDate" | "readiness",
     fields: Pick<FilterSubject, "label" | "icon" | "options">,
   ) =>
     subject(key, {
@@ -106,6 +112,37 @@ export function useFilterSubjects({
           }),
         ]
       : []),
+    subject("readiness", {
+      label: t("tasks:boardFilters.readiness", {
+        defaultValue: "Disponibilidad",
+      }),
+      icon: <Hourglass />,
+      options: [
+        {
+          value: "all",
+          label: t("tasks:boardFilters.all", { defaultValue: "Todas" }),
+        },
+        {
+          value: "ready",
+          label: t("tasks:boardFilters.ready", {
+            defaultValue: "Lista para empezar",
+          }),
+        },
+        {
+          value: "waiting",
+          label: t("tasks:boardFilters.waiting", { defaultValue: "Esperando" }),
+        },
+      ],
+      selected: filters.readiness ?? [],
+      onToggle: (value) =>
+        updateFilter(
+          "readiness",
+          value === "all" || filters.readiness?.includes(value)
+            ? null
+            : [value],
+        ),
+      onClear: () => updateFilter("readiness", null),
+    }),
     listSubject("assignee", {
       label: t("tasks:boardFilters.subjects.assignee"),
       icon: <UserRound />,

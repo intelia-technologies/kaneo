@@ -27,6 +27,9 @@ describe("starterTasks", () => {
     for (const task of starterTasks(t, "team")) {
       expect(task.status).toBe("to-do");
       expect(task.priority).toBe("no-priority");
+      expect(task.type).toBe("operacion");
+      expect(task.validationInProduction).toBe("no_aplica");
+      expect(task.validationInProductionReason).toBeTruthy();
       expect(task.description).toMatch(/\.description$/);
     }
   });

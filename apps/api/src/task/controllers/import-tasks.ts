@@ -1,6 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
+import { taskClassificationTable } from "../../intelia/schema";
 import { columnTable, projectTable, taskTable } from "../../database/schema";
 import { publishEvent } from "../../events";
 import { filterUsersWithProjectAccess } from "../../project-access/filter-users-with-project-access";
@@ -23,6 +24,9 @@ import {
 import { resolveImportAssignees } from "../resolve-import-assignees";
 
 export type ImportTask = {
+  type: "implementacion" | "validacion" | "operacion" | "diseno";
+  validationInProduction?: "requerida" | "no_aplica" | null;
+  validationInProductionReason?: string | null;
   title: string;
   description?: string;
   status: string;
@@ -155,6 +159,16 @@ async function importTasks(
             position,
           })
           .returning();
+
+        if (task) {
+          await tx.insert(taskClassificationTable).values({
+            taskId: task.id,
+            type: taskData.type,
+            validationInProduction: taskData.validationInProduction ?? null,
+            validationInProductionReason:
+              taskData.validationInProductionReason ?? null,
+          });
+        }
 
         // Intelia: the level and the initiative commit with the task or the
         // task does not exist.

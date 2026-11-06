@@ -242,6 +242,7 @@ describe("personal work refresh", () => {
       await result.current.create.mutateAsync({
         projectId: "project",
         title: "New",
+        type: "validacion",
         description: "",
         status: "to-do",
         priority: "no-priority",

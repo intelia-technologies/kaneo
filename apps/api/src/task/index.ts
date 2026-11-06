@@ -69,6 +69,7 @@ import {
 } from "./controllers/require-task-permission";
 import updateTask from "./controllers/update-task";
 import updateTaskAssignee from "./controllers/update-task-assignee";
+import updateTaskClassification from "./controllers/update-task-classification";
 import updateTaskDescription from "./controllers/update-task-description";
 import updateTaskDueDate from "./controllers/update-task-due-date";
 import updateTaskPriority from "./controllers/update-task-priority";
@@ -115,6 +116,7 @@ import {
   ticketIdParam,
   ticketIdQuery,
   updateAssigneeBody,
+  updateTaskClassificationBody,
   updateDescriptionBody,
   updateDueDateBody,
   updateEstimationBody,
@@ -572,6 +574,41 @@ const updateTaskStatusRoute = createRoute({
   },
 });
 
+const updateTaskClassificationRoute = createRoute({
+  method: "put",
+  operationId: "updateTaskClassification",
+  path: "/classification/{id}",
+  tags: ["Tasks"],
+  summary: "Update task classification",
+  middleware: [
+    workspaceAccess.fromTask(),
+    requireWorkspacePermission({ task: ["update"] }),
+    requireEntitlement,
+  ] as const,
+  request: {
+    params: taskParam,
+    body: {
+      required: true,
+      content: { "application/json": { schema: updateTaskClassificationBody } },
+    },
+  },
+  responses: {
+    200: jsonResponse(
+      "The updated classification",
+      z.object({
+        type: z.enum(["implementacion", "validacion", "operacion", "diseno"]),
+        validationInProduction: z.enum(["requerida", "no_aplica"]).nullable(),
+        validationInProductionReason: z.string().nullable(),
+      }),
+    ),
+    400: errorResponse("Invalid classification"),
+    403: errorResponse(
+      "No access to the project, or missing task:update permission",
+    ),
+    404: errorResponse("Task not found"),
+  },
+});
+
 const updateTaskPriorityRoute = createRoute({
   method: "put",
   operationId: "updateTaskPriority",
@@ -992,6 +1029,9 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       draftAssetIds,
       automation,
       initiative,
+      type,
+      validationInProduction,
+      validationInProductionReason,
     } = c.req.valid("json");
 
     const parsedStartDate =
@@ -1021,6 +1061,11 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       draftAssetIds,
       automation: automationOnCreateBy(c, automation),
       initiative: { input: initiative, writer: callerInitiativeWriter(c) },
+      classification: {
+        type,
+        validationInProduction,
+        validationInProductionReason,
+      },
     });
 
     return c.json(task, 200);
@@ -1093,6 +1138,9 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       projectId,
       position,
       userId,
+      type,
+      validationInProduction,
+      validationInProductionReason,
     } = c.req.valid("json");
 
     const currentUserId = c.get("userId");
@@ -1125,6 +1173,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
         ? await hasWorkspacePermission(c, { task: ["assign"] })
         : false,
       c.get("workspaceId"),
+      { type, validationInProduction, validationInProductionReason },
     );
 
     return c.json(task, 200);
@@ -1138,14 +1187,26 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
   })
   .openapi(importTasksRoute, async (c) => {
     const { projectId } = c.req.valid("param");
-    const { tasks, automation, initiativeId } = c.req.valid("json");
+    const { tasks, automation, initiativeId, classificationForUnclassified } =
+      c.req.valid("json");
+    const classifiedTasks = tasks.map((task) =>
+      task.type != null
+        ? { ...task, type: task.type }
+        : { ...task, ...classificationForUnclassified! },
+    );
     const currentUserId = c.get("userId");
 
     const change = automationOnCreateBy(c, automation);
-    const result = await importTasks(projectId, tasks, currentUserId, change, {
-      initiativeId,
-      writer: callerInitiativeWriter(c),
-    });
+    const result = await importTasks(
+      projectId,
+      classifiedTasks,
+      currentUserId,
+      change,
+      {
+        initiativeId,
+        writer: callerInitiativeWriter(c),
+      },
+    );
 
     return c.json(result, 200);
   })
@@ -1165,6 +1226,10 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
     const task = await updateTaskStatus({ id, status, currentUserId });
 
     return c.json(task, 200);
+  })
+  .openapi(updateTaskClassificationRoute, async (c) => {
+    const { id } = c.req.valid("param");
+    return c.json(await updateTaskClassification(id, c.req.valid("json")), 200);
   })
   .openapi(updateTaskPriorityRoute, async (c) => {
     const { id } = c.req.valid("param");

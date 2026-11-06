@@ -24,6 +24,7 @@ import {
   userTable,
 } from "../../database/schema";
 import { boundedTaskRead, type TaskReadDatabase } from "../bounded-read";
+import { projectAccessCondition } from "../../project-access/project-access-condition";
 import {
   boardDescription,
   boardProjectDescription,
@@ -165,6 +166,13 @@ async function getTasksPage(
         sql`${taskTable}.xmin::text`,
         userTable.name,
         userTable.image,
+        sql`(select type from intelia.task_classification where task_id = ${taskTable.id})`,
+        sql`exists (
+          select 1 from custom_field_value v
+          join custom_field_definition d on d.id = v.field_id
+          where v.task_id = ${taskTable.id} and d.project_id = ${taskTable.projectId}
+            and d.name = 'release' and v.value = 'desplegada'
+        )`,
       ]),
     })
     .from(taskTable)
@@ -184,6 +192,15 @@ async function getTasksPage(
     description: boardDescription,
     descriptionDeferred,
     status: taskTable.status,
+    type: sql<
+      "implementacion" | "validacion" | "operacion" | "diseno" | null
+    >`(select type from intelia.task_classification where task_id = ${taskTable.id})`,
+    releaseDeployed: sql<boolean>`exists (
+      select 1 from custom_field_value v
+      join custom_field_definition d on d.id = v.field_id
+      where v.task_id = ${taskTable.id} and d.project_id = ${taskTable.projectId}
+        and d.name = 'release' and v.value = 'desplegada'
+    )`,
     priority: taskTable.priority,
     startDate: taskTable.startDate,
     dueDate: taskTable.dueDate,
@@ -217,6 +234,76 @@ async function getTasksPage(
     options.publicOnly ?? false,
     userId,
   );
+
+  // Fetch all incoming edges for this page together. Hidden projects contribute
+  // only an anonymous, conservatively pending edge, never their task status.
+  const blockerRows = taskIds.length
+    ? await db
+        .select({
+          taskId: taskRelationTable.targetTaskId,
+          visible: options.publicOnly
+            ? sql<boolean>`${projectTable.workspaceId} = ${project.workspaceId} and ${projectTable.isPublic} = true`
+            : userId
+              ? sql<boolean>`${projectTable.workspaceId} = ${project.workspaceId} and ${projectAccessCondition(userId, projectTable.id)}`
+              : sql<boolean>`false`,
+          id: taskTable.id,
+          number: taskTable.number,
+          status: taskTable.status,
+          slug: projectTable.slug,
+        })
+        .from(taskRelationTable)
+        .innerJoin(taskTable, eq(taskRelationTable.sourceTaskId, taskTable.id))
+        .innerJoin(projectTable, eq(taskTable.projectId, projectTable.id))
+        .where(
+          and(
+            inArray(taskRelationTable.targetTaskId, taskIds),
+            eq(taskRelationTable.relationType, "blocks"),
+          ),
+        )
+    : [];
+  const summaries = new Map<
+    string,
+    {
+      pendingCount: number;
+      hasCancelledBlocker: boolean;
+      waitingRelease: boolean;
+      blockers: { id: string; ticket: string; status: string }[];
+      externalCount: number;
+    }
+  >();
+  for (const task of paginatedTasks) {
+    summaries.set(task.id, {
+      pendingCount: 0,
+      hasCancelledBlocker: false,
+      waitingRelease: false,
+      blockers: [],
+      externalCount: 0,
+    });
+  }
+  for (const row of blockerRows) {
+    const summary = summaries.get(row.taskId);
+    if (!summary) continue;
+    if (!row.visible) {
+      summary.externalCount++;
+      summary.pendingCount++;
+    } else if (row.status !== "done") {
+      summary.pendingCount++;
+      summary.hasCancelledBlocker ||= row.status === "cancelled";
+      summary.blockers.push({
+        id: row.id,
+        ticket: `${row.slug}-${row.number}`,
+        status: row.status,
+      });
+    }
+  }
+  for (const task of paginatedTasks) {
+    const summary = summaries.get(task.id);
+    if (summary)
+      summary.waitingRelease =
+        task.type === "validacion" &&
+        summary.pendingCount === 0 &&
+        !task.releaseDeployed;
+  }
 
   const labelsData =
     taskIds.length > 0
@@ -420,7 +507,27 @@ async function getTasksPage(
           eq(projectTable.isPublic, true),
         ),
       );
-    publicRelatedRevision = `${labels?.revision}:${links?.revision}:${children?.revision}`;
+    const blocked = alias(taskTable, "board_blocked");
+    const [blockers] = await db
+      .select({
+        revision: boardRevision(true, [
+          taskRelationTable.targetTaskId,
+          sql`case when ${projectTable.workspaceId} = ${project.workspaceId} and ${projectTable.isPublic} = true
+            then jsonb_build_array(${taskRelationTable.id}, ${taskTable.id}, ${taskTable.status}, ${taskTable.number}, ${projectTable.slug})
+            else null end`,
+        ]),
+      })
+      .from(taskRelationTable)
+      .innerJoin(blocked, eq(taskRelationTable.targetTaskId, blocked.id))
+      .innerJoin(taskTable, eq(taskRelationTable.sourceTaskId, taskTable.id))
+      .innerJoin(projectTable, eq(taskTable.projectId, projectTable.id))
+      .where(
+        and(
+          eq(blocked.projectId, projectId),
+          eq(taskRelationTable.relationType, "blocks"),
+        ),
+      );
+    publicRelatedRevision = `${labels?.revision}:${links?.revision}:${children?.revision}:${blockers?.revision}`;
   }
 
   const columns = projectColumns.map((column) => ({
@@ -434,6 +541,7 @@ async function getTasksPage(
       .filter((task) => task.status === column.slug)
       .map((task) => ({
         ...task,
+        blockersSummary: summaries.get(task.id)!,
         subtaskCounts: subtaskCounts.get(task.id) ?? { completed: 0, total: 0 },
         labels: taskLabelsMap.get(task.id) || [],
         externalLinks: taskExternalLinksMap.get(task.id) || [],
@@ -444,6 +552,7 @@ async function getTasksPage(
     .filter((task) => task.status === "archived")
     .map((task) => ({
       ...task,
+      blockersSummary: summaries.get(task.id)!,
       subtaskCounts: subtaskCounts.get(task.id) ?? { completed: 0, total: 0 },
       labels: taskLabelsMap.get(task.id) || [],
       externalLinks: taskExternalLinksMap.get(task.id) || [],
@@ -454,6 +563,7 @@ async function getTasksPage(
     .map((task) => ({
       ...task,
       subtaskCounts: subtaskCounts.get(task.id) ?? { completed: 0, total: 0 },
+      blockersSummary: summaries.get(task.id)!,
       labels: taskLabelsMap.get(task.id) || [],
       externalLinks: taskExternalLinksMap.get(task.id) || [],
     }));

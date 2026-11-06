@@ -216,6 +216,67 @@
           "status": {
             "type": "string"
           },
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "implementacion",
+              "validacion",
+              "operacion",
+              "diseno",
+              null
+            ]
+          },
+          "blockersSummary": {
+            "type": "object",
+            "properties": {
+              "pendingCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "hasCancelledBlocker": {
+                "type": "boolean"
+              },
+              "waitingRelease": {
+                "type": "boolean"
+              },
+              "blockers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "ticket": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "ticket",
+                    "status"
+                  ]
+                }
+              },
+              "externalCount": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "pendingCount",
+              "hasCancelledBlocker",
+              "waitingRelease",
+              "blockers",
+              "externalCount"
+            ]
+          },
           "priority": {
             "type": "string",
             "description": "One of: no-priority, low, medium, high, urgent."
@@ -324,6 +385,8 @@
           "number",
           "description",
           "status",
+          "type",
+          "blockersSummary",
           "priority",
           "startDate",
           "dueDate",
@@ -1392,6 +1455,36 @@
           {
             "type": "object",
             "properties": {
+              "type": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "implementacion",
+                  "validacion",
+                  "operacion",
+                  "diseno",
+                  null
+                ]
+              },
+              "validationInProduction": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "requerida",
+                  "no_aplica",
+                  null
+                ]
+              },
+              "validationInProductionReason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "workspaceId": {
                 "type": "string",
                 "description": "The workspace currently owning the task's project. Included in the detail view; omitted from the compact board view."
@@ -1454,6 +1547,9 @@
               }
             },
             "required": [
+              "type",
+              "validationInProduction",
+              "validationInProductionReason",
               "columnId",
               "assigneeName",
               "assigneeId"
@@ -13698,6 +13794,32 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "implementacion",
+                      "validacion",
+                      "operacion",
+                      "diseno"
+                    ]
+                  },
+                  "validationInProduction": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "requerida",
+                      "no_aplica",
+                      null
+                    ]
+                  },
+                  "validationInProductionReason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "title": {
                     "type": "string"
                   },
@@ -13854,6 +13976,7 @@
                   }
                 },
                 "required": [
+                  "type",
                   "title",
                   "description",
                   "priority",
@@ -14298,6 +14421,32 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "implementacion",
+                      "validacion",
+                      "operacion",
+                      "diseno"
+                    ]
+                  },
+                  "validationInProduction": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "requerida",
+                      "no_aplica",
+                      null
+                    ]
+                  },
+                  "validationInProductionReason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
                   "title": {
                     "type": "string"
                   },
@@ -14686,6 +14835,36 @@
                     "items": {
                       "type": "object",
                       "properties": {
+                        "type": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "implementacion",
+                            "validacion",
+                            "operacion",
+                            "diseno",
+                            null
+                          ]
+                        },
+                        "validationInProduction": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "enum": [
+                            "requerida",
+                            "no_aplica",
+                            null
+                          ]
+                        },
+                        "validationInProductionReason": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
                         "title": {
                           "type": "string"
                         },
@@ -14724,6 +14903,41 @@
                         "status"
                       ]
                     }
+                  },
+                  "classificationForUnclassified": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "implementacion",
+                          "validacion",
+                          "operacion",
+                          "diseno"
+                        ]
+                      },
+                      "validationInProduction": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "requerida",
+                          "no_aplica",
+                          null
+                        ]
+                      },
+                      "validationInProductionReason": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type"
+                    ],
+                    "description": "Explicit classification applied only to tasks with a missing or null type. Required if any task is unclassified."
                   },
                   "automation": {
                     "oneOf": [
@@ -14895,6 +15109,155 @@
           },
           "400": {
             "description": "Invalid body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project, or missing task:update permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/task/classification/{id}": {
+      "put": {
+        "operationId": "updateTaskClassification",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Update task classification",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "implementacion",
+                      "validacion",
+                      "operacion",
+                      "diseno"
+                    ]
+                  },
+                  "validationInProduction": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "requerida",
+                      "no_aplica",
+                      null
+                    ]
+                  },
+                  "validationInProductionReason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated classification",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "implementacion",
+                        "validacion",
+                        "operacion",
+                        "diseno"
+                      ]
+                    },
+                    "validationInProduction": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "requerida",
+                        "no_aplica",
+                        null
+                      ]
+                    },
+                    "validationInProductionReason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "validationInProduction",
+                    "validationInProductionReason"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid classification",
             "content": {
               "application/json": {
                 "schema": {

@@ -35,6 +35,9 @@ export function starterTasks(
 
   return tasks.map((task) => ({
     ...task,
+    type: "operacion" as const,
+    validationInProduction: "no_aplica" as const,
+    validationInProductionReason: "Onboarding guidance; no production change.",
     status: "to-do",
     priority: "no-priority",
   }));

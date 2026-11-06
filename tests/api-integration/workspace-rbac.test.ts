@@ -77,6 +77,7 @@ async function postCreateTask(
       description: "",
       priority: "low",
       status: "to-do",
+      type: "diseno",
       ...body,
     }),
   });
@@ -253,6 +254,7 @@ describe("API integration: workspace RBAC enforcement", () => {
             description: "",
             priority: "low",
             status: "to-do",
+            type: "diseno",
           }),
         },
       );
