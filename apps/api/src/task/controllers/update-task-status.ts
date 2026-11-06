@@ -5,6 +5,7 @@ import { columnTable, taskTable } from "../../database/schema";
 import { publishEvent } from "../../events";
 import { publishTaskMutation } from "./task-mutation-effects";
 import { assertValidTaskStatus } from "../validate-task-fields";
+import { assertNoPendingBlockersOnTransition } from "./assert-no-pending-blockers-on-transition";
 
 async function updateTaskStatus({
   id,
@@ -19,6 +20,7 @@ async function updateTaskStatus({
     id,
     async (tx, existingTask) => {
       await assertValidTaskStatus(status, existingTask.projectId, tx);
+      await assertNoPendingBlockersOnTransition(tx, [existingTask], status);
 
       const column = await tx.query.columnTable.findFirst({
         where: and(
