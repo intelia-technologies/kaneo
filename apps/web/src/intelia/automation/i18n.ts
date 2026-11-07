@@ -51,6 +51,16 @@ const en = {
     importAppliesToAll: "Applied to every imported task.",
     importBlocked:
       "In this Kaneo every task needs an automation level; this import does not ask for it yet.",
+    card: {
+      automatica: "Automatic",
+      manual: "Manual",
+      paused: "Paused: {{motivo}}",
+      entrega: { pr: "PR", sin_pr: "No PR" },
+      responsable: "Resp. {{id}}",
+      implementador: "Impl. {{id}}",
+      verificador: "Verif. {{id}}",
+      columnaPrevia: "From: {{slug}}",
+    },
   },
 };
 
@@ -97,6 +107,16 @@ const es = {
     importAppliesToAll: "Se aplica a todas las tareas importadas.",
     importBlocked:
       "En este Kaneo cada tarea necesita nivel de automatización; esta importación aún no lo pide.",
+    card: {
+      automatica: "Automática",
+      manual: "Manual",
+      paused: "Pausada: {{motivo}}",
+      entrega: { pr: "PR", sin_pr: "Sin PR" },
+      responsable: "Resp. {{id}}",
+      implementador: "Impl. {{id}}",
+      verificador: "Verif. {{id}}",
+      columnaPrevia: "Desde: {{slug}}",
+    },
   },
 };
 

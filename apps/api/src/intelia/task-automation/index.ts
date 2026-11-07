@@ -34,7 +34,7 @@ const getAutomationRoute = createRoute({
   tags: ["Task Automation"],
   summary: "Get task automation level",
   description:
-    "The task's automation level and verification, with who set them and when.",
+    "The task's automation (design 48 §3.2: `automatica`, `pausaMotivo`, verification, `entrega`, roles and `columnaPrevia`, plus the former level), with who set it and when.",
   middleware: [
     workspaceAccess.fromTaskId("taskId"),
     requireWorkspacePermission({ task: ["read"] }),
@@ -54,7 +54,7 @@ const putAutomationRoute = createRoute({
   tags: ["Task Automation"],
   summary: "Set task automation level",
   description:
-    "Set or change the task's level and verification; each change goes to the change log. A person's session or an account's API key, with task:update. Kaneo does not check who may change the level beyond that: the factory's gateway does, before calling (design 18 §5). With an API key, `actor` names who the caller acts for (informative, logged as given). `completa` requires verification.",
+    "Change any subset of the task's automation; what is omitted stays and null clears an optional field. Changes of `automatica`, `pausaMotivo`, verification, `entrega` or the level go to the change log and out as `task.automation_changed`; the roles and `columnaPrevia` are stored without either. `automatica` and the level are tied (manual is no); `pausaMotivo` only with `automatica: false`, and it clears when `automatica` changes. The first write needs the verification and `automatica` or `level`. A person's session or an account's API key, with task:update. Kaneo does not check who may change it beyond that: the factory's gateway does, before calling (design 18 §5). With an API key, `actor` names who the caller acts for (informative, logged as given). `completa` requires verification.",
   middleware: [
     workspaceAccess.fromTaskId("taskId"),
     requireWorkspacePermission({ task: ["update"] }),
@@ -102,7 +102,7 @@ const listProjectRoute = createRoute({
   tags: ["Task Automation"],
   summary: "List project automation levels",
   description:
-    "The level of every task in the project that has one, by task number. Tasks without a level are absent.",
+    "The automation of every task in the project that has one (the same fields as a task's, camelCase), by task number. Tasks without one are absent.",
   middleware: [
     workspaceAccess.fromProjectId("projectId"),
     requireWorkspacePermission({ project: ["read"], task: ["read"] }),
@@ -140,13 +140,9 @@ const taskAutomation = apiRouter()
     c.json(await getAutomation(c.req.valid("param").taskId), 200),
   )
   .openapi(putAutomationRoute, async (c) => {
-    const { level, verification, actor } = c.req.valid("json");
+    const { actor, ...patch } = c.req.valid("json");
     return c.json(
-      await setAutomation(
-        c.req.valid("param").taskId,
-        { level, verification },
-        writer(c, actor),
-      ),
+      await setAutomation(c.req.valid("param").taskId, patch, writer(c, actor)),
       200,
     );
   })

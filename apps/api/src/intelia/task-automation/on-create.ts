@@ -1,7 +1,7 @@
 import type { Context, Next } from "hono";
 import type {
   AutomationChange,
-  AutomationValue,
+  AutomationPatch,
   AutomationWriter,
 } from "./service";
 
@@ -52,7 +52,7 @@ export function callerWriter(c: Context): AutomationWriter {
  */
 export function automationOnCreateBy(
   c: Context,
-  value: AutomationValue,
+  value: AutomationPatch,
 ): AutomationChange {
   return { value, writer: callerWriter(c) };
 }

@@ -173,11 +173,17 @@ export const AUTOMATION_SOURCES = [
 ] as const;
 export type AutomationSource = (typeof AUTOMATION_SOURCES)[number];
 
+// What the task delivers (design 48 §3.2): a pull request or nothing to merge.
+export const DELIVERY_KINDS = ["pr", "sin_pr"] as const;
+export type DeliveryKind = (typeof DELIVERY_KINDS)[number];
+
 // Unqualified column names: the checks read the row being written.
 const levelCheck = (column: string) =>
   sql.raw(`"${column}" in ('manual', 'arranque', 'completa')`);
 const sourceCheck = (column: string) =>
   sql.raw(`"${column}" in ('session', 'api_key', 'gateway', 'migration')`);
+const deliveryCheck = (column: string) =>
+  sql.raw(`"${column}" is null or "${column}" in ('pr', 'sin_pr')`);
 
 export const taskAutomationTable = inteliaSchema.table(
   "task_automation",
@@ -199,6 +205,21 @@ export const taskAutomationTable = inteliaSchema.table(
     setByActor: text("set_by_actor"),
     source: text("source").$type<AutomationSource>().notNull(),
     setAt: timestamp("set_at", { mode: "date" }).default(utcNow).notNull(),
+    // Design 48 §3.2. Yes: the dispatcher moves the columns; no: the
+    // responsible does. `level` stays for the old engine until the cut, tied
+    // to it by a check: no is `manual`, yes is `arranque` or `completa`.
+    automatica: boolean("automatica").notNull(),
+    // Why it is paused; only with `automatica` off (pausing is turning it off
+    // with a reason).
+    pausaMotivo: text("pausa_motivo"),
+    entrega: text("entrega").$type<DeliveryKind>(),
+    // Graph ids (agent:…, person:…): the project's orchestrator or owner, and
+    // the instances that implemented and verified it.
+    responsable: text("responsable"),
+    implementador: text("implementador"),
+    verificador: text("verificador"),
+    // Column slug a task in Queued or Blocked came from.
+    columnaPrevia: text("columna_previa"),
   },
   () => [
     check("task_automation_level_check", levelCheck("level")),
@@ -207,6 +228,17 @@ export const taskAutomationTable = inteliaSchema.table(
       "task_automation_completa_verification_check",
       sql.raw(`"level" <> 'completa' or "verification"`),
     ),
+    check(
+      "task_automation_automatica_level_check",
+      sql.raw(`("level" = 'manual') = (not "automatica")`),
+    ),
+    check(
+      "task_automation_pausa_check",
+      sql.raw(
+        `"pausa_motivo" is null or (not "automatica" and length(btrim("pausa_motivo")) > 0)`,
+      ),
+    ),
+    check("task_automation_entrega_check", deliveryCheck("entrega")),
   ],
 );
 
@@ -228,6 +260,10 @@ export const taskAutomationChangeTable = inteliaSchema.table(
     previousVerification: boolean("previous_verification"),
     level: text("level").$type<AutomationLevel>().notNull(),
     verification: boolean("verification").notNull(),
+    previousAutomatica: boolean("previous_automatica"),
+    automatica: boolean("automatica").notNull(),
+    pausaMotivo: text("pausa_motivo"),
+    entrega: text("entrega").$type<DeliveryKind>(),
     changedByUserId: text("changed_by_user_id").references(() => userTable.id, {
       onDelete: "set null",
       onUpdate: "cascade",
@@ -245,6 +281,7 @@ export const taskAutomationChangeTable = inteliaSchema.table(
     ),
     check("task_automation_change_level_check", levelCheck("level")),
     check("task_automation_change_source_check", sourceCheck("source")),
+    check("task_automation_change_entrega_check", deliveryCheck("entrega")),
   ],
 );
 

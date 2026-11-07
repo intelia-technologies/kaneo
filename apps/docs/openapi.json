@@ -8981,6 +8981,52 @@
           "verification": {
             "type": "boolean"
           },
+          "automatica": {
+            "type": "boolean",
+            "description": "Design 48 §3.2. Yes: the dispatcher moves the columns; no: the responsible does. `level` is its former value for the old engine."
+          },
+          "pausaMotivo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it is paused; null if it is not."
+          },
+          "entrega": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "pr",
+              "sin_pr",
+              null
+            ]
+          },
+          "responsable": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "implementador": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verificador": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "columnaPrevia": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "source": {
             "type": "string",
             "enum": [
@@ -9019,6 +9065,13 @@
           "taskId",
           "level",
           "verification",
+          "automatica",
+          "pausaMotivo",
+          "entrega",
+          "responsable",
+          "implementador",
+          "verificador",
+          "columnaPrevia",
           "source",
           "setByUserId",
           "setByName",
@@ -9064,6 +9117,32 @@
           "verification": {
             "type": "boolean"
           },
+          "previousAutomatica": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "automatica": {
+            "type": "boolean"
+          },
+          "pausaMotivo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entrega": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "pr",
+              "sin_pr",
+              null
+            ]
+          },
           "source": {
             "type": "string",
             "enum": [
@@ -9104,6 +9183,10 @@
           "previousVerification",
           "level",
           "verification",
+          "previousAutomatica",
+          "automatica",
+          "pausaMotivo",
+          "entrega",
           "source",
           "changedByUserId",
           "changedByName",
@@ -15335,53 +15418,93 @@
                     }
                   },
                   "automation": {
-                    "oneOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "level": {
-                            "type": "string",
-                            "enum": [
-                              "completa"
-                            ],
-                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
-                          },
-                          "verification": {
-                            "type": "boolean",
-                            "enum": [
-                              true
-                            ],
-                            "description": "Whether the verifier checks the task when the worker ends."
-                          }
-                        },
-                        "required": [
-                          "level",
-                          "verification"
-                        ]
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "manual",
+                          "arranque",
+                          "completa"
+                        ],
+                        "description": "Former level, read by the old flow engine until the cut (design 48 §3.12); `automatica` replaces it. manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes. Tied to `automatica`: manual is no, arranque and completa are yes."
                       },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "level": {
-                            "type": "string",
-                            "enum": [
-                              "manual",
-                              "arranque"
-                            ],
-                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
-                          },
-                          "verification": {
-                            "type": "boolean",
-                            "description": "Whether the verifier checks the task when the worker ends."
-                          }
-                        },
-                        "required": [
-                          "level",
-                          "verification"
-                        ]
+                      "automatica": {
+                        "type": "boolean",
+                        "description": "Design 48 §3.2. Yes: the dispatcher moves the columns. No: the responsible does. Without `level`, no stores `manual` and yes keeps `arranque` or `completa`, else `arranque`."
+                      },
+                      "verification": {
+                        "type": "boolean",
+                        "description": "Whether the verifier checks the task when the worker ends."
+                      },
+                      "pausaMotivo": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "minLength": 1,
+                        "maxLength": 500,
+                        "pattern": "^[^\\r\\n]*$",
+                        "description": "Why it is paused; only with `automatica: false`. Omitted, it stays while `automatica` stays off and clears when `automatica` changes.",
+                        "example": "movida_a_mano"
+                      },
+                      "entrega": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "pr",
+                          "sin_pr",
+                          null
+                        ],
+                        "description": "What the task delivers: a PR or none."
+                      },
+                      "responsable": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 100,
+                        "pattern": "^(agent|person):[a-z0-9-]+$",
+                        "description": "The project's orchestrator or the person who owns it.",
+                        "example": "agent:forja"
+                      },
+                      "implementador": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 100,
+                        "pattern": "^(agent|person):[a-z0-9-]+$",
+                        "description": "The instance that implements it.",
+                        "example": "agent:forja"
+                      },
+                      "verificador": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 100,
+                        "pattern": "^(agent|person):[a-z0-9-]+$",
+                        "description": "The instance that verifies it.",
+                        "example": "agent:forja"
+                      },
+                      "columnaPrevia": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 50,
+                        "pattern": "^[a-z0-9-]+$",
+                        "description": "Column slug a task in Queued or Blocked came from.",
+                        "example": "in-progress"
                       }
+                    },
+                    "required": [
+                      "verification"
                     ],
-                    "description": "The task's automation level and verification (Intelia fork). Required when creating a task, with no default. `completa` requires verification."
+                    "description": "The task's automation (Intelia fork, design 48 §3.2). Required when creating a task, with no default: the verification and `automatica` (or the former `level`). `completa` requires verification."
                   },
                   "initiative": {
                     "anyOf": [
@@ -15515,51 +15638,91 @@
                     "type": "string"
                   },
                   "automation": {
-                    "oneOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "level": {
-                            "type": "string",
-                            "enum": [
-                              "completa"
-                            ],
-                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
-                          },
-                          "verification": {
-                            "type": "boolean",
-                            "enum": [
-                              true
-                            ],
-                            "description": "Whether the verifier checks the task when the worker ends."
-                          }
-                        },
-                        "required": [
-                          "level",
-                          "verification"
-                        ]
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "manual",
+                          "arranque",
+                          "completa"
+                        ],
+                        "description": "Former level, read by the old flow engine until the cut (design 48 §3.12); `automatica` replaces it. manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes. Tied to `automatica`: manual is no, arranque and completa are yes."
                       },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "level": {
-                            "type": "string",
-                            "enum": [
-                              "manual",
-                              "arranque"
-                            ],
-                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
-                          },
-                          "verification": {
-                            "type": "boolean",
-                            "description": "Whether the verifier checks the task when the worker ends."
-                          }
-                        },
-                        "required": [
-                          "level",
-                          "verification"
-                        ]
+                      "automatica": {
+                        "type": "boolean",
+                        "description": "Design 48 §3.2. Yes: the dispatcher moves the columns. No: the responsible does. Without `level`, no stores `manual` and yes keeps `arranque` or `completa`, else `arranque`."
+                      },
+                      "verification": {
+                        "type": "boolean",
+                        "description": "Whether the verifier checks the task when the worker ends."
+                      },
+                      "pausaMotivo": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "minLength": 1,
+                        "maxLength": 500,
+                        "pattern": "^[^\\r\\n]*$",
+                        "description": "Why it is paused; only with `automatica: false`. Omitted, it stays while `automatica` stays off and clears when `automatica` changes.",
+                        "example": "movida_a_mano"
+                      },
+                      "entrega": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "pr",
+                          "sin_pr",
+                          null
+                        ],
+                        "description": "What the task delivers: a PR or none."
+                      },
+                      "responsable": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 100,
+                        "pattern": "^(agent|person):[a-z0-9-]+$",
+                        "description": "The project's orchestrator or the person who owns it.",
+                        "example": "agent:forja"
+                      },
+                      "implementador": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 100,
+                        "pattern": "^(agent|person):[a-z0-9-]+$",
+                        "description": "The instance that implements it.",
+                        "example": "agent:forja"
+                      },
+                      "verificador": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 100,
+                        "pattern": "^(agent|person):[a-z0-9-]+$",
+                        "description": "The instance that verifies it.",
+                        "example": "agent:forja"
+                      },
+                      "columnaPrevia": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 50,
+                        "pattern": "^[a-z0-9-]+$",
+                        "description": "Column slug a task in Queued or Blocked came from.",
+                        "example": "in-progress"
                       }
+                    },
+                    "required": [
+                      "verification"
                     ],
                     "description": "The copy's automation level and verification. Omit to copy the source's; a source without a level then needs this field."
                   },
@@ -16381,51 +16544,91 @@
                     "description": "Explicit classification applied only to tasks with a missing or null type."
                   },
                   "automation": {
-                    "oneOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "level": {
-                            "type": "string",
-                            "enum": [
-                              "completa"
-                            ],
-                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
-                          },
-                          "verification": {
-                            "type": "boolean",
-                            "enum": [
-                              true
-                            ],
-                            "description": "Whether the verifier checks the task when the worker ends."
-                          }
-                        },
-                        "required": [
-                          "level",
-                          "verification"
-                        ]
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "manual",
+                          "arranque",
+                          "completa"
+                        ],
+                        "description": "Former level, read by the old flow engine until the cut (design 48 §3.12); `automatica` replaces it. manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes. Tied to `automatica`: manual is no, arranque and completa are yes."
                       },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "level": {
-                            "type": "string",
-                            "enum": [
-                              "manual",
-                              "arranque"
-                            ],
-                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
-                          },
-                          "verification": {
-                            "type": "boolean",
-                            "description": "Whether the verifier checks the task when the worker ends."
-                          }
-                        },
-                        "required": [
-                          "level",
-                          "verification"
-                        ]
+                      "automatica": {
+                        "type": "boolean",
+                        "description": "Design 48 §3.2. Yes: the dispatcher moves the columns. No: the responsible does. Without `level`, no stores `manual` and yes keeps `arranque` or `completa`, else `arranque`."
+                      },
+                      "verification": {
+                        "type": "boolean",
+                        "description": "Whether the verifier checks the task when the worker ends."
+                      },
+                      "pausaMotivo": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "minLength": 1,
+                        "maxLength": 500,
+                        "pattern": "^[^\\r\\n]*$",
+                        "description": "Why it is paused; only with `automatica: false`. Omitted, it stays while `automatica` stays off and clears when `automatica` changes.",
+                        "example": "movida_a_mano"
+                      },
+                      "entrega": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "pr",
+                          "sin_pr",
+                          null
+                        ],
+                        "description": "What the task delivers: a PR or none."
+                      },
+                      "responsable": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 100,
+                        "pattern": "^(agent|person):[a-z0-9-]+$",
+                        "description": "The project's orchestrator or the person who owns it.",
+                        "example": "agent:forja"
+                      },
+                      "implementador": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 100,
+                        "pattern": "^(agent|person):[a-z0-9-]+$",
+                        "description": "The instance that implements it.",
+                        "example": "agent:forja"
+                      },
+                      "verificador": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 100,
+                        "pattern": "^(agent|person):[a-z0-9-]+$",
+                        "description": "The instance that verifies it.",
+                        "example": "agent:forja"
+                      },
+                      "columnaPrevia": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 50,
+                        "pattern": "^[a-z0-9-]+$",
+                        "description": "Column slug a task in Queued or Blocked came from.",
+                        "example": "in-progress"
                       }
+                    },
+                    "required": [
+                      "verification"
                     ],
                     "description": "The automation level and verification of every imported task. Required, with no default."
                   },
@@ -35001,7 +35204,7 @@
           "Task Automation"
         ],
         "summary": "Get task automation level",
-        "description": "The task's automation level and verification, with who set them and when.",
+        "description": "The task's automation (design 48 §3.2: `automatica`, `pausaMotivo`, verification, `entrega`, roles and `columnaPrevia`, plus the former level), with who set it and when.",
         "parameters": [
           {
             "schema": {
@@ -35064,7 +35267,7 @@
           "Task Automation"
         ],
         "summary": "Set task automation level",
-        "description": "Set or change the task's level and verification; each change goes to the change log. A person's session or an account's API key, with task:update. Kaneo does not check who may change the level beyond that: the factory's gateway does, before calling (design 18 §5). With an API key, `actor` names who the caller acts for (informative, logged as given). `completa` requires verification.",
+        "description": "Change any subset of the task's automation; what is omitted stays and null clears an optional field. Changes of `automatica`, `pausaMotivo`, verification, `entrega` or the level go to the change log and out as `task.automation_changed`; the roles and `columnaPrevia` are stored without either. `automatica` and the level are tied (manual is no); `pausaMotivo` only with `automatica: false`, and it clears when `automatica` changes. The first write needs the verification and `automatica` or `level`. A person's session or an account's API key, with task:update. Kaneo does not check who may change it beyond that: the factory's gateway does, before calling (design 18 §5). With an API key, `actor` names who the caller acts for (informative, logged as given). `completa` requires verification.",
         "parameters": [
           {
             "schema": {
@@ -35080,69 +35283,96 @@
           "content": {
             "application/json": {
               "schema": {
-                "allOf": [
-                  {
-                    "oneOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "level": {
-                            "type": "string",
-                            "enum": [
-                              "completa"
-                            ],
-                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
-                          },
-                          "verification": {
-                            "type": "boolean",
-                            "enum": [
-                              true
-                            ],
-                            "description": "Whether the verifier checks the task when the worker ends."
-                          }
-                        },
-                        "required": [
-                          "level",
-                          "verification"
-                        ]
-                      },
-                      {
-                        "type": "object",
-                        "properties": {
-                          "level": {
-                            "type": "string",
-                            "enum": [
-                              "manual",
-                              "arranque"
-                            ],
-                            "description": "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes."
-                          },
-                          "verification": {
-                            "type": "boolean",
-                            "description": "Whether the verifier checks the task when the worker ends."
-                          }
-                        },
-                        "required": [
-                          "level",
-                          "verification"
-                        ]
-                      }
+                "type": "object",
+                "properties": {
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "manual",
+                      "arranque",
+                      "completa"
                     ],
-                    "description": "The task's automation level and verification (Intelia fork). Required when creating a task, with no default. `completa` requires verification."
+                    "description": "Former level, read by the old flow engine until the cut (design 48 §3.12); `automatica` replaces it. manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes. Tied to `automatica`: manual is no, arranque and completa are yes."
                   },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "actor": {
-                        "type": "string",
-                        "maxLength": 100,
-                        "pattern": "^(agent|person):[a-z0-9-]+$",
-                        "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
-                        "example": "agent:orq-jaime"
-                      }
-                    }
+                  "automatica": {
+                    "type": "boolean",
+                    "description": "Design 48 §3.2. Yes: the dispatcher moves the columns. No: the responsible does. Without `level`, no stores `manual` and yes keeps `arranque` or `completa`, else `arranque`."
+                  },
+                  "verification": {
+                    "type": "boolean",
+                    "description": "Whether the verifier checks the task when the worker ends."
+                  },
+                  "pausaMotivo": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "pattern": "^[^\\r\\n]*$",
+                    "description": "Why it is paused; only with `automatica: false`. Omitted, it stays while `automatica` stays off and clears when `automatica` changes.",
+                    "example": "movida_a_mano"
+                  },
+                  "entrega": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "pr",
+                      "sin_pr",
+                      null
+                    ],
+                    "description": "What the task delivers: a PR or none."
+                  },
+                  "responsable": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "The project's orchestrator or the person who owns it.",
+                    "example": "agent:forja"
+                  },
+                  "implementador": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "The instance that implements it.",
+                    "example": "agent:forja"
+                  },
+                  "verificador": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "The instance that verifies it.",
+                    "example": "agent:forja"
+                  },
+                  "columnaPrevia": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 50,
+                    "pattern": "^[a-z0-9-]+$",
+                    "description": "Column slug a task in Queued or Blocked came from.",
+                    "example": "in-progress"
+                  },
+                  "actor": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
+                    "example": "agent:orq-jaime"
                   }
-                ]
+                }
               }
             }
           }
@@ -35292,7 +35522,7 @@
           "Task Automation"
         ],
         "summary": "List project automation levels",
-        "description": "The level of every task in the project that has one, by task number. Tasks without a level are absent.",
+        "description": "The automation of every task in the project that has one (the same fields as a task's, camelCase), by task number. Tasks without one are absent.",
         "parameters": [
           {
             "schema": {

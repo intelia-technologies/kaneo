@@ -809,6 +809,301 @@ describe("API integration: Intelia task automation level", () => {
     });
   });
 
+  // Design 48 §3.2 (NU-01k): the new core's fields, by the same endpoints.
+  describe("the fields of the new dispatcher core", () => {
+    const FIELD_KEYS = [
+      "automatica",
+      "columnaPrevia",
+      "entrega",
+      "implementador",
+      "level",
+      "pausaMotivo",
+      "responsable",
+      "setAt",
+      "setByActor",
+      "setByName",
+      "setByUserId",
+      "source",
+      "taskId",
+      "verificador",
+      "verification",
+    ];
+
+    async function read(app: App, taskId: string) {
+      const res = await app.request(`/api/intelia/task/${taskId}/automation`);
+      expect(res.status).toBe(200);
+      return (await res.json()) as Record<string, unknown>;
+    }
+
+    async function listed(app: App, projectId: string, taskId: string) {
+      const res = await app.request(
+        `/api/intelia/project/${projectId}/automation`,
+      );
+      expect(res.status).toBe(200);
+      const rows = (await res.json()) as Array<Record<string, unknown>>;
+      return rows.find((row) => row.taskId === taskId);
+    }
+
+    it("creates a task with automatica instead of the level, and both reads give every field in camelCase", async () => {
+      const { app, project } = await setup();
+      const res = await createTask(app, project.id, {
+        automation: {
+          automatica: true,
+          verification: false,
+          entrega: "pr",
+          responsable: "agent:forja",
+        },
+      });
+      expect(res.status).toBe(200);
+      const taskId = ((await res.json()) as { id: string }).id;
+
+      const expected = {
+        taskId,
+        level: "arranque",
+        verification: false,
+        automatica: true,
+        pausaMotivo: null,
+        entrega: "pr",
+        responsable: "agent:forja",
+        implementador: null,
+        verificador: null,
+        columnaPrevia: null,
+      };
+      const one = await read(app, taskId);
+      expect(one).toMatchObject(expected);
+      expect(Object.keys(one).sort()).toEqual(FIELD_KEYS);
+      // The list the dispatcher reads (R12 of NU-12 looks for `pausaMotivo`).
+      const inList = await listed(app, project.id, taskId);
+      expect(inList).toMatchObject(expected);
+      expect(Object.keys(inList ?? {}).sort()).toEqual(FIELD_KEYS);
+      expect((await changes(taskId))[0]).toMatchObject({
+        previousAutomatica: null,
+        automatica: true,
+        entrega: "pr",
+      });
+    });
+
+    it("pauses with a reason, lists the pause, and resuming clears it", async () => {
+      const { app, project } = await setup();
+      const created = await createTask(app, project.id, {
+        automation: { level: "completa", verification: true },
+      });
+      const taskId = ((await created.json()) as { id: string }).id;
+
+      const paused = await putAutomation(app, taskId, {
+        automatica: false,
+        pausaMotivo: "  movida_a_mano ",
+      });
+      expect(paused.status).toBe(200);
+      expect(await paused.json()).toMatchObject({
+        automatica: false,
+        level: "manual",
+        pausaMotivo: "movida_a_mano",
+        verification: true,
+      });
+      expect(await listed(app, project.id, taskId)).toMatchObject({
+        automatica: false,
+        pausaMotivo: "movida_a_mano",
+      });
+
+      // Changing the reason alone keeps it paused.
+      const reason = await putAutomation(app, taskId, {
+        pausaMotivo: "transicion_desconocida",
+      });
+      expect(await reason.json()).toMatchObject({
+        automatica: false,
+        pausaMotivo: "transicion_desconocida",
+      });
+
+      const resumed = await putAutomation(app, taskId, { automatica: true });
+      expect(await resumed.json()).toMatchObject({
+        automatica: true,
+        level: "arranque",
+        pausaMotivo: null,
+      });
+      expect(
+        (await changes(taskId)).map((c) => [
+          c.previousAutomatica,
+          c.automatica,
+          c.level,
+          c.pausaMotivo,
+        ]),
+      ).toEqual([
+        [null, true, "completa", null],
+        [true, false, "manual", "movida_a_mano"],
+        [false, false, "manual", "transicion_desconocida"],
+        [false, true, "arranque", null],
+      ]);
+    });
+
+    it("turning automatica on keeps arranque or a verified completa, and drops an unverified completa to arranque", async () => {
+      const { app, project } = await setup();
+      const created = await createTask(app, project.id, {
+        automation: { level: "completa", verification: true },
+      });
+      const taskId = ((await created.json()) as { id: string }).id;
+
+      const same = await putAutomation(app, taskId, { automatica: true });
+      expect(await same.json()).toMatchObject({ level: "completa" });
+      expect(await changes(taskId)).toHaveLength(1);
+
+      const unverified = await putAutomation(app, taskId, {
+        verification: false,
+      });
+      expect(unverified.status).toBe(200);
+      expect(await unverified.json()).toMatchObject({
+        level: "arranque",
+        automatica: true,
+        verification: false,
+      });
+    });
+
+    it("stores the dispatcher's bookkeeping without logging a change or changing the author", async () => {
+      const { app, project, roleKey } = await setup();
+      const taskId = await createdTaskId(app, project.id);
+      const [before] = await stored(taskId);
+
+      mockAnonymousSession();
+      const res = await putAutomation(
+        app,
+        taskId,
+        {
+          implementador: "agent:coder-b12cd39a",
+          verificador: "agent:verificador-1",
+          responsable: "agent:forja",
+          columnaPrevia: "in-progress",
+        },
+        { "x-api-key": roleKey },
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({
+        implementador: "agent:coder-b12cd39a",
+        verificador: "agent:verificador-1",
+        responsable: "agent:forja",
+        columnaPrevia: "in-progress",
+        source: "session",
+        setByUserId: before!.setByUserId,
+      });
+      expect(await changes(taskId)).toHaveLength(1);
+
+      // Null clears one; what is omitted stays.
+      const cleared = await putAutomation(
+        app,
+        taskId,
+        { columnaPrevia: null },
+        { "x-api-key": roleKey },
+      );
+      expect(await cleared.json()).toMatchObject({
+        columnaPrevia: null,
+        implementador: "agent:coder-b12cd39a",
+      });
+    });
+
+    it.each([
+      ["a reason with automatica on", { automatica: true, pausaMotivo: "x" }],
+      ["a level against automatica", { level: "manual", automatica: true }],
+      ["an empty reason", { automatica: false, pausaMotivo: "   " }],
+      ["a reason of two lines", { automatica: false, pausaMotivo: "a\nb" }],
+      [
+        "a reason over 500 characters",
+        { automatica: false, pausaMotivo: "x".repeat(501) },
+      ],
+      ["an unknown delivery", { entrega: "merge" }],
+      ["a role that is not a graph id", { implementador: "Coder B" }],
+      ["a column that is not a slug", { columnaPrevia: "In Progress" }],
+    ])("rejects %s and keeps the stored value", async (_what, body) => {
+      const { app, project } = await setup();
+      const taskId = await createdTaskId(app, project.id);
+      const [before] = await stored(taskId);
+
+      const res = await putAutomation(app, taskId, body);
+
+      expect(res.status).toBe(400);
+      expect(await readErrorBody(res)).toMatchObject({
+        code: "VALIDATION_ERROR",
+      });
+      expect(await stored(taskId)).toEqual([before]);
+    });
+
+    it("rejects a reason for a task whose stored automatica is on", async () => {
+      const { app, project } = await setup();
+      const created = await createTask(app, project.id, {
+        automation: { automatica: true, verification: true },
+      });
+      const taskId = ((await created.json()) as { id: string }).id;
+
+      const res = await putAutomation(app, taskId, { pausaMotivo: "x" });
+
+      expect(res.status).toBe(400);
+      expect(await readErrorBody(res)).toMatchObject({
+        issues: [expect.objectContaining({ path: "body.pausaMotivo" })],
+      });
+    });
+
+    it("needs automatica or the level, and the verification, for a task's first value", async () => {
+      const { app, project } = await setup();
+      const noLevel = await createTask(app, project.id, {
+        automation: { verification: true, entrega: "pr" },
+      });
+      expect(noLevel.status).toBe(400);
+      expect(await taskCount()).toBe(0);
+
+      // A task without a row (closed before the backfill) through PUT.
+      const taskId = await createdTaskId(app, project.id);
+      await db
+        .delete(taskAutomationTable)
+        .where(eq(taskAutomationTable.taskId, taskId));
+      const partial = await putAutomation(app, taskId, { entrega: "pr" });
+      expect(partial.status).toBe(400);
+      expect(await stored(taskId)).toEqual([]);
+      const full = await putAutomation(app, taskId, {
+        automatica: false,
+        verification: true,
+        pausaMotivo: "pausa",
+      });
+      expect(await full.json()).toMatchObject({
+        level: "manual",
+        pausaMotivo: "pausa",
+      });
+    });
+
+    it("a copy inherits what the planner chose, not the pause, the instances or the column", async () => {
+      const { app, project } = await setup();
+      const created = await createTask(app, project.id, {
+        automation: {
+          automatica: false,
+          verification: false,
+          pausaMotivo: "movida_a_mano",
+          entrega: "sin_pr",
+          responsable: "agent:forja",
+          implementador: "agent:coder-1",
+          verificador: "agent:verificador-1",
+          columnaPrevia: "in-review",
+        },
+      });
+      const sourceId = ((await created.json()) as { id: string }).id;
+
+      const res = await app.request(`/api/task/duplicate/${sourceId}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      expect(res.status).toBe(200);
+      const copyId = ((await res.json()) as { id: string }).id;
+      expect(await read(app, copyId)).toMatchObject({
+        level: "manual",
+        automatica: false,
+        verification: false,
+        pausaMotivo: null,
+        entrega: "sin_pr",
+        responsable: "agent:forja",
+        implementador: null,
+        verificador: null,
+        columnaPrevia: null,
+      });
+    });
+  });
+
   describe("the task.automation_changed webhook", () => {
     const SECRET = "automation-webhook-secret";
     type Delivery = {
@@ -930,6 +1225,12 @@ describe("API integration: Intelia task automation level", () => {
             previousVerification: true,
             level: "arranque",
             verification: true,
+            previousAutomatica: false,
+            automatica: true,
+            previousPausaMotivo: null,
+            pausaMotivo: null,
+            previousEntrega: null,
+            entrega: null,
             source: "session",
             changedByActor: null,
             changedAt: expect.any(String),

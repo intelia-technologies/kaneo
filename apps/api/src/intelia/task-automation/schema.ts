@@ -1,51 +1,149 @@
 import { pagingNumber, z } from "../../openapi";
-import { AUTOMATION_LEVELS } from "../schema";
+import { AUTOMATION_LEVELS, DELIVERY_KINDS } from "../schema";
 
 export const taskIdParam = z.object({ taskId: z.string() });
 
 export const projectIdParam = z.object({ projectId: z.string() });
 
 const LEVEL_DESCRIPTION =
-  "manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes.";
+  "Former level, read by the old flow engine until the cut (design 48 §3.12); `automatica` replaces it. manual: the orchestrator starts, merges and closes. arranque: the flow engine starts it once ready; the orchestrator merges. completa: the engine starts it and, with verification passed, merges and closes. Tied to `automatica`: manual is no, arranque and completa are yes.";
 const VERIFICATION_DESCRIPTION =
   "Whether the verifier checks the task when the worker ends.";
+const AUTOMATICA_DESCRIPTION =
+  "Design 48 §3.2. Yes: the dispatcher moves the columns. No: the responsible does. Without `level`, no stores `manual` and yes keeps `arranque` or `completa`, else `arranque`.";
 
 export const COMPLETA_NEEDS_VERIFICATION =
   "`completa` requires verification: true";
+export const LEVEL_CONTRADICTS_AUTOMATICA =
+  "`level` contradicts `automatica`: manual is no, arranque and completa are yes";
+export const PAUSE_NEEDS_MANUAL =
+  "`pausaMotivo` is only for `automatica: false`";
 
-// The level and the verification switch, always together (design 18 §3).
-// A union by level, so the published contract and the inferred input type
-// both say what the API accepts: `completa` only with verification.
-const automationVariants = [
-  z.object({
-    level: z.literal("completa").openapi({ description: LEVEL_DESCRIPTION }),
-    verification: z
-      .literal(true, { error: COMPLETA_NEEDS_VERIFICATION })
-      .openapi({ description: VERIFICATION_DESCRIPTION }),
-  }),
-  z.object({
+// One line, as the dispatcher writes it in comments and anomalies.
+const ONE_LINE = /^[^\r\n]*$/;
+// A graph id (agent:…, person:…): the roles and a declared actor.
+const DECLARED_ACTOR = /^(agent|person):[a-z0-9-]+$/;
+const COLUMN_SLUG = /^[a-z0-9-]+$/;
+
+const graphId = (description: string) =>
+  z
+    .string()
+    .max(100)
+    .regex(DECLARED_ACTOR)
+    .nullable()
+    .openapi({ description, example: "agent:forja" });
+
+// The fields of design 48 §3.2 besides `automatica` and `verification`; each
+// optional. Null clears one.
+const fieldInputs = {
+  pausaMotivo: z
+    .string()
+    .trim()
+    .min(1)
+    .max(500)
+    .regex(ONE_LINE, "One line")
+    .nullable()
+    .optional()
+    .openapi({
+      description:
+        "Why it is paused; only with `automatica: false`. Omitted, it stays while `automatica` stays off and clears when `automatica` changes.",
+      example: "movida_a_mano",
+    }),
+  entrega: z
+    .enum(DELIVERY_KINDS)
+    .nullable()
+    .optional()
+    .openapi({ description: "What the task delivers: a PR or none." }),
+  responsable: graphId(
+    "The project's orchestrator or the person who owns it.",
+  ).optional(),
+  implementador: graphId("The instance that implements it.").optional(),
+  verificador: graphId("The instance that verifies it.").optional(),
+  columnaPrevia: z
+    .string()
+    .max(50)
+    .regex(COLUMN_SLUG)
+    .nullable()
+    .optional()
+    .openapi({
+      description: "Column slug a task in Queued or Blocked came from.",
+      example: "in-progress",
+    }),
+};
+
+type AutomationFieldsInput = {
+  level?: (typeof AUTOMATION_LEVELS)[number];
+  automatica?: boolean;
+  verification?: boolean;
+  pausaMotivo?: string | null;
+};
+
+// What a single request can contradict on its own; against the stored value,
+// the service checks the rest (`resolveAutomation`).
+function checkFields(value: AutomationFieldsInput, ctx: z.RefinementCtx) {
+  if (value.level === "completa" && value.verification === false) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["verification"],
+      message: COMPLETA_NEEDS_VERIFICATION,
+    });
+  }
+  if (
+    value.level !== undefined &&
+    value.automatica !== undefined &&
+    (value.level !== "manual") !== value.automatica
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["automatica"],
+      message: LEVEL_CONTRADICTS_AUTOMATICA,
+    });
+  }
+  if (value.automatica === true && value.pausaMotivo != null) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["pausaMotivo"],
+      message: PAUSE_NEEDS_MANUAL,
+    });
+  }
+}
+
+// At creation (design 18 §3, design 48 §3.2): the verification and either
+// `automatica` or the former level, with no default; the other fields are
+// optional.
+export const automationInput = z
+  .object({
     level: z
       .enum(AUTOMATION_LEVELS)
-      .exclude(["completa"])
+      .optional()
       .openapi({ description: LEVEL_DESCRIPTION }),
+    automatica: z
+      .boolean()
+      .optional()
+      .openapi({ description: AUTOMATICA_DESCRIPTION }),
     verification: z
       .boolean()
       .openapi({ description: VERIFICATION_DESCRIPTION }),
-  }),
-] as const;
-
-export const automationInput = z
-  .discriminatedUnion("level", automationVariants)
+    ...fieldInputs,
+  })
+  .superRefine((value, ctx) => {
+    if (value.level === undefined && value.automatica === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["automatica"],
+        message: "`automatica` or `level` is required",
+      });
+    }
+    checkFields(value, ctx);
+  })
   .openapi({
     description:
-      "The task's automation level and verification (Intelia fork). Required when creating a task, with no default. `completa` requires verification.",
+      "The task's automation (Intelia fork, design 48 §3.2). Required when creating a task, with no default: the verification and `automatica` (or the former `level`). `completa` requires verification.",
   });
 
 // Who an API key's caller acts for, logged as given: the gateway has already
 // checked it in the graph; Kaneo does not. An invalid one is dropped, never an
 // error, so it cannot block a write the gateway allowed.
-const DECLARED_ACTOR = /^(agent|person):[a-z0-9-]+$/;
-
 // Shared by every write that takes a declared actor (initiatives too).
 export const declaredActorInput = z
   .preprocess(
@@ -66,10 +164,28 @@ export const declaredActorInput = z
     example: "agent:orq-jaime",
   });
 
-export const putAutomationInput = z.intersection(
-  automationInput,
-  z.object({ actor: declaredActorInput }),
-);
+// A change (design 48 §3.2): any subset of the fields; what is omitted stays,
+// null clears an optional one. The service resolves it against the stored
+// value (the first time it needs the verification and `automatica` or
+// `level`).
+export const putAutomationInput = z
+  .object({
+    level: z
+      .enum(AUTOMATION_LEVELS)
+      .optional()
+      .openapi({ description: LEVEL_DESCRIPTION }),
+    automatica: z
+      .boolean()
+      .optional()
+      .openapi({ description: AUTOMATICA_DESCRIPTION }),
+    verification: z
+      .boolean()
+      .optional()
+      .openapi({ description: VERIFICATION_DESCRIPTION }),
+    ...fieldInputs,
+    actor: declaredActorInput,
+  })
+  .superRefine(checkFields);
 
 export const automationHistoryQuery = z.object({
   limit: pagingNumber(1, 200, 50).openapi({
