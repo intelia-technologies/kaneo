@@ -18,6 +18,7 @@ import {
   routineTable,
 } from "../../apps/api/src/intelia/schema";
 import { runDueRoutines } from "../../apps/api/src/intelia/routines/scheduler";
+import { sendToStatusWebhooks } from "../../apps/api/src/intelia/webhooks";
 import {
   ROUTINE_SERVICE_EMAIL,
   ROUTINE_SERVICE_ID,
@@ -163,6 +164,23 @@ function afterNextRun(routine: { nextRunAt: string }) {
   return new Date(new Date(routine.nextRunAt).getTime() + 1_000);
 }
 
+function setWorkspaceArchived(workspaceId: string, archived: boolean) {
+  return db
+    .update(schema.workspaceTable)
+    .set({ archivedAt: archived ? new Date() : null })
+    .where(eq(schema.workspaceTable.id, workspaceId));
+}
+
+function disableIntegrations(types: string[]) {
+  return db
+    .insert(schema.instanceSettingsTable)
+    .values({ disabledIntegrations: types })
+    .onConflictDoUpdate({
+      target: schema.instanceSettingsTable.id,
+      set: { disabledIntegrations: types },
+    });
+}
+
 describe("API integration: Intelia routines", () => {
   it("reopens a closed task to In progress as svc-rutinas and the webhook gets task.status_changed", async () => {
     const { task, app, user } = await setup();
@@ -278,6 +296,111 @@ describe("API integration: Intelia routines", () => {
     await Promise.all([runDueRoutines(tick), runDueRoutines(tick)]);
 
     expect(await runs(routine.id)).toHaveLength(1);
+  });
+
+  describe("archived workspaces and providers turned off", () => {
+    it("leaves a closed task of an archived workspace closed and keeps its tick for when it is unarchived", async () => {
+      const { task, app, workspace } = await setup();
+      const routine = await scheduleEveryMinute(app, task.id);
+      const tick = afterNextRun(routine);
+      await setWorkspaceArchived(workspace.id, true);
+
+      expect(await runDueRoutines(tick)).toEqual({ degraded: false });
+
+      expect(await taskStatus(task.id)).toBe("done");
+      expect(await runs(routine.id)).toHaveLength(0);
+      const [stored] = await db
+        .select()
+        .from(routineTable)
+        .where(eq(routineTable.id, routine.id));
+      expect(stored).toMatchObject({ active: true, lastRunAt: null });
+      expect(stored!.nextRunAt.toISOString()).toBe(routine.nextRunAt);
+      expect(deliveries).toHaveLength(0);
+
+      await setWorkspaceArchived(workspace.id, false);
+      await runDueRoutines(tick);
+
+      expect(await taskStatus(task.id)).toBe("in-progress");
+      expect((await runs(routine.id)).map((run) => run.result)).toEqual([
+        "reabierta",
+      ]);
+    });
+
+    it("does not skip an open task of an archived workspace nor send intelia.routine_skipped", async () => {
+      const { task, app, workspace } = await setup({ status: "in-progress" });
+      const routine = await scheduleEveryMinute(app, task.id);
+      await setWorkspaceArchived(workspace.id, true);
+
+      await runDueRoutines(afterNextRun(routine));
+
+      expect(await taskStatus(task.id)).toBe("in-progress");
+      expect(await runs(routine.id)).toHaveLength(0);
+      expect(deliveries).toHaveLength(0);
+    });
+
+    it("runs the routines of other workspaces while one is archived", async () => {
+      const archived = await setup();
+      const archivedRoutine = await scheduleEveryMinute(
+        archived.app,
+        archived.task.id,
+      );
+      const active = await setup();
+      const activeRoutine = await scheduleEveryMinute(
+        active.app,
+        active.task.id,
+      );
+      await setWorkspaceArchived(archived.workspace.id, true);
+
+      await runDueRoutines(
+        afterNextRun({
+          nextRunAt: [archivedRoutine.nextRunAt, activeRoutine.nextRunAt]
+            .sort()
+            .at(-1)!,
+        }),
+      );
+
+      expect(await taskStatus(archived.task.id)).toBe("done");
+      expect(await runs(archivedRoutine.id)).toHaveLength(0);
+      expect(await taskStatus(active.task.id)).toBe("in-progress");
+      expect((await runs(activeRoutine.id))[0]?.result).toBe("reabierta");
+    });
+
+    it("does not send our events to the webhooks of an archived workspace", async () => {
+      const { task, project, workspace } = await setup({
+        status: "in-progress",
+      });
+      await setWorkspaceArchived(workspace.id, true);
+
+      await sendToStatusWebhooks("intelia.test", task.id, project.id, null, {});
+      expect(deliveries).toHaveLength(0);
+
+      await setWorkspaceArchived(workspace.id, false);
+      await sendToStatusWebhooks("intelia.test", task.id, project.id, null, {});
+      expect(deliveries.map((d) => d.body.event)).toEqual(["intelia.test"]);
+    });
+
+    it("does not send intelia.routine_skipped while the generic webhook provider is turned off", async () => {
+      const { task, app } = await setup({ status: "in-progress" });
+      const routine = await scheduleEveryMinute(app, task.id);
+      await disableIntegrations(["generic-webhook"]);
+
+      await runDueRoutines(afterNextRun(routine));
+
+      expect((await runs(routine.id))[0]?.result).toBe("saltada_abierta");
+      expect(deliveries).toHaveLength(0);
+    });
+
+    it("still sends intelia.routine_skipped when only other providers are turned off", async () => {
+      const { task, app } = await setup({ status: "in-progress" });
+      const routine = await scheduleEveryMinute(app, task.id);
+      await disableIntegrations(["slack", "github"]);
+
+      await runDueRoutines(afterNextRun(routine));
+
+      expect(
+        deliveries.filter((d) => d.body.event === "intelia.routine_skipped"),
+      ).toHaveLength(1);
+    });
   });
 
   it("closes the history row when the task reaches Done", async () => {

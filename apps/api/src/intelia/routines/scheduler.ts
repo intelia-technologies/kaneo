@@ -1,8 +1,9 @@
-import { and, asc, eq, lte } from "drizzle-orm";
+import { and, asc, eq, exists, lte } from "drizzle-orm";
 import db from "../../database";
 import { taskTable, userTable } from "../../database/schema";
 import updateTaskStatus from "../../task/controllers/update-task-status";
 import { taskIsCompleted } from "../../task/task-is-completed";
+import { projectInActiveWorkspace } from "../../workspace/archive/active-workspace-sql";
 import { type RoutineResult, routineRunTable, routineTable } from "../schema";
 import { sendToStatusWebhooks } from "../webhooks";
 import { nextRunAt } from "./schedule";
@@ -24,9 +25,27 @@ type DueRoutine = {
   ownerName: string | null;
 };
 
+// True while the routine's task belongs to a workspace that is not archived.
+// An archived workspace pauses its routines without consuming their tick: on
+// unarchiving, a routine that is due runs once, like after missed ticks.
+function routineTaskInActiveWorkspace() {
+  return exists(
+    db
+      .select({ id: taskTable.id })
+      .from(taskTable)
+      .where(
+        and(
+          eq(taskTable.id, routineTable.taskId),
+          projectInActiveWorkspace(taskTable.projectId),
+        ),
+      ),
+  );
+}
+
 // Runs every minute (registered in apps/api/src/scheduler/index.ts). Each due
 // routine runs once, however many ticks were missed, and is rescheduled from
 // `now`. If the service account fails its checks, the tick reopens nothing.
+// Routines of archived workspaces are left alone (routineTaskInActiveWorkspace).
 export async function runDueRoutines(
   now = new Date(),
 ): Promise<{ degraded: boolean }> {
@@ -42,7 +61,13 @@ export async function runDueRoutines(
     })
     .from(routineTable)
     .leftJoin(userTable, eq(routineTable.ownerId, userTable.id))
-    .where(and(eq(routineTable.active, true), lte(routineTable.nextRunAt, now)))
+    .where(
+      and(
+        eq(routineTable.active, true),
+        lte(routineTable.nextRunAt, now),
+        routineTaskInActiveWorkspace(),
+      ),
+    )
     .orderBy(asc(routineTable.nextRunAt));
 
   if (due.length === 0) return { degraded: false };
@@ -93,6 +118,7 @@ async function runRoutine(
         eq(routineTable.id, routine.id),
         eq(routineTable.active, true),
         eq(routineTable.nextRunAt, routine.nextRunAt),
+        routineTaskInActiveWorkspace(),
       ),
     )
     .returning({ id: routineTable.id });

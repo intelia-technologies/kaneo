@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import db from "../database";
 import { integrationTable } from "../database/schema";
+import { activeIntegrationCondition } from "../plugins/active-integration-condition";
 import {
   type GenericWebhookConfig,
   normalizeGenericWebhookConfig,
@@ -11,6 +12,8 @@ import { sendEvent } from "../plugins/generic-webhook/events";
  * Sends one of our events with upstream's generic webhook (same envelope and
  * X-Kaneo-Signature) to every active generic webhook of the project that sends
  * task.status_changed: upstream's configuration has no box for our events.
+ * "Active" is upstream's activeIntegrationCondition: enabled, workspace not
+ * archived and provider not turned off by an administrator.
  * Bodies documented in README-INTELIA.md.
  */
 export async function sendToStatusWebhooks(
@@ -27,7 +30,7 @@ export async function sendToStatusWebhooks(
       and(
         eq(integrationTable.projectId, projectId),
         eq(integrationTable.type, "generic-webhook"),
-        eq(integrationTable.isActive, true),
+        activeIntegrationCondition(),
       ),
     );
   for (const integration of integrations) {
