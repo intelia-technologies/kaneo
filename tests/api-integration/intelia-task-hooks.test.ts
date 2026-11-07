@@ -141,6 +141,7 @@ async function seed() {
     await db.insert(taskAutomationTable).values({
       taskId: id,
       level: "manual",
+      automatica: false,
       verification: true,
       source: "migration",
     });
@@ -287,6 +288,7 @@ describe("Intelia hooks on public.task", () => {
       db.insert(taskAutomationTable).values({
         taskId: "no-such-task",
         level: "manual",
+        automatica: false,
         verification: true,
         source: "migration",
       }),

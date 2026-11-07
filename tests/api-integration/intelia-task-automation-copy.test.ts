@@ -132,6 +132,7 @@ async function seedLevel(
   await db.insert(taskAutomationTable).values({
     taskId,
     level,
+    automatica: level !== "manual",
     verification,
     source: by.source,
     setByUserId: by.userId ?? null,

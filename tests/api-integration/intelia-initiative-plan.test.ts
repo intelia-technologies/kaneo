@@ -66,6 +66,7 @@ async function seedTask(projectId: string, fields: TaskFields = {}) {
     await db.insert(taskAutomationTable).values({
       taskId: task.id,
       level,
+      automatica: level !== "manual",
       verification: level === "completa",
       source: "session",
     });

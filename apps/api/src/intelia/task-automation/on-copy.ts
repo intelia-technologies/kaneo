@@ -4,6 +4,7 @@ import { ApiError } from "../../errors/api-error";
 import { taskAutomationTable } from "../schema";
 import { AUTOMATION_OPTIONAL_ENV } from "./on-create";
 import {
+  type AutomationPatch,
   type AutomationValue,
   type AutomationWriter,
   type Transaction,
@@ -17,12 +18,28 @@ import {
  * occurrence has no request and passes `undefined`: it follows its template.
  */
 export type CopyAutomation = {
-  explicit?: AutomationValue;
+  explicit?: AutomationPatch;
   writer: AutomationWriter;
 };
 
 // The level of a task whose level nobody chose (design 18 §3).
-const BACKFILL_VALUE: AutomationValue = { level: "manual", verification: true };
+const BACKFILL_VALUE: AutomationPatch = {
+  level: "manual",
+  verification: true,
+};
+
+// What a copy inherits (design 48 §3.2): what the planner chose and who is
+// responsible. A new task is not paused, nobody has worked on it yet and it
+// comes from no column.
+function inherited(source: AutomationValue): AutomationPatch {
+  return {
+    level: source.level,
+    verification: source.verification,
+    automatica: source.automatica,
+    entrega: source.entrega,
+    responsable: source.responsable,
+  };
+}
 
 function readAutomation(executor: typeof db | Transaction, taskId: string) {
   return executor
@@ -47,12 +64,10 @@ async function resolveCopyValue(
   executor: typeof db | Transaction,
   sourceTaskId: string,
   { explicit }: CopyAutomation,
-): Promise<AutomationValue | null> {
+): Promise<AutomationPatch | null> {
   if (explicit) return explicit;
   const source = await readAutomation(executor, sourceTaskId);
-  if (source) {
-    return { level: source.level, verification: source.verification };
-  }
+  if (source) return inherited(source);
   // The test exception of task creation covers the copy of a level-less task.
   return process.env[AUTOMATION_OPTIONAL_ENV] === "true"
     ? BACKFILL_VALUE
@@ -91,16 +106,11 @@ export async function writeCopyAutomation(
         writer: { source: "migration" },
       });
     }
-    return writeAutomationAs(
-      tx,
-      copyTaskId,
-      { level: template.level, verification: template.verification },
-      {
-        source: template.source,
-        userId: template.setByUserId,
-        actor: template.setByActor,
-      },
-    );
+    return writeAutomationAs(tx, copyTaskId, inherited(template), {
+      source: template.source,
+      userId: template.setByUserId,
+      actor: template.setByActor,
+    });
   }
   const value = await resolveCopyValue(tx, sourceTaskId, copy);
   if (!value) throw missingLevel();

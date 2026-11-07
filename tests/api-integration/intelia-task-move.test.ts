@@ -122,6 +122,7 @@ async function setup() {
   await db.insert(taskAutomationTable).values({
     taskId: task.id,
     level: "completa",
+    automatica: true,
     verification: true,
     setByUserId: user.id,
     source: "session",
