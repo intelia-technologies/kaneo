@@ -85,8 +85,15 @@ it("translates manual to automatica no and arranque and completa to yes, keeps t
   const journalPath = join(inteliaFolder, "meta", "_journal.json");
   const fullJournal = readFileSync(journalPath, "utf8");
   const journal = JSON.parse(fullJournal) as {
-    entries: Array<{ tag: string }>;
+    entries: Array<{ tag: string; when: number }>;
   };
+  // Drizzle only applies entries newer than the last applied one: each `when`
+  // must be greater than the one before, 0013 after KF-10's 0012.
+  for (const [i, entry] of journal.entries.entries()) {
+    if (i > 0) {
+      expect(entry.when).toBeGreaterThan(journal.entries[i - 1]!.when);
+    }
+  }
   const fieldsIndex = journal.entries.findIndex(
     (entry) => entry.tag === FIELDS_TAG,
   );

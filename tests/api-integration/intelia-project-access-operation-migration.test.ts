@@ -124,7 +124,10 @@ it("keeps the stored operations and applies upstream v2.49.0's migrations when u
   const upstreamEntries = readJournal(upstreamFolder).entries;
   const inteliaEntries = readJournal(inteliaFolder).entries;
   expect(upstreamEntries.some((entry) => entry.tag === OLD_TAG)).toBe(false);
-  expect(inteliaEntries.at(-1)?.tag).toBe(NEW_TAG);
+  // Later intelia migrations (0013…) come after it, so the old image had none
+  // of them.
+  const newIndex = inteliaEntries.findIndex((entry) => entry.tag === NEW_TAG);
+  expect(newIndex).toBeGreaterThan(0);
   // Upstream's new migrations must be newer than the old row in
   // drizzle.__drizzle_migrations, or Drizzle would skip them.
   const newUpstream = upstreamEntries.filter((entry) => entry.idx >= 67);
@@ -149,7 +152,7 @@ it("keeps the stored operations and applies upstream v2.49.0's migrations when u
     ];
   });
   rewriteJournal(oldIntelia, (journal) => {
-    journal.entries = journal.entries.filter((entry) => entry.tag !== NEW_TAG);
+    journal.entries = journal.entries.slice(0, newIndex);
   });
   await migrate(db, { migrationsFolder: oldUpstream });
   await migrateInteliaSchema(db, oldIntelia);
