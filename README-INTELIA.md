@@ -85,6 +85,7 @@ Las transiciones a `queued`, `in-progress`, `in-review` y `ready-to-merge` recha
 El proceso de puesta al día está automatizado mediante `.github/workflows/intelia-upstream-sync.yml` y `scripts/ci/intelia-upstream-sync.mjs`:
 
 - **Automatización semanal:** se ejecuta cada lunes a las 05:00 UTC (`0 5 * * 1`) y bajo demanda (`workflow_dispatch`). Funciona exclusivamente con `GITHUB_TOKEN` (sin credenciales ni GitHub App).
+- **Protección al actualizar `main`:** `intelia-disable-workflows.yml` ejecuta `disable-workflows` en cada push a `main`, además de la limpieza semanal. Desactiva los workflows activos fuera de la lista blanca y cancela sus ejecuciones `queued` y `waiting`, incluso si ya estaban desactivados; comprueba que terminan como `cancelled`. Si GitHub rechaza un run zombi con `not queued yet`, deja un aviso para intervención manual. Los demás fallos hacen fallar el job. La limpieza es asíncrona: no impide que un workflow de upstream ya disparado empiece antes de que termine.
 - **Preparación del merge:** detecta la última release de upstream (o la referencia del input `upstream_ref`) y prepara el merge en el runner. No abre PR: la factory lee el mismo resultado, avisa y se abre la tarea de adopción. No resuelve ningún conflicto por su cuenta: como el fork toca pocas líneas de upstream (ver «Ficheros de upstream que toca el fork»; `ci.yml` no, que está desactivado), el merge de un tag de upstream normalmente es limpio.
 - **Estados de sincronización:**
   - `uptodate`: la última versión de upstream ya es ancestro de `main`. No requiere acción.
@@ -134,7 +135,7 @@ Pasos de adopción:
    - **Tests live de la factory en verde:** verificar que la suite de tests de la factory (`Kaneo candidate`) pasa contra la imagen candidata `candidate-<sha12>` (ejecutados en el repositorio privado de la factory).
    - **Revisión de cambios propios:** inspeccionar `git diff vX.Y.Z HEAD` para confirmar que solo quedan ficheros nuestros (`README-INTELIA.md`, los `intelia-*` y los de `intelia/`) y los ganchos listados en «Ficheros de upstream que toca el fork», sin cambios de upstream perdidos en el merge.
    - **Drizzle:** verificar que no existan migraciones propias en `apps/api/drizzle/` ni conflictos de secuencia en `meta/_journal.json`.
-   - **Workflows nuevos de upstream:** revisar los workflows nuevos listados en el resumen del merge; el job semanal los desactiva de todos modos si llegan a registrarse activos.
+   - **Workflows nuevos de upstream:** revisar los workflows nuevos listados en el resumen del merge; tras el push a `main`, comprobar que `intelia-disable-workflows.yml` termina correctamente y atender sus avisos.
 4. **Merge de la PR:** Forja mergea la PR hacia `main` usando siempre **merge commit** (nunca squash ni rebase).
 5. **Etiquetar release en main:** tras el merge, traer `main` y comprobar que ya contiene la versión de upstream antes de etiquetar (si no, el tag iría a un commit anterior al merge y `intelia-release.yml` lo rechazaría):
    ```sh
@@ -165,6 +166,7 @@ gh workflow list -R intelia-technologies/kaneo --all --json path,state \
 | `intelia-secret-scan.yml` | lunes 04:17 UTC y a mano | TruffleHog sobre todo el historial de `main`. |
 | `intelia-release.yml` | tag `vX.Y.Z-intelia.N` | ver «Versión». |
 | `intelia-upstream-sync.yml` | lunes 05:00 UTC y a mano | `disable-workflows` (lista blanca) y preparación del merge de upstream (ver «Puesta al día con upstream»). |
+| `intelia-disable-workflows.yml` | cada push a `main` | desactiva workflows fuera de la lista blanca y cancela sus ejecuciones pendientes. |
 | `intelia-candidate.yml` | PR desde `intelia/upstream-*` y lo llama la puesta al día | imagen candidata `candidate-<sha12>` para los tests de la factory. |
 | CodeQL (setup por defecto) | cada PR y push a `main`, y semanal | solo `javascript-typescript` (Settings → Code security → CodeQL analysis). |
 

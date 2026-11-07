@@ -241,10 +241,8 @@ function gitLines(args) {
   return execGit(args).trim().split("\n").filter(Boolean);
 }
 
-// Workflows the fork runs: ours (`intelia-*`) and GitHub's default CodeQL setup. Every
-// other workflow (upstream's, ci.yml included, today and any it adds later) must stay
-// disabled; GitHub only registers a workflow, and lets us disable it, after its first
-// event, so the weekly job keeps enforcing this.
+// Only Intelia workflows and GitHub's default CodeQL setup may run in the fork.
+// GitHub registers a workflow after its first event, so cleanup must be repeated.
 export function isAllowedWorkflow(path) {
   return (
     /^\.github\/workflows\/intelia-[\w.-]+\.ya?ml$/.test(path) ||
@@ -466,17 +464,61 @@ export async function prepare(opts = {}) {
   });
 }
 
-export function disableWorkflows() {
+export async function disableWorkflows() {
   const repo = process.env.GITHUB_REPOSITORY;
-  const targets = workflowsToDisable(listWorkflows(repo));
+  const workflows = listWorkflows(repo);
+  const targets = workflowsToDisable(workflows);
   for (const w of targets) {
     execFileSync(
       "gh",
       ["api", "-X", "PUT", `repos/${repo}/actions/workflows/${w.id}/disable`],
-      {
-        stdio: ["ignore", "pipe", "pipe"],
-      },
+      { stdio: ["ignore", "pipe", "pipe"] },
     );
+  }
+  const runs = [];
+  for (const workflow of workflows.filter((w) => !isAllowedWorkflow(w.path))) {
+    for (const status of ["queued", "waiting"]) {
+      const pages = JSON.parse(execFileSync("gh", [
+        "api", "--paginate", "--slurp",
+        `repos/${repo}/actions/workflows/${workflow.id}/runs?status=${status}&per_page=100`,
+      ], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+      runs.push(...pages.flatMap((page) => page.workflow_runs));
+    }
+  }
+  const requested = [];
+  for (const run of new Map(runs.map((run) => [run.id, run])).values()) {
+    const endpoint = `repos/${repo}/actions/runs/${run.id}`;
+    try {
+      execFileSync("gh", ["api", "-X", "POST", `${endpoint}/cancel`], {
+        encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error) {
+      if (/not queued yet/i.test(String(error.stderr))) {
+        console.warn(`::warning::Run ${run.id} no se puede cancelar: not queued yet`);
+        continue;
+      }
+      throw error;
+    }
+    requested.push(run);
+  }
+  for (const run of requested) {
+    const endpoint = `repos/${repo}/actions/runs/${run.id}`;
+    let cancelled = false;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const current = JSON.parse(execFileSync("gh", ["api", endpoint], {
+        encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+      }));
+      if (current.status === "completed") {
+        if (current.conclusion !== "cancelled") {
+          throw new Error(`Run ${run.id} terminó con ${current.conclusion}, no cancelled`);
+        }
+        cancelled = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    if (!cancelled) throw new Error(`Run ${run.id} no alcanzó cancelled`);
+    console.log(`Run ${run.id}: cancelled`);
   }
   const after = listWorkflows(repo);
   const stillActive = workflowsToDisable(after).map((w) => w.path);
@@ -511,7 +553,7 @@ async function main() {
     const parsed = parsePrepareArgs(process.argv.slice(3));
     await prepare(parsed);
   } else if (subcommand === "disable-workflows") {
-    disableWorkflows();
+    await disableWorkflows();
   } else {
     console.error(
       "Usage: node scripts/ci/intelia-upstream-sync.mjs <prepare|disable-workflows> [options] [ref]",
