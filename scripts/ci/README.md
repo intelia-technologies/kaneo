@@ -49,11 +49,27 @@ branch protection.
 
 ## Dependency updates
 
-The hosted Mend Renovate GitHub App handles npm and GitHub Actions updates from `renovate.json`.
+The hosted Mend Renovate GitHub App handles npm, GitHub Actions, and Dockerfile updates from `renovate.json`.
+Docker updates stay on the maintained Node 24 and stable Nginx 1.30 lines.
+Check upstream security floors before approving a change of release line.
+Keep GitHub's dependency graph and Dependabot alerts enabled: Renovate reads that
+alert feed for security updates; replacing the updater does not replace detection.
+The **Dependency graph** workflow submits both resolved pnpm graphs on trusted
+main-branch updates. pnpm 12 writes multiple YAML documents, which GitHub's
+static lockfile parser currently misses
+([upstream issue](https://github.com/pnpm/pnpm/issues/13805)).
+Manifest-only detection omits transitive dependencies and the isolated browser
+runner. The submission reads the actual application graph in each lockfile,
+keeps their manifests separate, and refuses invalid or empty graphs. Submission
+permissions are confined to the trusted-main workflow; PR checks validate the
+payload builder without writing to GitHub.
 Routine PR creation is allowed Monday 00:00–06:00 UTC, subject to hosted App availability.
-npm minor and patch updates are grouped; Actions minor, patch, digest, and pin updates are grouped.
-Majors remain separate, Actions retain full SHA pins, and all updates require manual merge.
-PRs generated from GitHub vulnerability alerts bypass the routine schedule; detection and immediate creation of every security fix are not guaranteed.
+Routine npm updates wait seven days and group related package families, with patches and minors on separate branches.
+Unrelated npm updates stay separate; at most three routine dependency PRs remain open at once.
+Majors and replacements require Dependency Dashboard approval before PR creation.
+Actions non-major updates remain grouped, including digest pinning, and retain full SHA pins.
+All updates require manual merge.
+PRs generated from GitHub vulnerability alerts bypass the routine schedule, release-age delay, dashboard approval, and routine PR limit; detection and immediate creation of every security fix are not guaranteed.
 Root npm updates include the pnpm workspace/catalog and root lockfile; `tests/e2e`, `scripts/slop-labeler`, and `scripts/ui-review-bot` keep independent locks.
 CI frozen-lockfile checks catch inconsistencies.
 See the owner cutover steps in [the contribution guide](../../CONTRIBUTING.md#contribution-eligibility).
@@ -88,14 +104,18 @@ appear in advisory scanners because its upstream version has not changed;
 record the advisory, patch, and regression evidence instead of changing package
 versions to hide the finding.
 
-The root backports cover Node-forge's nested DigestAlgorithm validation
-([GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv),
-[upstream fix](https://github.com/digitalbazaar/forge/pull/1152)) and bounded
-collection validation in Zod 3, including its embedded Zod 4 exports
+The root backports cover deepmerge's result-prototype poisoning
+([GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4))
+and bounded collection validation in Zod 3, including its embedded Zod 4 exports
 ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5),
 [upstream fix](https://github.com/colinhacks/zod/pull/6652),
-[Zod 3 tracking](https://github.com/colinhacks/zod/issues/6653)). Run
-`pnpm test:security:dependencies` against the installed dependency graph.
+[Zod 3 tracking](https://github.com/colinhacks/zod/issues/6653)).
+The deepmerge patch drops `__proto__` keys both while cloning the target and
+merging the source, including its CommonJS and browser entries. It leaves
+ordinary keys, symbols, array options, and custom merges intact.
+Forge 1.4.2 replaces our earlier signature-verification backport. Keep its
+DigestInfo regression cases and Buffer-PEM compatibility test when updating it.
+Run `pnpm test:security:dependencies` against the installed dependency graph.
 Remove a backport only when its replacement passes the same regression cases.
 The BrowserStack cache-policy patch and its removal conditions are documented
 in [the test workspace](../../tests/e2e/patches/README.md); run its checks with
