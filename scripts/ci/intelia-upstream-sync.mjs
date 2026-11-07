@@ -478,10 +478,18 @@ export async function disableWorkflows() {
   const runs = [];
   for (const workflow of workflows.filter((w) => !isAllowedWorkflow(w.path))) {
     for (const status of ["queued", "waiting"]) {
-      const pages = JSON.parse(execFileSync("gh", [
-        "api", "--paginate", "--slurp",
-        `repos/${repo}/actions/workflows/${workflow.id}/runs?status=${status}&per_page=100`,
-      ], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+      const pages = JSON.parse(
+        execFileSync(
+          "gh",
+          [
+            "api",
+            "--paginate",
+            "--slurp",
+            `repos/${repo}/actions/workflows/${workflow.id}/runs?status=${status}&per_page=100`,
+          ],
+          { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+        ),
+      );
       runs.push(...pages.flatMap((page) => page.workflow_runs));
     }
   }
@@ -490,11 +498,14 @@ export async function disableWorkflows() {
     const endpoint = `repos/${repo}/actions/runs/${run.id}`;
     try {
       execFileSync("gh", ["api", "-X", "POST", `${endpoint}/cancel`], {
-        encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
       });
     } catch (error) {
       if (/not queued yet/i.test(String(error.stderr))) {
-        console.warn(`::warning::Run ${run.id} no se puede cancelar: not queued yet`);
+        console.warn(
+          `::warning::Run ${run.id} no se puede cancelar: not queued yet`,
+        );
         continue;
       }
       throw error;
@@ -505,12 +516,17 @@ export async function disableWorkflows() {
     const endpoint = `repos/${repo}/actions/runs/${run.id}`;
     let cancelled = false;
     for (let attempt = 0; attempt < 10; attempt++) {
-      const current = JSON.parse(execFileSync("gh", ["api", endpoint], {
-        encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
-      }));
+      const current = JSON.parse(
+        execFileSync("gh", ["api", endpoint], {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+        }),
+      );
       if (current.status === "completed") {
         if (current.conclusion !== "cancelled") {
-          throw new Error(`Run ${run.id} terminó con ${current.conclusion}, no cancelled`);
+          throw new Error(
+            `Run ${run.id} terminó con ${current.conclusion}, no cancelled`,
+          );
         }
         cancelled = true;
         break;

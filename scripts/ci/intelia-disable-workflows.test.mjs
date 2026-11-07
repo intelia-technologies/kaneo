@@ -13,7 +13,9 @@ function exercise(mode) {
   try {
     const state = path.join(dir, "state.json");
     fs.writeFileSync(state, JSON.stringify({ disabled: false, calls: [] }));
-    fs.writeFileSync(path.join(dir, "gh"), `#!/usr/bin/env node
+    fs.writeFileSync(
+      path.join(dir, "gh"),
+      `#!/usr/bin/env node
 import fs from 'node:fs';
 const state = JSON.parse(fs.readFileSync(process.env.TEST_STATE));
 const args = process.argv.slice(2);
@@ -38,9 +40,19 @@ if (endpoint.includes('/workflows?')) {
   console.log(JSON.stringify({status:'completed', conclusion: process.env.TEST_MODE === 'not-cancelled' ? 'success' : 'cancelled'}));
 } else { console.error('unexpected: ' + endpoint); process.exit(1); }
 save();
-`, { mode: 0o755 });
+`,
+      { mode: 0o755 },
+    );
     const result = spawnSync(process.execPath, [script, "disable-workflows"], {
-      cwd: root, encoding: "utf8", env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_REPOSITORY: "test/repo", TEST_STATE: state, TEST_MODE: mode },
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${dir}:${process.env.PATH}`,
+        GITHUB_REPOSITORY: "test/repo",
+        TEST_STATE: state,
+        TEST_MODE: mode,
+      },
     });
     return { result, calls: JSON.parse(fs.readFileSync(state, "utf8")).calls };
   } finally {
@@ -56,7 +68,9 @@ test("disable and verify cancellation for active and already disabled upstream w
   assert.match(result.stdout, /Run 103: cancelled/);
   assert.ok(calls.some((a) => a.at(-1).endsWith("/workflows/1/disable")));
   assert.ok(!calls.some((a) => a.at(-1).includes("/workflows/3/")));
-  assert.ok(calls.some((a) => a.at(-1).includes("/workflows/2/runs?status=waiting")));
+  assert.ok(
+    calls.some((a) => a.at(-1).includes("/workflows/2/runs?status=waiting")),
+  );
 });
 
 test("zombie cancellation is a warning but other runs are checked", () => {
