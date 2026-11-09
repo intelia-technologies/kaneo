@@ -10,6 +10,7 @@ import { toast } from "@/lib/toast";
 import useProjectStore from "@/store/project";
 import type { ProjectWithTasks } from "@/types/project";
 import { ArchiveTasksModal } from "../../shared/modals/archive-tasks-modal";
+import { isRequestedStatus } from "@/intelia/requests/status";
 
 type ColumnHeaderProps = {
   column: ProjectWithTasks["columns"][number];
@@ -83,7 +84,8 @@ export function ColumnHeader({
             <Archive className="size-3.5" />
           </button>
         )}
-        {canCreate && (
+        {/* Intelia: requests reach «Pedida» by API, never by hand. */}
+        {canCreate && !isRequestedStatus(column.id) && (
           <button
             type="button"
             onClick={() => setIsTaskModalOpen(true)}

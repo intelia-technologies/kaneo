@@ -73,3 +73,21 @@ it("prevents archive confirmation while the board is partial and uses the comple
   expect(m.mutate).toHaveBeenCalledTimes(2);
   expect(m.setProject).toHaveBeenCalledOnce();
 });
+it("offers «Add task» in an open column but never in «Pedida»", () => {
+  const column = (slug: string) =>
+    ({
+      id: slug,
+      name: slug,
+      slug,
+      isFinal: false,
+      tasks: [],
+    }) as unknown as ProjectWithTasks["columns"][number];
+  m.project = {
+    id: "p",
+    columns: [column("pedida"), column("to-do")],
+  } as ProjectWithTasks;
+  const { rerender } = render(<ColumnHeader column={column("to-do")} />);
+  expect(screen.queryByTitle(/addTask|Add task/)).not.toBeNull();
+  rerender(<ColumnHeader column={column("pedida")} />);
+  expect(screen.queryByTitle(/addTask|Add task/)).toBeNull();
+});

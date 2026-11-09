@@ -62,6 +62,11 @@ try {
   await page.goto(
     `${origin}/dashboard/workspace/${workspace.id}/project/${project.id}/board`,
   );
+  // Intelia (design 52 §3.2): «Pedida» is on the board but takes no task by
+  // hand: of the five columns, only the other four offer «Add task».
+  await page.getByText("Pedida", { exact: true }).first().waitFor();
+  await page.getByTitle("Add task", { exact: true }).first().waitFor();
+  assert.equal(await page.getByTitle("Add task", { exact: true }).count(), 4);
   await page.getByTitle("Add task", { exact: true }).first().click();
   const taskDialog = page.getByRole("dialog");
   await taskDialog
