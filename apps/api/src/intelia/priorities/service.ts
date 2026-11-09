@@ -334,8 +334,9 @@ export async function updatePriority(
     }
 
     if (input.projectIds !== undefined) {
-      const linked =
-        (await loadLinkedProjectIds(tx, [priorityId])).get(priorityId) ?? [];
+      const linked = unique(
+        (await loadLinkedProjectIds(tx, [priorityId])).get(priorityId) ?? [],
+      );
       const requested = unique(input.projectIds);
       await assertLinkableProjects(tx, workspaceId, writer, requested);
       const next = unique([

@@ -46,9 +46,9 @@ export type PriorityEvent = {
 /**
  * The body of the event, read inside the change's transaction, so it is the
  * state that change left. `affectedProjectIds` are the projects linked with
- * the priority or with any priority under it: the boards that show it, alone
- * or in a chain. Project ids only, never names: every webhook destination of
- * the workspace gets the event.
+ * the priority or with any priority under it, plus those the change unlinked:
+ * the boards that show it (alone or in a chain) or stop showing it. Project
+ * ids only, never names: every webhook destination of the workspace gets it.
  */
 export async function buildPriorityEvent(
   tx: Transaction,
@@ -65,6 +65,11 @@ export async function buildPriorityEvent(
   const links = await loadLinkedProjectIds(tx, [...subtree]);
   const affected = new Set<string>();
   for (const ids of links.values()) for (const id of ids) affected.add(id);
+  // A board the change unlinked stops showing it: that one is affected too.
+  const unlinked = change.previous?.projectIds;
+  if (Array.isArray(unlinked)) {
+    for (const id of unlinked) if (typeof id === "string") affected.add(id);
+  }
   const [workspace] = await tx
     .select({ id: workspaceTable.id, name: workspaceTable.name })
     .from(workspaceTable)
@@ -127,9 +132,15 @@ export async function sendPriorityEvent(event: PriorityEvent): Promise<void> {
     );
   const destinations = new Map<string, GenericWebhookConfig>();
   for (const integration of integrations) {
-    const config = normalizeGenericWebhookConfig(
-      JSON.parse(integration.config) as GenericWebhookConfig,
-    );
+    // One unreadable configuration must not cost the other destinations.
+    let config: GenericWebhookConfig;
+    try {
+      config = normalizeGenericWebhookConfig(
+        JSON.parse(integration.config) as GenericWebhookConfig,
+      );
+    } catch {
+      continue;
+    }
     if (!config.events?.taskStatusChanged || !config.webhookUrl) continue;
     destinations.set(`${config.webhookUrl}\n${config.secret ?? ""}`, config);
   }

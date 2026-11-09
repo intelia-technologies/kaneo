@@ -225,7 +225,7 @@ describe("priorities", () => {
     expect(reordered.status).toBe(200);
     expect(await reordered.json()).toMatchObject({ position: 0 });
 
-    // Edit text and close another in one change.
+    // Edit title and text in one change.
     const edited = await patch(app, child.id, {
       title: "Software Factory (SF)",
       body: "Archivar a las 24 h",
@@ -316,10 +316,10 @@ describe("priorities", () => {
     );
   });
 
-  it("tells the root's later changes to the projects of its descendants", async () => {
-    const { app, workspace, build } = await setup();
+  it("tells the root's later changes to the projects of its descendants, and an unlink to the project it leaves", async () => {
+    const { app, workspace, build, ops } = await setup();
     const root = await createPriority(app, workspace.id, { title: "Raíz" });
-    await createPriority(app, workspace.id, {
+    const child = await createPriority(app, workspace.id, {
       title: "Hija",
       parentId: root.id,
       projectIds: [build.id],
@@ -331,6 +331,15 @@ describe("priorities", () => {
     );
     const [event] = await waitForDeliveries(1);
     expect(event?.body.data.affectedProjectIds).toEqual([build.id]);
+
+    deliveries = [];
+    expect((await patch(app, child.id, { projectIds: [ops.id] })).status).toBe(
+      200,
+    );
+    const [moved] = await waitForDeliveries(1);
+    expect(moved?.body.data.affectedProjectIds).toEqual(
+      [build.id, ops.id].sort(),
+    );
   });
 
   it("lets a member read but not edit", async () => {
@@ -585,36 +594,46 @@ describe("priorities", () => {
     expect((await patch(app, mine.id, { title: "x" })).status).toBe(404);
   });
 
-  it("keeps the published contract samples in line with the API", async () => {
+  it("keeps the published contract samples in the shape of the real API", async () => {
     const response = JSON.parse(
       readFileSync(new URL("intelia-project-priorities.json", SAMPLES), "utf8"),
+    );
+    const sample = JSON.parse(
+      readFileSync(new URL("intelia-priority-changed.json", SAMPLES), "utf8"),
     );
     expect(() =>
       projectPrioritiesSchema.parse(reviveDates(response)),
     ).not.toThrow();
 
-    const sample = JSON.parse(
-      readFileSync(new URL("intelia-priority-changed.json", SAMPLES), "utf8"),
-    ) as Delivery["body"];
     const { app, workspace, build } = await setup();
     const root = await createPriority(app, workspace.id, { title: "Raíz" });
-    await createPriority(app, workspace.id, {
+    const child = await createPriority(app, workspace.id, {
       title: "Hija",
       parentId: root.id,
       projectIds: [build.id],
     });
-    const [, event] = await waitForDeliveries(2);
-    expect(Object.keys(event?.body ?? {}).sort()).toEqual(
-      Object.keys(sample).sort(),
-    );
-    expect(Object.keys(event?.body.priority ?? {}).sort()).toEqual(
-      Object.keys(sample.priority).sort(),
-    );
-    expect(Object.keys(event?.body.data ?? {}).sort()).toEqual(
-      Object.keys(sample.data).sort(),
+    expect((await patch(app, child.id, { body: "Texto" })).status).toBe(200);
+    const events = await waitForDeliveries(3);
+    const updated = events.find((d) => d.body.data.kind === "updated");
+    expect(shape(updated?.body)).toEqual(shape(sample));
+    expect(shape(await boardPriorities(app, build.id))).toEqual(
+      shape(response),
     );
   });
 });
+
+// Every key, nested; an array by its first element. Values are left out.
+function shape(value: unknown): unknown {
+  if (Array.isArray(value)) return [shape(value[0])];
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, entry]) => [key, shape(entry)]),
+    );
+  }
+  return typeof value;
+}
 
 // The sample is JSON as served; the response schema holds Dates.
 function reviveDates(value: unknown): unknown {
