@@ -85,6 +85,24 @@ describe("RequestSheet", () => {
     expect(mocks.mutate).toHaveBeenCalledWith("Gracias", expect.anything());
   });
 
+  it("does not carry a draft over to another request", () => {
+    mocks.request.mockReturnValue({
+      data: detail,
+      isLoading: false,
+      isError: false,
+    });
+    const { rerender } = render(
+      <RequestSheet taskId="task-1" onClose={vi.fn()} />,
+    );
+    const box = () =>
+      screen.getByRole("textbox", {
+        name: "intelia:requests.detail.reply",
+      }) as HTMLTextAreaElement;
+    fireEvent.change(box(), { target: { value: "Para la primera" } });
+    rerender(<RequestSheet taskId="task-2" onClose={vi.fn()} />);
+    expect(box().value).toBe("");
+  });
+
   it("says the request is gone when it can no longer be read", () => {
     mocks.request.mockReturnValue({
       data: undefined,

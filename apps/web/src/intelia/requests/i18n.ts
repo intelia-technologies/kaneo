@@ -4,7 +4,11 @@ const en = {
   requests: {
     title: "My requests",
     description:
-      "Tasks you asked of other boards, until they are done or rejected. Click one to follow it.",
+      "Tasks you asked of other boards, with their state. Click an open one to follow it.",
+    state: {
+      rejected: "Rejected",
+      cancelled: "Cancelled",
+    },
     task: "Task",
     project: "Project",
     status: "Status",
@@ -31,7 +35,11 @@ const es = {
   requests: {
     title: "Lo que he pedido",
     description:
-      "Las tareas que has pedido a otros tableros, hasta que se hacen o se rechazan. Haz clic en una para seguirla.",
+      "Las tareas que has pedido a otros tableros, con su estado. Haz clic en una abierta para seguirla.",
+    state: {
+      rejected: "Rechazada",
+      cancelled: "Cancelada",
+    },
     task: "Tarea",
     project: "Proyecto",
     status: "Estado",

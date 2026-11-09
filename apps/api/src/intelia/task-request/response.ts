@@ -52,6 +52,23 @@ export const requestDetailSchema = requestSummarySchema
   })
   .openapi("RequestDetail");
 
+export const myRequestSchema = requestSummarySchema
+  .extend({
+    state: z.enum(["open", "rejected", "cancelled"]).openapi({
+      description:
+        "`open` until the task reaches a cancelled column; then `rejected` if a rejection gave a reason, `cancelled` otherwise.",
+    }),
+    closedAt: nullableResponseTimestamp,
+    closedReason: z.string().nullable().openapi({
+      description: "The rejection's reason; null for an ordinary cancellation.",
+    }),
+    followable: z.boolean().openapi({
+      description:
+        "Whether the requester can still open and comment on the task (`GET /request/{taskId}`); false once closed.",
+    }),
+  })
+  .openapi("MyRequest");
+
 export const requestListSchema = z
-  .object({ requests: z.array(requestSummarySchema) })
+  .object({ requests: z.array(myRequestSchema) })
   .openapi("RequestList");

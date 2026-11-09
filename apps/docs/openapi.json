@@ -9660,12 +9660,57 @@
           "requests": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/RequestSummary"
+              "$ref": "#/components/schemas/MyRequest"
             }
           }
         },
         "required": [
           "requests"
+        ]
+      },
+      "MyRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RequestSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "rejected",
+                  "cancelled"
+                ],
+                "description": "`open` until the task reaches a cancelled column; then `rejected` if a rejection gave a reason, `cancelled` otherwise."
+              },
+              "closedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "closedReason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The rejection's reason; null for an ordinary cancellation."
+              },
+              "followable": {
+                "type": "boolean",
+                "description": "Whether the requester can still open and comment on the task (`GET /request/{taskId}`); false once closed."
+              }
+            },
+            "required": [
+              "state",
+              "closedAt",
+              "closedReason",
+              "followable"
+            ]
+          }
         ]
       }
     },
@@ -36224,7 +36269,7 @@
           "Requests"
         ],
         "summary": "Reject a requested task",
-        "description": "Moves a task in «Pedida» to its project's cancelled column. The requester loses access and gets a notice (`task_request_closed`) with the reason. Cancelling the task any other way closes the request too, with no reason.",
+        "description": "Moves a task in «Pedida» to its project's cancelled column (`cancelled` or `canceled`); a project without one gets a final «Cancelled» column, last. The requester loses access and gets a notice (`task_request_closed`) with the reason, and «My requests» lists it as rejected with that reason. Cancelling the task any other way closes the request too, with no reason.",
         "parameters": [
           {
             "schema": {
@@ -36308,7 +36353,7 @@
             }
           },
           "409": {
-            "description": "The task has no requester (`TASK_NOT_REQUESTED`), is not in «Pedida» (`TASK_NOT_PENDING_REQUEST`) or its project has no cancelled column (`NO_CANCELLED_COLUMN`)",
+            "description": "The task has no requester (`TASK_NOT_REQUESTED`) or is not in «Pedida» (`TASK_NOT_PENDING_REQUEST`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -36490,7 +36535,7 @@
           "Requests"
         ],
         "summary": "What I have asked for",
-        "description": "The caller's open requests in the workspace, in any project, newest first. Cancelled ones and those of archived projects are left out: their requester no longer has access.",
+        "description": "All the caller's requests in the workspace, in any project, newest first, with their state: `open`, `rejected` (with its reason) or `cancelled`. A closed request is listed but not followable: `GET /request/{taskId}` answers 404. Those of archived projects are left out.",
         "parameters": [
           {
             "schema": {

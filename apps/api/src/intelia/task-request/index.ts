@@ -109,7 +109,7 @@ const rejectRoute = createRoute({
   tags: ["Requests"],
   summary: "Reject a requested task",
   description:
-    "Moves a task in «Pedida» to its project's cancelled column. The requester loses access and gets a notice (`task_request_closed`) with the reason. Cancelling the task any other way closes the request too, with no reason.",
+    "Moves a task in «Pedida» to its project's cancelled column (`cancelled` or `canceled`); a project without one gets a final «Cancelled» column, last. The requester loses access and gets a notice (`task_request_closed`) with the reason, and «My requests» lists it as rejected with that reason. Cancelling the task any other way closes the request too, with no reason.",
   middleware: [
     workspaceAccess.fromTaskId("taskId"),
     requireWorkspacePermission({ task: ["update"] }),
@@ -127,7 +127,7 @@ const rejectRoute = createRoute({
     403: errorResponse("No access to the project or missing task:update"),
     404: errorResponse("Task not found"),
     409: errorResponse(
-      "The task has no requester (`TASK_NOT_REQUESTED`), is not in «Pedida» (`TASK_NOT_PENDING_REQUEST`) or its project has no cancelled column (`NO_CANCELLED_COLUMN`)",
+      "The task has no requester (`TASK_NOT_REQUESTED`) or is not in «Pedida» (`TASK_NOT_PENDING_REQUEST`)",
     ),
   },
 });
@@ -186,7 +186,7 @@ const listMyRequestsRoute = createRoute({
   tags: ["Requests"],
   summary: "What I have asked for",
   description:
-    "The caller's open requests in the workspace, in any project, newest first. Cancelled ones and those of archived projects are left out: their requester no longer has access.",
+    "All the caller's requests in the workspace, in any project, newest first, with their state: `open`, `rejected` (with its reason) or `cancelled`. A closed request is listed but not followable: `GET /request/{taskId}` answers 404. Those of archived projects are left out.",
   middleware: [
     workspaceAccess.fromParam("workspaceId"),
     requireWorkspacePermission({ task: ["read"] }),

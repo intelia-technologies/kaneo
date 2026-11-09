@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, notInArray } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import db from "../../database";
 import {
   activityTable,
@@ -10,7 +10,6 @@ import {
 import { ApiError } from "../../errors/api-error";
 import createComment from "../../activity/controllers/create-comment";
 import { canAccessProject } from "../../project-access/can-access-project";
-import { CANCELLED } from "../initiatives/service";
 import { taskRequestTable } from "../schema";
 import { isCancelledStatus } from "./service";
 
@@ -137,10 +136,19 @@ export async function addRequestComment(
   return getRequestDetail(taskId, userId, workspaceId);
 }
 
-/** «Lo que he pedido»: the caller's open requests, in any project. */
+/**
+ * «Lo que he pedido»: all the caller's requests, in any project, with their
+ * state: open ones and also the rejected or cancelled ones, with the reason
+ * if there was one. A closed request is listed but not followable: its task
+ * and comments stay out of reach (getRequestDetail answers 404).
+ */
 export async function listMyRequests(userId: string, workspaceId: string) {
   const rows = await db
-    .select(summaryColumns)
+    .select({
+      ...summaryColumns,
+      closedAt: taskRequestTable.closedAt,
+      closedReason: taskRequestTable.closedReason,
+    })
     .from(taskRequestTable)
     .innerJoin(taskTable, eq(taskTable.id, taskRequestTable.taskId))
     .innerJoin(projectTable, eq(projectTable.id, taskTable.projectId))
@@ -148,12 +156,26 @@ export async function listMyRequests(userId: string, workspaceId: string) {
     .where(
       and(
         eq(taskRequestTable.requesterUserId, userId),
-        isNull(taskRequestTable.closedAt),
         eq(projectTable.workspaceId, workspaceId),
         isNull(projectTable.archivedAt),
-        notInArray(taskTable.status, [...CANCELLED]),
       ),
     )
     .orderBy(desc(taskRequestTable.requestedAt), asc(taskTable.id));
-  return { requests: rows.map(toSummary) };
+  return {
+    requests: rows.map(({ closedAt, closedReason, ...row }) => {
+      // Closed by the status, before or without the event that records it.
+      const closed = closedAt !== null || isCancelledStatus(row.status);
+      return {
+        ...toSummary(row),
+        state: !closed
+          ? ("open" as const)
+          : closedReason
+            ? ("rejected" as const)
+            : ("cancelled" as const),
+        closedAt,
+        closedReason,
+        followable: !closed,
+      };
+    }),
+  };
 }

@@ -402,7 +402,7 @@ describe("requester access", () => {
 });
 
 describe("«Lo que he pedido»", () => {
-  it("lists the caller's open requests of any project, newest first", async () => {
+  it("lists all the caller's requests of any project, with their state", async () => {
     const { app, owner, workspace, alpha, beta, requester, outsider } =
       await setup();
     mockAuthenticatedSession(owner);
@@ -424,24 +424,63 @@ describe("«Lo que he pedido»", () => {
       requester.id,
       "Rechazada",
     );
+    const cancelled = await createRequested(
+      app,
+      alpha.project.id,
+      requester.id,
+      "Cancelada",
+    );
     await createRequested(app, alpha.project.id, outsider.id, "De otro");
     await json(app, "POST", `/api/intelia/task/${rejected.id}/reject`, {
-      reason: "no",
+      reason: "No es de este equipo",
+    });
+    await json(app, "PUT", `/api/task/status/${cancelled.id}`, {
+      status: "cancelled",
     });
 
     mockAuthenticatedSession(requester);
-    const res = await app.request(
-      `/api/intelia/workspace/${workspace.id}/requests`,
-    );
-    expect(res.status).toBe(200);
-    const { requests } = (await res.json()) as {
-      requests: Array<{ taskId: string; projectName: string; title: string }>;
-    };
-    expect(requests.map((r) => [r.title, r.projectName])).toEqual([
-      ["Segunda", "Beta"],
-      ["Primera", "Alpha"],
-    ]);
-    expect(requests.map((r) => r.taskId)).toEqual([second.id, first.id]);
+    await vi.waitFor(async () => {
+      const res = await app.request(
+        `/api/intelia/workspace/${workspace.id}/requests`,
+      );
+      expect(res.status).toBe(200);
+      const { requests } = (await res.json()) as {
+        requests: Array<Record<string, unknown>>;
+      };
+      expect(
+        requests.map((r) => [
+          r.title,
+          r.projectName,
+          r.state,
+          r.closedReason,
+          r.followable,
+        ]),
+      ).toEqual([
+        ["Cancelada", "Alpha", "cancelled", null, false],
+        ["Rechazada", "Beta", "rejected", "No es de este equipo", false],
+        ["Segunda", "Beta", "open", null, true],
+        ["Primera", "Alpha", "open", null, true],
+      ]);
+      expect(requests.map((r) => r.taskId)).toEqual([
+        cancelled.id,
+        rejected.id,
+        second.id,
+        first.id,
+      ]);
+    });
+    // Listed, but the closed task stays out of reach.
+    for (const id of [rejected.id, cancelled.id]) {
+      expect((await app.request(`/api/intelia/request/${id}`)).status).toBe(
+        404,
+      );
+      expect(
+        (
+          await json(app, "POST", `/api/intelia/request/${id}/comments`, {
+            content: "¿Y esto?",
+          })
+        ).status,
+      ).toBe(404);
+    }
   });
 });
 
@@ -520,5 +559,65 @@ describe("setting the requester", () => {
       { reason: "   " },
     );
     expect(empty.status).toBe(400);
+  });
+
+  it("rejects on a default board, adding a final «Cancelled» column once", async () => {
+    const { user: owner, workspace } = await createWorkspaceMember({
+      role: "owner",
+    });
+    const requester = await addWorkspaceMember(workspace.id);
+    mockAuthenticatedSession(owner);
+    const app = createApp().app;
+    const created = await json(app, "POST", "/api/project", {
+      name: "Nuevo",
+      workspaceId: workspace.id,
+      icon: "Folder",
+      slug: "NEW",
+    });
+    const project = (await created.json()) as { id: string };
+    await restrictToProjects(workspace.id, requester.id, []);
+    const first = await createRequested(app, project.id, requester.id);
+    const second = await createRequested(app, project.id, requester.id);
+
+    for (const task of [first, second]) {
+      const res = await json(
+        app,
+        "POST",
+        `/api/intelia/task/${task.id}/reject`,
+        { reason: "Fuera de alcance" },
+      );
+      expect(res.status).toBe(200);
+    }
+    const columns = await db
+      .select({
+        slug: schema.columnTable.slug,
+        isFinal: schema.columnTable.isFinal,
+      })
+      .from(schema.columnTable)
+      .where(eq(schema.columnTable.projectId, project.id))
+      .orderBy(asc(schema.columnTable.position));
+    expect(columns).toEqual([
+      { slug: "pedida", isFinal: false },
+      { slug: "to-do", isFinal: false },
+      { slug: "in-progress", isFinal: false },
+      { slug: "in-review", isFinal: false },
+      { slug: "done", isFinal: true },
+      { slug: "cancelled", isFinal: true },
+    ]);
+
+    mockAuthenticatedSession(requester);
+    expect((await app.request(`/api/intelia/request/${first.id}`)).status).toBe(
+      404,
+    );
+    const notices = await db
+      .select()
+      .from(schema.notificationTable)
+      .where(eq(schema.notificationTable.userId, requester.id));
+    expect(notices).toHaveLength(2);
+    expect(notices[0]).toMatchObject({
+      type: "task_request_closed",
+      content: "Fuera de alcance",
+      eventData: { outcome: "rejected", reason: "Fuera de alcance" },
+    });
   });
 });

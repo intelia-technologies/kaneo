@@ -61,6 +61,7 @@ import getInstanceStatus from "./instance/controllers/get-instance-status";
 import invitation from "./invitation";
 import intelia from "./intelia";
 import { migrateInteliaSchema } from "./intelia/migrate";
+import { ensureRequestedColumns } from "./intelia/task-request/ensure-requested-columns";
 import label from "./label";
 import mattermostIntegration from "./mattermost-integration";
 import mcpRoutes, { mcpWellKnownRoutes } from "./mcp";
@@ -1064,6 +1065,8 @@ export async function runStartupTasks() {
   await migrateNotificationPreferencesSchema();
   await migrateGitHubIntegration();
   await migrateColumns();
+  // Intelia: «Pedida» also in the projects upstream's migration just seeded.
+  await ensureRequestedColumns();
   await seedDefaultWorkspaceRoles();
 
   initializePlugins();

@@ -13,18 +13,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDateTime } from "@/lib/format";
 import { useMyRequests } from "../api";
 import "../i18n";
+import { RequestRow } from "./request-row";
 import { RequestSheet } from "./request-sheet";
 
-// «Lo que he pedido» (design 52 §3.2): the caller's open requests in any
-// project of the workspace; one opens in a sheet to follow and comment.
+// «Lo que he pedido» (design 52 §3.2): the caller's requests in any project
+// of the workspace, with their state; an open one opens in a sheet to follow
+// and comment.
 export function RequestsPage({
   workspaceId,
   selectedTaskId,
@@ -88,36 +88,11 @@ export function RequestsPage({
                 </TableHeader>
                 <TableBody>
                   {requests.map((request) => (
-                    <TableRow
+                    <RequestRow
                       key={request.taskId}
-                      className="cursor-pointer"
-                      onClick={() => onSelect(request.taskId)}
-                    >
-                      <TableCell className="max-w-80">
-                        <button
-                          type="button"
-                          className="flex min-w-0 items-center gap-2 text-left outline-none focus-visible:underline"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onSelect(request.taskId);
-                          }}
-                        >
-                          {request.ticketId && (
-                            <span className="shrink-0 font-mono text-muted-foreground text-xs">
-                              {request.ticketId}
-                            </span>
-                          )}
-                          <span className="truncate">{request.title}</span>
-                        </button>
-                      </TableCell>
-                      <TableCell>{request.projectName}</TableCell>
-                      <TableCell>
-                        {request.statusName ?? request.status}
-                      </TableCell>
-                      <TableCell className="tabular-nums">
-                        {formatDateTime(request.requestedAt)}
-                      </TableCell>
-                    </TableRow>
+                      request={request}
+                      onSelect={onSelect}
+                    />
                   ))}
                 </TableBody>
               </Table>

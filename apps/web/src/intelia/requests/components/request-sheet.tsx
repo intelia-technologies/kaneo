@@ -28,14 +28,16 @@ export function RequestSheet({
   const { t } = useTranslation();
   const { data, isLoading, isError } = useRequest(taskId);
   const comment = useCommentRequest(taskId ?? "");
-  const [draft, setDraft] = useState("");
+  // Keyed by the request, so a draft never follows the user to another one.
+  const [draft, setDraft] = useState({ taskId, text: "" });
+  const text = draft.taskId === taskId ? draft.text : "";
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const content = draft.trim();
+    const content = text.trim();
     if (!content) return;
     comment.mutate(content, {
-      onSuccess: () => setDraft(""),
+      onSuccess: () => setDraft({ taskId, text: "" }),
       onError: () => toast.error(t("intelia:requests.detail.sendError")),
     });
   };
@@ -111,14 +113,16 @@ export function RequestSheet({
                 <Textarea
                   aria-label={t("intelia:requests.detail.reply")}
                   placeholder={t("intelia:requests.detail.reply")}
-                  value={draft}
+                  value={text}
                   maxLength={10_000}
-                  onChange={(event) => setDraft(event.target.value)}
+                  onChange={(event) =>
+                    setDraft({ taskId, text: event.target.value })
+                  }
                 />
                 <Button
                   type="submit"
                   className="self-end"
-                  disabled={!draft.trim() || comment.isPending}
+                  disabled={!text.trim() || comment.isPending}
                 >
                   {t("intelia:requests.detail.send")}
                 </Button>

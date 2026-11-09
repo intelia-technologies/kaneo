@@ -2,7 +2,11 @@ import { createId } from "@paralleldrive/cuid2";
 import { asc, eq } from "drizzle-orm";
 import type db from "../../database";
 import { columnTable } from "../../database/schema";
-import { isRequestedStatus } from "../../intelia/task-request/status";
+import {
+  isRequestedStatus,
+  REQUESTED_COLUMN_NAME,
+  REQUESTED_STATUS,
+} from "../../intelia/task-request/status";
 import { chunk } from "./chunk";
 import type { ImportColumnPlan } from "./plan-import-columns";
 import type { BoardColumn } from "./plan-import-tasks";
@@ -38,6 +42,11 @@ export async function writeImportColumns(
 
   await tx.delete(columnTable).where(eq(columnTable.projectId, projectId));
 
+  // Intelia (design 52 §3.2): every board keeps «Pedida», first.
+  const withRequested = !plan.columns.some((column) =>
+    isRequestedStatus(column.slug),
+  );
+  const offset = withRequested ? 1 : 0;
   const planned = plan.columns.map((column) => ({
     key: column.key,
     row: {
@@ -45,11 +54,21 @@ export async function writeImportColumns(
       projectId,
       name: column.name,
       slug: column.slug,
-      position: column.position,
+      position: column.position + offset,
       isFinal: column.isFinal,
     },
   }));
-  for (const batch of chunk(planned.map(({ row }) => row))) {
+  const rows = planned.map(({ row }) => row);
+  if (withRequested)
+    rows.unshift({
+      id: createId(),
+      projectId,
+      name: REQUESTED_COLUMN_NAME,
+      slug: REQUESTED_STATUS,
+      position: 0,
+      isFinal: false,
+    });
+  for (const batch of chunk(rows)) {
     await tx.insert(columnTable).values(batch);
   }
 
