@@ -48,6 +48,12 @@ export const taskWithAssigneeSchema = taskSchema
       .nullable(),
     validationInProduction: z.enum(["requerida", "no_aplica"]).nullable(),
     validationInProductionReason: z.string().nullable(),
+    archivedAt: nullableResponseTimestamp.openapi({
+      type: ["string", "null"],
+      format: "date-time",
+      description:
+        "When the task was archived (Intelia fork, design 53 §3.2), or null. Archiving does not change the status.",
+    }),
     workspaceId: z.string().optional().openapi({
       description:
         "The workspace currently owning the task's project. Included in the detail view; omitted from the compact board view.",
@@ -114,6 +120,12 @@ export const boardTaskSchema = z
         "True when the list omits a large description; load the task detail or description pages to read it. Do not replace stored text with this null summary.",
     }),
     status: z.string(),
+    archivedAt: nullableResponseTimestamp.openapi({
+      type: ["string", "null"],
+      format: "date-time",
+      description:
+        "When the task was archived (Intelia fork, design 53 §3.2), or null. Archiving does not change the status.",
+    }),
     type: z
       .enum(["implementacion", "validacion", "operacion", "diseno"])
       .nullable(),

@@ -42,13 +42,13 @@ export function patchBoardTask(
   const archivedTasks = board.archivedTasks.filter(
     (task) => task.id !== taskId,
   );
-  if (task) {
+  // Intelia: the board leaves archived tasks out (design 53 §3.2); an
+  // archived task's refresh just takes it off.
+  if (task && !task.archivedAt && task.status !== "archived") {
     const target =
       task.status === "planned"
         ? plannedTasks
-        : task.status === "archived"
-          ? archivedTasks
-          : columns.find((column) => column.slug === task.status)?.tasks;
+        : columns.find((column) => column.slug === task.status)?.tasks;
     if (!target) return null;
     target.push(task);
     target.sort((left, right) => (left.position ?? 0) - (right.position ?? 0));

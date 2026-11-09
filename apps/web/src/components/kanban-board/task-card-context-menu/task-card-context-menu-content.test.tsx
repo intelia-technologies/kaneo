@@ -8,6 +8,10 @@ const canCreateTasks = vi.fn(() => true);
 vi.mock("@/intelia/automation/use-duplicate-with-automation", () => ({
   useDuplicateWithAutomation: () => duplicateTask,
 }));
+const archiveTasks = vi.fn();
+vi.mock("@/intelia/archive/use-archive-tasks", () => ({
+  useArchiveTasks: () => ({ mutate: archiveTasks }),
+}));
 
 afterEach(() => {
   canCreateTasks.mockReturnValue(true);
@@ -57,7 +61,10 @@ vi.mock("@/components/ui/context-menu", () => ({
 
 vi.mock("@/hooks/queries/column/use-get-columns", () => ({
   useGetColumns: () => ({
-    data: [],
+    data: [
+      { slug: "to-do", name: "To do", icon: null, isFinal: false },
+      { slug: "done", name: "Done", icon: null, isFinal: true },
+    ],
   }),
 }));
 
@@ -198,4 +205,14 @@ it("hides duplication without task-create permission", () => {
   canCreateTasks.mockReturnValue(false);
   renderTask(task);
   expect(screen.queryByText("tasks:actions.duplicate")).toBeNull();
+});
+it("archives a closed task with the mark and offers no archive for an open one", () => {
+  renderTask({ ...task, status: "done" });
+  fireEvent.click(
+    screen.getByRole("button", { name: "tasks:actions.archive" }),
+  );
+  expect(archiveTasks).toHaveBeenCalledWith([task.id], expect.anything());
+  cleanup();
+  renderTask(task);
+  expect(screen.queryByText("tasks:actions.archive")).toBeNull();
 });

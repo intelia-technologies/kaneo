@@ -3,7 +3,6 @@ import { Archive, Plus, ArchiveIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import CreateTaskModal from "@/components/shared/modals/create-task-modal";
-import { useUpdateTask } from "@/hooks/mutations/task/use-update-task";
 import { useWorkspacePermission } from "@/hooks/use-workspace-permission";
 import { getColumnIcon } from "@/lib/column";
 import { toast } from "@/lib/toast";
@@ -11,6 +10,7 @@ import useProjectStore from "@/store/project";
 import type { ProjectWithTasks } from "@/types/project";
 import { ArchiveTasksModal } from "../../shared/modals/archive-tasks-modal";
 import { isRequestedStatus } from "@/intelia/requests/status";
+import { useArchiveTasks } from "@/intelia/archive/use-archive-tasks";
 
 type ColumnHeaderProps = {
   column: ProjectWithTasks["columns"][number];
@@ -23,7 +23,7 @@ export function ColumnHeader({
 }: ColumnHeaderProps) {
   const { t } = useTranslation();
   const { project, setProject } = useProjectStore();
-  const { mutate: updateTask } = useUpdateTask();
+  const { mutate: archiveTasks } = useArchiveTasks();
   const { canUpdateTasks, canCreateTasks } = useWorkspacePermission();
   const canTask = canUpdateTasks();
   const canCreate = canCreateTasks();
@@ -40,12 +40,13 @@ export function ColumnHeader({
       );
       if (!archivedColumn) return;
 
-      for (const task of archivedColumn.tasks) {
-        updateTask({
-          ...task,
-          status: "archived",
-        });
-      }
+      // Intelia: the archive mark keeps them done or cancelled.
+      archiveTasks(
+        archivedColumn.tasks.map((task) => task.id),
+        {
+          onError: () => toast.error(t("tasks:bulk.archiveError")),
+        },
+      );
 
       archivedColumn.tasks = [];
     });

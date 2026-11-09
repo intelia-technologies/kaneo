@@ -18,8 +18,8 @@ const m = vi.hoisted(() => ({
   mutate: vi.fn(),
   setProject: vi.fn(),
 }));
-vi.mock("@/hooks/mutations/task/use-update-task", () => ({
-  useUpdateTask: () => ({ mutate: m.mutate }),
+vi.mock("@/intelia/archive/use-archive-tasks", () => ({
+  useArchiveTasks: () => ({ mutate: m.mutate }),
 }));
 vi.mock("@/hooks/use-workspace-permission", () => ({
   useWorkspacePermission: () => ({
@@ -70,7 +70,9 @@ it("prevents archive confirmation while the board is partial and uses the comple
   rerender(<ColumnHeader column={complete} />);
   expect(m.archive.taskCount).toBe(2);
   act(() => m.archive.onConfirm?.());
-  expect(m.mutate).toHaveBeenCalledTimes(2);
+  // One archive call with the whole column: the mark, not a status change.
+  expect(m.mutate).toHaveBeenCalledOnce();
+  expect(m.mutate.mock.calls[0]?.[0]).toEqual(["a", "b"]);
   expect(m.setProject).toHaveBeenCalledOnce();
 });
 it("offers «Add task» in an open column but never in «Pedida»", () => {

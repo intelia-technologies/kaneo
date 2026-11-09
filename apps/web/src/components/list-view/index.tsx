@@ -37,6 +37,7 @@ import BulkToolbar from "../bulk-selection/bulk-toolbar";
 import { ArchiveTasksModal } from "../shared/modals/archive-tasks-modal";
 import CreateTaskModal from "../shared/modals/create-task-modal";
 import ListColumnSection from "./list-column-section";
+import { useArchiveTasks } from "@/intelia/archive/use-archive-tasks";
 
 type ListViewProps = {
   project: ProjectWithTasks;
@@ -57,6 +58,7 @@ function ListView({
   );
   const clearFocus = useBulkSelectionStore((state) => state.clearFocus);
   const { mutate: updateTask } = useUpdateTask();
+  const { mutate: archiveTasks } = useArchiveTasks();
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
   const { isExpanded, toggleSection, toggleAllSections } = useCollapsedSections(
@@ -353,12 +355,13 @@ function ListView({
       );
       if (!archivedColumn) return;
 
-      for (const task of archivedColumn.tasks) {
-        updateTask({
-          ...task,
-          status: "archived",
-        });
-      }
+      // Intelia: the archive mark keeps them done or cancelled.
+      archiveTasks(
+        archivedColumn.tasks.map((task) => task.id),
+        {
+          onError: () => toast.error(t("tasks:bulk.archiveError")),
+        },
+      );
 
       archivedColumn.tasks = [];
     });

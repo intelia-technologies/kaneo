@@ -139,6 +139,11 @@ function BacklogListView({
       }
     }
 
+    // Intelia: an archived task keeps its done or cancelled status, so the
+    // section it leaves is the one it is in, not its status.
+    const sourceSectionId =
+      activeTask.status === "planned" ? "planned" : "archived";
+
     const updatedProject = produce(project, (draft) => {
       const sourceSection =
         activeTask.status === "planned"
@@ -160,7 +165,7 @@ function BacklogListView({
           draft.archivedTasks?.filter((t) => t.id !== activeTaskId) || [];
       }
 
-      if (activeTask.status === targetSection) {
+      if (sourceSectionId === targetSection) {
         const targetSectionTasks =
           activeTask.status === "planned"
             ? draft.plannedTasks || []

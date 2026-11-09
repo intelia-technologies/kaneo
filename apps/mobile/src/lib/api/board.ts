@@ -23,8 +23,12 @@ function appendTo(target: Map<string, BoardTask>, tasks: BoardTask[] = []) {
  * Loads every page of a board. The API pages tasks (100 at most) and, per task page, pages the
  * related labels separately; both are followed to completion and merged by id.
  */
-export async function loadFullBoard(projectId: string): Promise<BoardData> {
-  const first = await api.board(projectId, 1);
+export async function loadFullBoard(
+  projectId: string,
+  withArchived = false,
+): Promise<BoardData> {
+  const archivedScope = withArchived ? "include" : undefined;
+  const first = await api.board(projectId, 1, undefined, archivedScope);
   const columnMeta = new Map<string, BoardColumn>();
   const columnTasks = new Map<string, Map<string, BoardTask>>();
   const archived = new Map<string, BoardTask>();
@@ -43,13 +47,13 @@ export async function loadFullBoard(projectId: string): Promise<BoardData> {
 
   const loadRelated = async (page: number, relatedTotal = 1) => {
     for (let related = 2; related <= relatedTotal; related++)
-      merge((await api.board(projectId, page, related)).data);
+      merge((await api.board(projectId, page, related, archivedScope)).data);
   };
 
   merge(first.data);
   await loadRelated(1, first.pagination?.relatedTotalPages);
   for (let page = 2; page <= (first.pagination?.totalPages ?? 1); page++) {
-    const next = await api.board(projectId, page);
+    const next = await api.board(projectId, page, undefined, archivedScope);
     merge(next.data);
     await loadRelated(page, next.pagination?.relatedTotalPages);
   }

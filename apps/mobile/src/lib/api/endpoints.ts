@@ -185,11 +185,19 @@ export const api = {
     put<unknown>(`api/project/${id}/move`, { workspaceId }),
 
   // --- Tasks ---
-  board: (projectId: string, page?: number, relatedPage?: number) =>
+  // `archived: "include"` adds the archived tasks, which the board leaves out
+  // by default (Intelia fork, design 53 §3.2).
+  board: (
+    projectId: string,
+    page?: number,
+    relatedPage?: number,
+    archived?: "include",
+  ) =>
     get<BoardResponse>(`api/task/tasks/${projectId}`, {
       page,
       relatedPage,
       limit: 100,
+      archived,
     }),
   assignedTasks: (workspaceId: string) =>
     get<AssignedTasks>("api/task/assigned", { workspaceId }),

@@ -23,6 +23,8 @@ export const qk = {
     ["projects", workspaceId, archived] as const,
   project: (id: string) => ["project", id] as const,
   board: (projectId: string) => ["board", projectId] as const,
+  boardWithArchived: (projectId: string) =>
+    ["board", projectId, "with-archived"] as const,
   assigned: (workspaceId: string) => ["assigned", workspaceId] as const,
   notifications: (workspaceId: string) =>
     ["notifications", workspaceId] as const,

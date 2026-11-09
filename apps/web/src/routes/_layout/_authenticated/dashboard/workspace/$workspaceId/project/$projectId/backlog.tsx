@@ -18,6 +18,7 @@ import CreateTaskModal from "@/components/shared/modals/create-task-modal";
 import TaskDetailsSheet from "@/components/task/task-details-sheet";
 import { useUpdateTask } from "@/hooks/mutations/task/use-update-task";
 import { useGetTasks } from "@/hooks/queries/task/use-get-tasks";
+import { useArchivedTasks } from "@/intelia/archive/use-archived-tasks";
 import { useBoardSort } from "@/hooks/use-board-sort";
 import { sortTasks } from "@/lib/sort-tasks";
 import { countBacklogTasks } from "@/lib/task-filters/count-tasks";
@@ -44,11 +45,18 @@ function RouteComponent() {
   const { taskId } = Route.useSearch();
   const navigate = useNavigate();
   const {
-    data,
+    data: boardData,
     isError: backlogError,
     isFetching: backlogFetching,
     refetch: retryBacklog,
   } = useGetTasks(projectId);
+  // Intelia: the board leaves archived tasks out (design 53 §3.2); the
+  // archived section reads them on its own.
+  const { data: archivedTasks } = useArchivedTasks(projectId);
+  const data = useMemo(
+    () => boardData && { ...boardData, archivedTasks: archivedTasks ?? [] },
+    [boardData, archivedTasks],
+  );
   const { project: storedProject, setProject } = useProjectStore();
   const project: ProjectWithTasks | undefined =
     storedProject?.id === projectId ? storedProject : data;

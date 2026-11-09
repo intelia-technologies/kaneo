@@ -33,6 +33,7 @@ const m = vi.hoisted(() => ({
     taskCount?: number;
   },
   mutate: vi.fn(),
+  archiveTasks: vi.fn(),
   setProject: vi.fn(),
   relations: { data: [] as unknown[], isLoading: false, isError: false },
   refetchRelations: vi.fn(),
@@ -50,6 +51,9 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 vi.mock("@/hooks/mutations/task/use-update-task", () => ({
   useUpdateTask: () => ({ mutate: m.mutate }),
+}));
+vi.mock("@/intelia/archive/use-archive-tasks", () => ({
+  useArchiveTasks: () => ({ mutate: m.archiveTasks }),
 }));
 vi.mock("@/store/project", () => ({
   default: () => ({ setProject: m.setProject }),
@@ -142,12 +146,14 @@ it("blocks archive-all during pagination or errors, including an already-open co
   );
   expect(m.archive.disabled).toBe(true);
   act(() => m.archive.onConfirm?.());
-  expect(m.mutate).not.toHaveBeenCalled();
+  expect(m.archiveTasks).not.toHaveBeenCalled();
   expect(m.setProject).not.toHaveBeenCalled();
   rerender(<ListView project={complete} />);
   expect(m.archive.taskCount).toBe(2);
   act(() => m.archive.onConfirm?.());
-  expect(m.mutate).toHaveBeenCalledTimes(2);
+  // One archive call with the whole column: the mark, not a status change.
+  expect(m.archiveTasks).toHaveBeenCalledOnce();
+  expect(m.archiveTasks.mock.calls[0]?.[0]).toEqual(["a", "b"]);
   expect(m.setProject).toHaveBeenCalledOnce();
 });
 

@@ -159,6 +159,7 @@ export type BoardTask = {
   number?: number | null;
   description?: string | null;
   status: string;
+  archivedAt?: string | null;
   priority?: string | null;
   startDate?: string | null;
   dueDate?: string | null;
