@@ -35,10 +35,15 @@ LEFT JOIN LATERAL (
 	ORDER BY "x"."created_at" DESC, "x"."id" DESC
 	LIMIT 1
 ) AS "a" ON true
-LEFT JOIN "public"."column" AS "c"
-	ON "c"."project_id" = "t"."project_id"
-	AND "c"."slug" = "a"."old_status"
-	AND "c"."is_final" = true
+LEFT JOIN LATERAL (
+	SELECT "y"."id"
+	FROM "public"."column" AS "y"
+	WHERE "y"."project_id" = "t"."project_id"
+		AND "y"."slug" = "a"."old_status"
+		AND "y"."is_final" = true
+	ORDER BY "y"."position", "y"."id"
+	LIMIT 1
+) AS "c" ON true
 WHERE "t"."status" = 'archived';--> statement-breakpoint
 INSERT INTO "intelia"."task_archive_migration_skip" ("task_id", "reason", "old_status")
 SELECT "task_id",

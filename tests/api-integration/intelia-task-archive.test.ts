@@ -405,6 +405,20 @@ describe("leaving the archive", () => {
     expect(await marks([stays.id])).toHaveLength(1);
     expect((await board(app, project.id)).inColumns).toEqual([done.id]);
   });
+
+  it("counts the mark only on a closed task, even if the reopen's event never ran", async () => {
+    const { app, project } = await setup();
+    const open = await seedTask(project.id, { status: "in-progress" });
+    // A mark left behind, as if the process stopped before the reopen's event.
+    await db.insert(taskArchiveTable).values({ taskId: open.id });
+
+    expect((await board(app, project.id)).inColumns).toEqual([open.id]);
+    expect((await board(app, project.id, "&archived=only")).archived).toEqual(
+      [],
+    );
+    const detail = await (await app.request(`/api/task/${open.id}`)).json();
+    expect(detail.archivedAt).toBeNull();
+  });
 });
 
 describe("search", () => {

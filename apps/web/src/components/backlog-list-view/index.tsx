@@ -99,22 +99,18 @@ function BacklogListView({
       return;
     }
 
-    if (over.id === "planned" || over.id === "archived") {
-      setOverColumnId(over.id.toString());
+    // Intelia: the archived section takes no drops (see moveTask).
+    if (over.id === "planned") {
+      setOverColumnId("planned");
       return;
     }
 
     const taskId = over.id.toString();
     const plannedTasks = project?.plannedTasks || [];
-    const archivedTasks = project?.archivedTasks || [];
 
-    if (plannedTasks.some((task) => task.id === taskId)) {
-      setOverColumnId("planned");
-    } else if (archivedTasks.some((task) => task.id === taskId)) {
-      setOverColumnId("archived");
-    } else {
-      setOverColumnId(null);
-    }
+    setOverColumnId(
+      plannedTasks.some((task) => task.id === taskId) ? "planned" : null,
+    );
   };
 
   const moveTask = (activeTaskId: string, overId: string) => {
@@ -139,10 +135,9 @@ function BacklogListView({
       }
     }
 
-    // Intelia: an archived task keeps its done or cancelled status, so the
-    // section it leaves is the one it is in, not its status.
-    const sourceSectionId =
-      activeTask.status === "planned" ? "planned" : "archived";
+    // Intelia: archiving is a mark on closed tasks (design 53 §3.2), not a
+    // status; nothing is archived, or reordered among the archived, by drag.
+    if (targetSection === "archived") return;
 
     const updatedProject = produce(project, (draft) => {
       const sourceSection =
@@ -165,7 +160,7 @@ function BacklogListView({
           draft.archivedTasks?.filter((t) => t.id !== activeTaskId) || [];
       }
 
-      if (sourceSectionId === targetSection) {
+      if (activeTask.status === targetSection) {
         const targetSectionTasks =
           activeTask.status === "planned"
             ? draft.plannedTasks || []
