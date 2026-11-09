@@ -24,11 +24,15 @@ export function TreeTab({
   onOpenTask,
 }: TreeTabProps) {
   const { t } = useTranslation();
-  const { pendingChain } = initiative;
+  const { pendingChain, counters } = initiative;
+  // A pending task of a project the reader cannot see also leaves the chain
+  // incomplete (design 52 §3.1), as in the plan.
+  const partial =
+    pendingChain.partial || counters.hidden.active > counters.hidden.done;
 
   return (
     <div className="space-y-4 pt-2">
-      {pendingChain.partial && (
+      {partial && (
         <div
           role="alert"
           className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-medium text-amber-800 dark:text-amber-300"

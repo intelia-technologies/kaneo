@@ -271,6 +271,7 @@ export async function listInitiativesWithCounters(
           .map((task) => ({
             id: task.id,
             number: task.number,
+            projectId: task.projectId,
             projectSlug: task.projectSlug,
             title: task.title,
             assignee: assigneeOf(task),

@@ -7502,6 +7502,10 @@
               "null"
             ]
           },
+          "projectId": {
+            "type": "string",
+            "description": "The task's project: the initiative's or another of its workspace (design 52)."
+          },
           "projectSlug": {
             "type": "string"
           },
@@ -7552,6 +7556,7 @@
         "required": [
           "id",
           "number",
+          "projectId",
           "projectSlug",
           "title",
           "assignee",
@@ -8361,7 +8366,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The cancelled tasks it had, now without initiative (each with a row in its initiative log). Empty when it had none."
+            "description": "The cancelled tasks it had, now without initiative (each with a row in its initiative log), only those of projects the caller can read (design 52). Empty when it had none."
           }
         },
         "required": [

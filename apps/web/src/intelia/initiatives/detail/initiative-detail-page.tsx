@@ -237,7 +237,11 @@ export function InitiativeDetailPage({
 
         <TaskDetailsSheet
           taskId={search.taskId}
-          projectId={projectId}
+          // The task may be of another project of the initiative (design 52).
+          projectId={
+            initiative?.tasks.find((task) => task.id === search.taskId)
+              ?.projectId ?? projectId
+          }
           workspaceId={workspaceId}
           onClose={handleCloseTaskSheet}
         />

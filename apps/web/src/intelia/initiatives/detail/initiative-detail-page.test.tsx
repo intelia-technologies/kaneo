@@ -59,9 +59,17 @@ vi.mock("@/components/page-title", () => ({
 }));
 
 vi.mock("@/components/task/task-details-sheet", () => ({
-  default: ({ taskId, onClose }: { taskId?: string; onClose: () => void }) =>
+  default: ({
+    taskId,
+    projectId,
+    onClose,
+  }: {
+    taskId?: string;
+    projectId: string;
+    onClose: () => void;
+  }) =>
     taskId ? (
-      <div data-testid="task-details-sheet">
+      <div data-testid="task-details-sheet" data-project-id={projectId}>
         <span>Sheet for {taskId}</span>
         <button type="button" onClick={onClose}>
           Close sheet
@@ -299,6 +307,36 @@ afterEach(() => {
 });
 
 describe("InitiativeDetailPage", () => {
+  it("opens a task of another project of the initiative in its own project", () => {
+    mocks.useInitiative.mockReturnValue({
+      data: {
+        ...mockInitiative,
+        tasks: mockInitiative.tasks.map((task) =>
+          task.id === "task-2"
+            ? { ...task, projectId: "proj-infra", projectSlug: "INFRA" }
+            : task,
+        ),
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    render(
+      <InitiativeDetailPage
+        workspaceId="ws-1"
+        projectId="proj-1"
+        initiativeId="init-1"
+        search={{ taskId: "task-2" }}
+      />,
+    );
+
+    expect(screen.getByTestId("task-details-sheet")).toHaveAttribute(
+      "data-project-id",
+      "proj-infra",
+    );
+    expect(screen.getByText("INFRA-102")).toBeInTheDocument();
+  });
+
   it("renders header with name, state tag, progress figures, design link, approval and plan state", () => {
     render(
       <InitiativeDetailPage

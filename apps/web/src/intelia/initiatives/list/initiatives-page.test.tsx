@@ -211,6 +211,7 @@ const mockData: ProjectInitiatives = {
         {
           id: "t-1",
           number: 6,
+          projectId: "proj-1",
           projectSlug: "SF",
           title: "Verificar reintentos idempotentes",
           assignee: { id: "u-2", name: "agente-b" },

@@ -342,6 +342,28 @@ describe("who may put a task in an initiative of another project", () => {
   });
 });
 
+describe("deleting an initiative with tasks of another project", () => {
+  it("unlinks every cancelled task but names only those the caller can read", async () => {
+    const { app, workspace, home, infra, initiative } = await setup();
+    const own = await seedTask(home.id, { status: "cancelled" });
+    const other = await seedTask(infra.id, { status: "cancelled" });
+    await putTaskInitiative(app, own.id, initiative.id);
+    await putTaskInitiative(app, other.id, initiative.id);
+    // Can write in SF but not read INFRA.
+    const writer = await addWorkspaceMember(workspace.id, "member");
+    await restrictToProjects(workspace.id, writer.id, [home.id]);
+    mockAuthenticatedSession(writer);
+
+    const res = await app.request(`/api/intelia/initiative/${initiative.id}`, {
+      method: "DELETE",
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).unlinkedTaskIds).toEqual([own.id]);
+    expect(await membershipOf(own.id)).toEqual([]);
+    expect(await membershipOf(other.id)).toEqual([]);
+  });
+});
+
 describe("GET /api/intelia/project/{projectId}/initiative-options", () => {
   it("lists the initiatives of every project the caller can read", async () => {
     const { app, home, infra, initiative, reader } = await setup();

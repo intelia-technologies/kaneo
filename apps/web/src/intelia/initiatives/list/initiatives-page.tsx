@@ -305,7 +305,13 @@ export function InitiativesPage({
 
         <TaskDetailsSheet
           taskId={search.taskId}
-          projectId={projectId}
+          // A Blocked task of an initiative may be of another project
+          // (design 52).
+          projectId={
+            initiatives
+              .flatMap((initiative) => initiative.blockedTasks)
+              .find((task) => task.id === search.taskId)?.projectId ?? projectId
+          }
           workspaceId={workspaceId}
           onClose={handleCloseTaskSheet}
         />

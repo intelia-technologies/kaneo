@@ -162,12 +162,28 @@ export function useDependenciesGraph({
           : null,
       }),
     );
+    // Tasks of the initiative in other projects (design 52 §3.1): the graph
+    // only lays out this project's tasks, so they show as cross-project
+    // nodes, labelled with this initiative, next to the tasks they touch.
+    for (const task of initiativeData.tasks) {
+      if (task.projectId === projectId) continue;
+      frontier.push({
+        id: task.id,
+        number: task.number,
+        title: task.title,
+        status: task.status,
+        projectId: task.projectId,
+        projectSlug: task.projectSlug,
+        initiativeId: initiativeData.id,
+        initiativeName: initiativeData.name,
+      });
+    }
     return {
       taskIds: new Set(initiativeData.tasks.map((t) => t.id)),
       frontier,
       initiativeNames,
     };
-  }, [initiativeId, initiativeData, initiativeNames]);
+  }, [initiativeId, initiativeData, initiativeNames, projectId]);
 
   const effectiveFilteredTaskIds = useMemo(() => {
     if (filteredTaskIds) return filteredTaskIds;

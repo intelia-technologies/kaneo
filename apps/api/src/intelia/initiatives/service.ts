@@ -392,10 +392,14 @@ export async function closePlan(
 }
 
 // Locks the rows of the initiative's tasks, in id order, and returns them with
-// their current status. Every task, readable by the caller or not.
+// their project and current status. Every task, readable by the caller or not.
 function lockInitiativeTasks(tx: Transaction, initiativeId: string) {
   return tx
-    .select({ id: taskTable.id, status: taskTable.status })
+    .select({
+      id: taskTable.id,
+      projectId: taskTable.projectId,
+      status: taskTable.status,
+    })
     .from(taskInitiativeTable)
     .innerJoin(taskTable, eq(taskTable.id, taskInitiativeTable.taskId))
     .where(eq(taskInitiativeTable.initiativeId, initiativeId))
@@ -455,11 +459,22 @@ export async function deleteInitiative(
     await tx
       .delete(initiativeTable)
       .where(eq(initiativeTable.id, initiativeId));
+    // Every task counts and is unlinked, but the response names only those
+    // the caller can read: the others may be of other projects (design 52).
+    const hidden = new Set(
+      await findInaccessibleProjectIds(
+        writer.userId,
+        tasks.map((task) => task.projectId),
+        tx,
+      ),
+    );
     return {
       id: initiative.id,
       projectId: initiative.projectId,
       name: initiative.name,
-      unlinkedTaskIds: tasks.map((task) => task.id),
+      unlinkedTaskIds: tasks
+        .filter((task) => !hidden.has(task.projectId))
+        .map((task) => task.id),
     };
   });
 }
