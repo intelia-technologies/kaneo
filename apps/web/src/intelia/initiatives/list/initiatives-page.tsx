@@ -282,7 +282,6 @@ export function InitiativesPage({
                 {!isMobile && selectedInitiative && (
                   <InitiativeInspector
                     initiative={selectedInitiative}
-                    projectSlug={projectSlug}
                     onOpenTask={handleOpenTask}
                     onViewDetail={(tab) =>
                       handleOpenDetail(selectedInitiative.id, tab)

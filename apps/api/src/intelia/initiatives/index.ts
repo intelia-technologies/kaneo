@@ -11,12 +11,14 @@ import { initiativePlanSchema } from "./plan/response";
 import {
   getInitiativeDetail,
   getTaskInitiatives,
+  listInitiativeOptions,
   listInitiativesWithCounters,
 } from "./read";
 import {
   deletedInitiativeSchema,
   initiativeChangeListSchema,
   initiativeDetailSchema,
+  initiativeOptionsSchema,
   initiativeSchema,
   projectInitiativesSchema,
   taskInitiativeChangeListSchema,
@@ -160,10 +162,10 @@ const deleteRouteDef = createRoute({
   },
 });
 
-// Reads (design 19 §6): the same authorization as the rest of Kaneo, with one
-// filter of readable projects for counters, tasks and dependencies.
+// Reads (design 19 §6, design 52 §3.1): the same authorization as the rest of
+// Kaneo, with one filter of readable projects for tasks and dependencies.
 const READERS =
-  "Needs task:read and access to the project. Tasks of projects the caller cannot read are left out of every count, list and dependency, without any of their data.";
+  "Needs task:read and access to the project. Tasks of projects the caller cannot read count in the counters (and in `counters.hidden`), but are left out of every list and dependency, without any of their data.";
 
 const listRouteDef = createRoute({
   method: "get",
@@ -176,6 +178,23 @@ const listRouteDef = createRoute({
   request: { params: projectIdParam },
   responses: {
     200: jsonResponse("The project's initiatives", projectInitiativesSchema),
+    403: errorResponse("No access to the project or missing read permission"),
+    404: errorResponse("Project not found"),
+  },
+});
+
+const optionsRouteDef = createRoute({
+  method: "get",
+  operationId: "listInitiativeOptions",
+  path: "/project/{projectId}/initiative-options",
+  tags,
+  summary: "List the initiatives a task of the project can join",
+  description:
+    "The initiatives of every project of the project's workspace that the caller can read, with their project, for the task's initiative selector (design 52 §3.1). Needs task:read and access to the project.",
+  middleware: initiativeAccess.readOnProject(),
+  request: { params: projectIdParam },
+  responses: {
+    200: jsonResponse("The initiatives", initiativeOptionsSchema),
     403: errorResponse("No access to the project or missing read permission"),
     404: errorResponse("Project not found"),
   },
@@ -243,7 +262,7 @@ const putTaskRouteDef = createRoute({
   path: "/task/{taskId}/initiative",
   tags,
   summary: "Set a task's initiative",
-  description: `Puts the task in an initiative of its project. The server sets its origin against that initiative's plan (\`plan\` while open, \`añadido\` once closed) and logs the move. Its current initiative changes nothing. ${WRITERS}`,
+  description: `Puts the task in an initiative of any project of its workspace; for one of another project, the caller must also be able to read that project (design 52 §3.1). The server sets its origin against that initiative's plan (\`plan\` while open, \`añadido\` once closed) and logs the move. Its current initiative changes nothing. ${WRITERS}`,
   middleware: initiativeAccess.writeOnTask(),
   request: {
     params: taskIdParam,
@@ -255,7 +274,7 @@ const putTaskRouteDef = createRoute({
   responses: {
     200: jsonResponse("The task's initiative", taskInitiativeSchema),
     400: errorResponse(
-      "Invalid body, `actor` from a session, an unknown initiative (INITIATIVE_NOT_FOUND) or one of another project (INITIATIVE_NOT_IN_PROJECT)",
+      "Invalid body, `actor` from a session, or an initiative that does not exist, is of another workspace or of a project the caller cannot read (INITIATIVE_NOT_FOUND)",
     ),
     ...writeErrors,
     404: errorResponse("Task not found"),
@@ -268,7 +287,8 @@ const getTaskRouteDef = createRoute({
   path: "/task/{taskId}/initiative",
   tags,
   summary: "Get a task's initiative",
-  description: "The task's initiative and origin, with who set them and when.",
+  description:
+    "The task's initiative and origin, with who set them and when. The initiative may be of another project; its name is null when the caller cannot read that project.",
   middleware: initiativeAccess.readOnTask(),
   request: { params: taskIdParam },
   responses: {
@@ -330,6 +350,9 @@ const initiatives = apiRouter()
       ),
       200,
     ),
+  )
+  .openapi(optionsRouteDef, async (c) =>
+    c.json(await listInitiativeOptions(initiativeReader(c)), 200),
   )
   .openapi(detailRouteDef, async (c) =>
     c.json(
@@ -411,7 +434,10 @@ const initiatives = apiRouter()
     );
   })
   .openapi(getTaskRouteDef, async (c) =>
-    c.json(await getTaskInitiative(c.req.valid("param").taskId), 200),
+    c.json(
+      await getTaskInitiative(c.req.valid("param").taskId, c.get("userId")),
+      200,
+    ),
   )
   // The access middleware already answers 404 for an unknown task.
   .openapi(taskHistoryRouteDef, async (c) =>

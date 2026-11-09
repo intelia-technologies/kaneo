@@ -502,7 +502,7 @@ describe("API integration: Intelia initiatives", () => {
     ).toMatchObject({ objetivo: null });
   });
 
-  it("rejects task creation without initiative, with unknown initiative, or with initiative of another project, creating nothing", async () => {
+  it("rejects task creation without initiative or with unknown initiative, creating nothing, and accepts one of another project of the workspace", async () => {
     const { app, project, workspace } = await setup();
 
     // 1. Without initiative -> 400 VALIDATION_ERROR path body.initiative
@@ -524,7 +524,8 @@ describe("API integration: Intelia initiatives", () => {
     });
     expect(await taskCount()).toBe(0);
 
-    // 3. Initiative of another project -> 400 INITIATIVE_NOT_IN_PROJECT
+    // 3. Initiative of another project of the workspace -> created in it
+    // (design 52 §3.1).
     const otherProject = await createProjectFixture({
       workspaceId: workspace.id,
       name: "Other Project",
@@ -542,11 +543,8 @@ describe("API integration: Intelia initiatives", () => {
     const foreignInitTask = await createTask(app, project.id, {
       initiative: { id: foreignInit.id },
     });
-    expect(foreignInitTask.status).toBe(400);
-    expect(await readErrorBody(foreignInitTask)).toMatchObject({
-      code: "INITIATIVE_NOT_IN_PROJECT",
-    });
-    expect(await taskCount()).toBe(0);
+    expect(foreignInitTask.status).toBe(200);
+    expect(await taskCount()).toBe(1);
   });
 
   it("assigns origin plan before close-plan and añadido after, recording journal rows with source session", async () => {
@@ -772,8 +770,8 @@ describe("API integration: Intelia initiatives", () => {
       code: "PARENT_TASK_NOT_FOUND",
     });
 
-    // A parent in another project answers like one that does not exist, even
-    // when it has an initiative: no oracle on tasks of other projects.
+    // A parent in another project of the workspace passes on its initiative
+    // (design 52 §3.1).
     const otherProject = await createProjectFixture({
       workspaceId: workspace.id,
       name: "Otro proyecto",
@@ -790,11 +788,29 @@ describe("API integration: Intelia initiatives", () => {
     expect(foreignParentRes.status).toBe(200);
     const foreignParent = (await foreignParentRes.json()) as { id: string };
     const foreignChildRes = await createTask(app, project.id, {
-      title: "Subtarea de padre ajeno",
+      title: "Subtarea de padre de otro proyecto",
       initiative: { parentTaskId: foreignParent.id },
     });
-    expect(foreignChildRes.status).toBe(400);
-    expect(await readErrorBody(foreignChildRes)).toMatchObject({
+    expect(foreignChildRes.status).toBe(200);
+    const foreignChild = (await foreignChildRes.json()) as { id: string };
+    expect(await storedTaskInitiative(foreignChild.id)).toEqual([
+      expect.objectContaining({ initiativeId: otherInit.id }),
+    ]);
+
+    // A parent of another workspace answers like one that does not exist.
+    const stranger = await createWorkspaceMember({ userName: "Ajeno" });
+    const strangerProject = await createProjectFixture({
+      workspaceId: stranger.workspace.id,
+      name: "Proyecto de otro espacio",
+      slug: "AJENO",
+    });
+    const strangerParent = await seedRawTask(strangerProject.project.id);
+    const strangerChildRes = await createTask(app, project.id, {
+      title: "Subtarea de padre de otro espacio",
+      initiative: { parentTaskId: strangerParent.id },
+    });
+    expect(strangerChildRes.status).toBe(400);
+    expect(await readErrorBody(strangerChildRes)).toMatchObject({
       code: "PARENT_TASK_NOT_FOUND",
     });
   });
@@ -899,7 +915,7 @@ describe("API integration: Intelia initiatives", () => {
   });
 
   it("validates an assignment against the project a concurrent move leaves the task in", async () => {
-    const { app, project, workspace, user } = await setup();
+    const { app, project, user } = await setup();
     const source = (await (
       await createInitiative(app, project.id, { name: "Antes del traslado" })
     ).json()) as { id: string };
@@ -909,8 +925,10 @@ describe("API integration: Intelia initiatives", () => {
     const task = (await (
       await createTask(app, project.id, { initiative: { id: source.id } })
     ).json()) as { id: string };
+    // Another workspace: the one place an initiative still cannot be.
+    const stranger = await createWorkspaceMember({ userName: "Ajeno" });
     const destination = await createProjectFixture({
-      workspaceId: workspace.id,
+      workspaceId: stranger.workspace.id,
       name: "Proyecto destino",
       slug: "PDEST",
     });
@@ -936,7 +954,7 @@ describe("API integration: Intelia initiatives", () => {
     const res = await pending;
     expect(res.status).toBe(400);
     expect(await readErrorBody(res)).toMatchObject({
-      code: "INITIATIVE_NOT_IN_PROJECT",
+      code: "INITIATIVE_NOT_FOUND",
     });
     expect(await storedTaskInitiative(task.id)).toEqual([]);
     const [last] = (await taskInitiativeChanges(task.id)).slice(-1);

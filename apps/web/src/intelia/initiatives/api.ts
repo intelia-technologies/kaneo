@@ -12,11 +12,15 @@ type InitiativeRoute =
 type TaskInitiativeRoute =
   (typeof client)["intelia"]["task"][":taskId"]["initiative"];
 
-// What the selector needs from the project's listing (IN-02).
+// What the selector needs (IN-02): the initiatives of every readable project
+// of the task's workspace, with their project (design 52 §3.1).
 export type InitiativeOption = {
   id: string;
   name: string;
   planClosedAt: string | null;
+  projectId: string;
+  projectSlug: string;
+  projectName: string;
 };
 
 export type Initiative = InferResponseType<
@@ -41,21 +45,22 @@ export type InitiativeChange = InferResponseType<
 
 export const HISTORY_LIMIT = 50;
 
-// The project's listing with counters (one request, fixed number of queries
-// on the server) reduced to the selector's fields, sorted by name.
+// The project's own initiatives first, then the others by project; each group
+// sorted by name.
 export async function getInitiativeOptions(
   projectId: string,
 ): Promise<InitiativeOption[]> {
-  const response = await client.intelia.project[":projectId"].initiatives.$get({
-    param: { projectId },
-  });
+  const response = await client.intelia.project[":projectId"][
+    "initiative-options"
+  ].$get({ param: { projectId } });
   if (!response.ok) throw await HttpError.fromResponse(response);
   const { initiatives } = await response.json();
-  return initiatives
-    .map(({ id, name, planClosedAt }) => ({ id, name, planClosedAt }))
-    .sort((a, b) =>
+  return initiatives.sort(
+    (a, b) =>
+      Number(b.projectId === projectId) - Number(a.projectId === projectId) ||
+      a.projectSlug.localeCompare(b.projectSlug) ||
       a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-    );
+  );
 }
 
 export async function getTaskInitiative(
@@ -161,9 +166,10 @@ export function useCreateInitiative() {
   return useMutation({
     mutationFn: ({ projectId, name }: { projectId: string; name: string }) =>
       createInitiative(projectId, name),
-    onSuccess: (_data, variables) => {
+    // Every project's selector lists it now, not only its own.
+    onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: initiativeOptionsKey(variables.projectId),
+        queryKey: [INITIATIVE_QUERY_ROOT, "options"],
       });
     },
   });

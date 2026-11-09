@@ -7,7 +7,6 @@ import TaskDetailsSheet from "@/components/task/task-details-sheet";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { useGetColumns } from "@/hooks/queries/column/use-get-columns";
-import useGetProject from "@/hooks/queries/project/use-get-project";
 import { useGetTasks } from "@/hooks/queries/task/use-get-tasks";
 import { useInitiative, useInitiativePlan } from "../api";
 import type { InitiativeDetailSearch, InitiativeTab } from "../search";
@@ -42,15 +41,8 @@ export function InitiativeDetailPage({
     refetch: refetchInitiative,
   } = useInitiative(projectId, initiativeId);
 
-  const { data: project } = useGetProject({
-    id: projectId,
-    workspaceId,
-  });
-
   const { data: liveProjectTasks } = useGetTasks(projectId);
   const { data: columns } = useGetColumns(projectId);
-
-  const projectSlug = project?.slug ?? "";
 
   const projectColumnsMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -191,7 +183,6 @@ export function InitiativeDetailPage({
               <TabsPanel value="tasks">
                 <TasksTab
                   initiative={initiative}
-                  projectSlug={projectSlug}
                   projectColumnsMap={projectColumnsMap}
                   search={search}
                   onFilterChange={handleFilterChange}

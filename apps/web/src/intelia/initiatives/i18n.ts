@@ -54,6 +54,8 @@ const en = {
     saveError: "Failed to change the initiative",
     createError: "Failed to create the initiative",
     closePlanError: "Failed to close the plan",
+    otherProject: "An initiative of another project",
+    thisProject: "This project",
   },
   initiatives: {
     title: "Initiatives",
@@ -105,6 +107,8 @@ const en = {
     loadError: "Could not load the initiatives",
     retry: "Retry",
     loading: "Loading initiatives…",
+    hidden_one: "{{count}} task of a project you cannot see, {{done}} done",
+    hidden_other: "{{count}} tasks of projects you cannot see, {{done}} done",
   },
 };
 
@@ -160,6 +164,8 @@ const es = {
     saveError: "No se pudo cambiar la iniciativa",
     createError: "No se pudo crear la iniciativa",
     closePlanError: "No se pudo cerrar el plan",
+    otherProject: "Una iniciativa de otro proyecto",
+    thisProject: "Este proyecto",
   },
   initiatives: {
     title: "Iniciativas",
@@ -211,6 +217,10 @@ const es = {
     loadError: "No se pudieron cargar las iniciativas",
     retry: "Reintentar",
     loading: "Cargando iniciativas…",
+    hidden_one:
+      "{{count}} tarea de un proyecto que no puedes ver, {{done}} hecha",
+    hidden_other:
+      "{{count}} tareas de proyectos que no puedes ver, {{done}} hechas",
   },
 };
 

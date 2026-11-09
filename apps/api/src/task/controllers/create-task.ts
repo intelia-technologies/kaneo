@@ -182,7 +182,11 @@ async function createTask({
     });
 
   const initiativeId = initiative
-    ? await resolveInitiativeOnCreate(projectId, initiative.input)
+    ? await resolveInitiativeOnCreate(
+        projectId,
+        initiative.input,
+        initiative.writer.userId,
+      )
     : null;
 
   const createdTask = await db.transaction(async (tx) => {

@@ -44,14 +44,29 @@ vi.mock("../api", () => ({
 
 vi.mock("@/lib/toast", () => ({ toast: { error: vi.fn() } }));
 
+const own = {
+  projectId: "proj-1",
+  projectSlug: "SF",
+  projectName: "Software Factory",
+};
+
 const sampleOptions = [
-  { id: "init-1", name: "Plan de Acción", planClosedAt: null },
+  { id: "init-1", name: "Plan de Acción", planClosedAt: null, ...own },
   {
     id: "init-2",
     name: "Modernización",
     planClosedAt: "2026-11-01T10:00:00.000Z",
+    ...own,
   },
-  { id: "init-3", name: "Infraestructura Base", planClosedAt: null },
+  { id: "init-3", name: "Infraestructura Base", planClosedAt: null, ...own },
+  {
+    id: "init-infra",
+    name: "Red privada",
+    planClosedAt: null,
+    projectId: "proj-infra",
+    projectSlug: "INFRA",
+    projectName: "Infraestructura",
+  },
 ];
 
 beforeEach(() => {
@@ -119,6 +134,50 @@ describe("InitiativePicker", () => {
 
     expect(
       await screen.findByText("intelia:initiative.planClosedBadge"),
+    ).toBeTruthy();
+  });
+
+  it("offers initiatives of other projects marked with their project", async () => {
+    const onChange = vi.fn();
+    render(
+      <InitiativePicker projectId="proj-1" value={null} onChange={onChange} />,
+    );
+
+    fireEvent.click(screen.getByRole("combobox"));
+    const option = await screen.findByText("Red privada");
+    expect(screen.getByText("INFRA")).toBeTruthy();
+    fireEvent.click(option);
+
+    expect(onChange).toHaveBeenCalledWith("init-infra");
+  });
+
+  it("shows the project of a selected initiative of another project", () => {
+    render(
+      <InitiativePicker
+        projectId="proj-1"
+        value="init-infra"
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("combobox").textContent).toContain(
+      "INFRA · Red privada",
+    );
+  });
+
+  it("still offers to create a name that only another project uses", async () => {
+    render(
+      <InitiativePicker projectId="proj-1" value={null} onChange={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("combobox"));
+    const input = await screen.findByPlaceholderText(
+      "intelia:initiative.searchPlaceholder",
+    );
+    fireEvent.change(input, { target: { value: "Red privada" } });
+
+    expect(
+      await screen.findByText(/intelia:initiative.createOption/),
     ).toBeTruthy();
   });
 

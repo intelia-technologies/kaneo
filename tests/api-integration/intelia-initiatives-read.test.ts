@@ -429,8 +429,8 @@ describe("a project the caller cannot read", () => {
       status: "blocked",
       userId: context.user.id,
     };
-    // A dependency in the hidden project, and a membership row pointing at a
-    // hidden task (inconsistent data the filter must still keep out).
+    // A dependency in the hidden project, and a task of the initiative in it
+    // (design 52 §3.1: it counts, anonymized).
     const dependency = await seedTask(hidden.project.id, secret);
     const stray = await seedTask(hidden.project.id, {
       ...secret,
@@ -442,7 +442,7 @@ describe("a project the caller cannot read", () => {
     return { ...context, initiative, own, dependency, stray, reader };
   }
 
-  it("leaves its tasks out of counters, detail and dependencies and marks the chain partial", async () => {
+  it("counts its tasks only anonymized, leaves them out of detail and dependencies and marks the chain partial", async () => {
     const { app, project, initiative, own, dependency, stray, reader } =
       await hiddenSetup();
     mockAuthenticatedSession(reader);
@@ -450,7 +450,12 @@ describe("a project the caller cannot read", () => {
     const list = await getJson(app, `/project/${project.id}/initiatives`);
     expect(list.status).toBe(200);
     expect(list.body.initiatives[0]).toMatchObject({
-      counters: { total: 1, active: 1, blocked: 0 },
+      counters: {
+        total: 2,
+        active: 2,
+        blocked: 1,
+        hidden: { total: 1, active: 1, done: 0 },
+      },
       blockedTasks: [],
     });
 
@@ -461,7 +466,11 @@ describe("a project the caller cannot read", () => {
     ]);
     expect(detail.body.tasks[0].dependsOn).toEqual([]);
     expect(detail.body.externalTasks).toEqual([]);
-    expect(detail.body.counters).toMatchObject({ total: 1, blocked: 0 });
+    expect(detail.body.counters).toMatchObject({
+      total: 2,
+      blocked: 1,
+      hidden: { total: 1, active: 1, done: 0 },
+    });
     expect(detail.body.pendingChain).toEqual({
       taskIds: [own.id],
       partial: true,

@@ -1,6 +1,17 @@
-import { and, asc, eq, inArray, isNull, or, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  inArray,
+  isNull,
+  not,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import db from "../../database";
+import { projectAccessCondition } from "../../project-access/project-access-condition";
 import {
   customFieldDefinitionTable,
   customFieldValueTable,
@@ -38,6 +49,8 @@ function readableMemberTasks(reader: InitiativeReader, where: SQL) {
       number: taskTable.number,
       title: taskTable.title,
       status: taskTable.status,
+      projectId: taskTable.projectId,
+      projectSlug: projectTable.slug,
       assigneeId: taskTable.userId,
       assigneeName: assigneeUser.name,
       statusSince,
@@ -53,7 +66,32 @@ function readableMemberTasks(reader: InitiativeReader, where: SQL) {
     .orderBy(asc(taskTable.number), asc(taskTable.id));
 }
 
-type MemberTask = Awaited<ReturnType<typeof readableMemberTasks>>[number];
+/**
+ * Status and origin of the tasks in initiatives matching `where` that the
+ * reader cannot read, nothing else: they count, anonymized (design 52 §3.1).
+ * Only tasks of the reader's workspace, so a stray row of another one never
+ * counts. Exactly the complement of `readableMemberTasks` in that workspace.
+ */
+function hiddenMemberTasks(reader: InitiativeReader, where: SQL) {
+  return db
+    .select({
+      initiativeId: taskInitiativeTable.initiativeId,
+      status: taskTable.status,
+      origin: taskInitiativeTable.origin,
+    })
+    .from(taskInitiativeTable)
+    .innerJoin(taskTable, eq(taskInitiativeTable.taskId, taskTable.id))
+    .innerJoin(projectTable, eq(taskTable.projectId, projectTable.id))
+    .where(
+      and(
+        where,
+        eq(projectTable.workspaceId, reader.workspaceId),
+        not(readableProject(reader)!),
+      ),
+    );
+}
+
+type CountedTask = { status: string; origin: TaskOrigin };
 
 function assigneeOf(task: {
   assigneeId: string | null;
@@ -117,7 +155,7 @@ const ORIGIN_KEY: Record<TaskOrigin, "plan" | "added" | "unrecorded"> = {
   sin_registro: "unrecorded",
 };
 
-function countTasks(tasks: { status: string; origin: TaskOrigin }[]) {
+function countTasks(tasks: CountedTask[]) {
   const tally = () => ({ total: 0, active: 0, done: 0 });
   const counters = {
     total: 0,
@@ -128,6 +166,7 @@ function countTasks(tasks: { status: string; origin: TaskOrigin }[]) {
     plan: tally(),
     added: tally(),
     unrecorded: tally(),
+    hidden: tally(),
   };
   for (const task of tasks) {
     const byOrigin = counters[ORIGIN_KEY[task.origin]];
@@ -157,9 +196,23 @@ function stateOf(counters: Counters) {
   return "in_flight" as const;
 }
 
-function summarize(tasks: MemberTask[]) {
-  const counters = countTasks(tasks);
+// Every task counts; the hidden ones also go to their own tally, so the view
+// can say how many it cannot show.
+function summarize(readable: CountedTask[], hidden: CountedTask[]) {
+  const counters = countTasks([...readable, ...hidden]);
+  const { total, active, done } = countTasks(hidden);
+  counters.hidden = { total, active, done };
   return { state: stateOf(counters), counters };
+}
+
+function groupByInitiative<T extends { initiativeId: string }>(tasks: T[]) {
+  const groups = new Map<string, T[]>();
+  for (const task of tasks) {
+    const group = groups.get(task.initiativeId);
+    if (group) group.push(task);
+    else groups.set(task.initiativeId, [task]);
+  }
+  return groups;
 }
 
 /** GET …/project/{projectId}/initiatives: every initiative with its counters. */
@@ -167,18 +220,17 @@ export async function listInitiativesWithCounters(
   projectId: string,
   reader: InitiativeReader,
 ) {
-  const [initiatives, tasks, withoutInitiative] = await Promise.all([
+  const ofProject = inArray(
+    taskInitiativeTable.initiativeId,
+    db
+      .select({ id: initiativeTable.id })
+      .from(initiativeTable)
+      .where(eq(initiativeTable.projectId, projectId)),
+  );
+  const [initiatives, tasks, hidden, withoutInitiative] = await Promise.all([
     listProjectInitiatives(projectId),
-    readableMemberTasks(
-      reader,
-      inArray(
-        taskInitiativeTable.initiativeId,
-        db
-          .select({ id: initiativeTable.id })
-          .from(initiativeTable)
-          .where(eq(initiativeTable.projectId, projectId)),
-      ),
-    ),
+    readableMemberTasks(reader, ofProject),
+    hiddenMemberTasks(reader, ofProject),
     db
       .select({
         id: taskTable.id,
@@ -206,23 +258,20 @@ export async function listInitiativesWithCounters(
   ]);
 
   const reasons = await blockReasons(tasks);
-  const byInitiative = new Map<string, MemberTask[]>();
-  for (const task of tasks) {
-    const group = byInitiative.get(task.initiativeId);
-    if (group) group.push(task);
-    else byInitiative.set(task.initiativeId, [task]);
-  }
+  const byInitiative = groupByInitiative(tasks);
+  const hiddenByInitiative = groupByInitiative(hidden);
   return {
     initiatives: initiatives.map((initiative) => {
       const own = byInitiative.get(initiative.id) ?? [];
       return {
         ...initiative,
-        ...summarize(own),
+        ...summarize(own, hiddenByInitiative.get(initiative.id) ?? []),
         blockedTasks: own
           .filter((task) => task.status === BLOCKED)
           .map((task) => ({
             id: task.id,
             number: task.number,
+            projectSlug: task.projectSlug,
             title: task.title,
             assignee: assigneeOf(task),
             statusSince: task.statusSince,
@@ -287,12 +336,11 @@ export async function getInitiativeDetail(
   initiativeId: string,
   reader: InitiativeReader,
 ) {
-  const [initiative, tasks] = await Promise.all([
+  const ofInitiative = eq(taskInitiativeTable.initiativeId, initiativeId);
+  const [initiative, tasks, hidden] = await Promise.all([
     getInitiative(initiativeId),
-    readableMemberTasks(
-      reader,
-      eq(taskInitiativeTable.initiativeId, initiativeId),
-    ),
+    readableMemberTasks(reader, ofInitiative),
+    hiddenMemberTasks(reader, ofInitiative),
   ]);
   const own = new Set(tasks.map((task) => task.id));
   const ownIds = [...own];
@@ -373,10 +421,12 @@ export async function getInitiativeDetail(
   const reasons = await blockReasons(tasks);
   return {
     ...initiative,
-    ...summarize(tasks),
+    ...summarize(tasks, hidden),
     tasks: tasks.map((task) => ({
       id: task.id,
       number: task.number,
+      projectId: task.projectId,
+      projectSlug: task.projectSlug,
       title: task.title,
       status: task.status,
       origin: task.origin,
@@ -399,7 +449,9 @@ export async function getInitiativeDetail(
 
 /**
  * The initiative of each of `taskIds` the reader can read, in one query.
- * Tasks it cannot read, of other workspaces or unknown are left out.
+ * Tasks it cannot read, of other workspaces or unknown are left out. The
+ * initiative may be of another project: its name only if that one is
+ * readable too (design 52 §3.1).
  */
 export async function getTaskInitiatives(
   taskIds: string[],
@@ -409,7 +461,9 @@ export async function getTaskInitiatives(
     .select({
       taskId: taskTable.id,
       initiativeId: initiativeTable.id,
-      initiativeName: initiativeTable.name,
+      initiativeName: sql<
+        string | null
+      >`CASE WHEN ${projectAccessCondition(reader.userId, initiativeTable.projectId)} THEN ${initiativeTable.name} END`,
     })
     .from(taskTable)
     .innerJoin(projectTable, eq(taskTable.projectId, projectTable.id))
@@ -426,4 +480,26 @@ export async function getTaskInitiatives(
     )
     .orderBy(asc(taskTable.id));
   return { tasks };
+}
+
+/**
+ * GET …/project/{projectId}/initiative-options: the initiatives a task of the
+ * project can join (design 52 §3.1), those of every project of its workspace
+ * the reader can read, with their project, by project and name.
+ */
+export async function listInitiativeOptions(reader: InitiativeReader) {
+  const initiatives = await db
+    .select({
+      id: initiativeTable.id,
+      name: initiativeTable.name,
+      planClosedAt: initiativeTable.planClosedAt,
+      projectId: projectTable.id,
+      projectSlug: projectTable.slug,
+      projectName: projectTable.name,
+    })
+    .from(initiativeTable)
+    .innerJoin(projectTable, eq(initiativeTable.projectId, projectTable.id))
+    .where(readableProject(reader))
+    .orderBy(asc(projectTable.slug), asc(initiativeTable.name));
+  return { initiatives };
 }

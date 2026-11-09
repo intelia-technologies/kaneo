@@ -154,11 +154,14 @@ const mockInitiative: InitiativeDetail = {
     plan: { total: 2, active: 1, done: 1 },
     added: { total: 1, active: 1, done: 0 },
     unrecorded: { total: 0, active: 0, done: 0 },
+    hidden: { total: 0, active: 0, done: 0 },
   },
   tasks: [
     {
       id: "task-1",
       number: 101,
+      projectId: "proj-1",
+      projectSlug: "DEMO",
       title: "Validar contratos",
       status: "done",
       origin: "plan",
@@ -173,6 +176,8 @@ const mockInitiative: InitiativeDetail = {
     {
       id: "task-2",
       number: 102,
+      projectId: "proj-1",
+      projectSlug: "DEMO",
       title: "Verificar reintentos idempotentes",
       status: "blocked",
       origin: "plan",
@@ -187,6 +192,8 @@ const mockInitiative: InitiativeDetail = {
     {
       id: "task-3",
       number: 103,
+      projectId: "proj-1",
+      projectSlug: "DEMO",
       title: "Adaptador antiguo",
       status: "cancelled",
       origin: "añadido",
@@ -777,6 +784,7 @@ describe("InitiativeDetailPage", () => {
             plan: { total: 0, active: 0, done: 0 },
             added: { total: 0, active: 0, done: 0 },
             unrecorded: { total: 0, active: 0, done: 0 },
+            hidden: { total: 0, active: 0, done: 0 },
           },
           tasks: [],
           externalTasks: [],
@@ -816,6 +824,7 @@ describe("InitiativeDetailPage", () => {
             plan: { total: 2, active: 0, done: 0 },
             added: { total: 0, active: 0, done: 0 },
             unrecorded: { total: 0, active: 0, done: 0 },
+            hidden: { total: 0, active: 0, done: 0 },
           },
           tasks: [
             {

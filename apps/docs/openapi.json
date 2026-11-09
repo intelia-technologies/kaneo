@@ -7454,6 +7454,27 @@
               "done"
             ],
             "description": "Origin `sin_registro` (migrated). They count in the progress but not in plan or added; with any, the initiative shows no growth."
+          },
+          "hidden": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "active": {
+                "type": "integer",
+                "description": "Not Cancelled."
+              },
+              "done": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "active",
+              "done"
+            ],
+            "description": "Tasks of projects the caller cannot read (design 52 §3.1). They count in every other counter too, but none of their data is returned."
           }
         },
         "required": [
@@ -7464,9 +7485,10 @@
           "blocked",
           "plan",
           "added",
-          "unrecorded"
+          "unrecorded",
+          "hidden"
         ],
-        "description": "Tasks of the initiative the caller can read. Cancelled tasks keep their origin and count in `total` and `cancelled`, never in `active` or `done`."
+        "description": "Every task of the initiative, of any project of its workspace, readable by the caller or not. Cancelled tasks keep their origin and count in `total` and `cancelled`, never in `active` or `done`."
       },
       "InitiativeBlockedTask": {
         "type": "object",
@@ -7479,6 +7501,9 @@
               "integer",
               "null"
             ]
+          },
+          "projectSlug": {
+            "type": "string"
           },
           "title": {
             "type": "string"
@@ -7527,6 +7552,7 @@
         "required": [
           "id",
           "number",
+          "projectSlug",
           "title",
           "assignee",
           "statusSince",
@@ -7703,6 +7729,53 @@
           "assignee"
         ]
       },
+      "InitiativeOptions": {
+        "type": "object",
+        "properties": {
+          "initiatives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InitiativeOption"
+            }
+          }
+        },
+        "required": [
+          "initiatives"
+        ],
+        "description": "The initiatives of every project of the workspace the caller can read, by project slug and name (design 52 §3.1)."
+      },
+      "InitiativeOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "planClosedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "projectSlug": {
+            "type": "string"
+          },
+          "projectName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "planClosedAt",
+          "projectId",
+          "projectSlug",
+          "projectName"
+        ]
+      },
       "InitiativeDetail": {
         "allOf": [
           {
@@ -7761,6 +7834,13 @@
               "integer",
               "null"
             ]
+          },
+          "projectId": {
+            "type": "string",
+            "description": "The task's project: the initiative's or another of its workspace (design 52)."
+          },
+          "projectSlug": {
+            "type": "string"
           },
           "title": {
             "type": "string"
@@ -7840,6 +7920,8 @@
         "required": [
           "id",
           "number",
+          "projectId",
+          "projectSlug",
           "title",
           "status",
           "origin",
@@ -8009,7 +8091,7 @@
           },
           "partial": {
             "type": "boolean",
-            "description": "A dependency endpoint is unreadable and was left out without any of its data."
+            "description": "A dependency endpoint is unreadable, or the initiative has a pending task of a project the caller cannot read (design 52); left out without any of their data."
           },
           "cycle": {
             "type": "boolean",
@@ -8381,7 +8463,15 @@
             "type": "string"
           },
           "initiativeName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null when the caller cannot read the initiative's project, which may not be the task's (design 52)."
+          },
+          "initiativeReadable": {
+            "type": "boolean",
+            "description": "Whether the caller can read the initiative's project, and so open the initiative."
           },
           "origin": {
             "type": "string",
@@ -8428,6 +8518,7 @@
           "taskId",
           "initiativeId",
           "initiativeName",
+          "initiativeReadable",
           "origin",
           "since",
           "setByUserId",
@@ -8570,7 +8661,7 @@
           "initiativeId",
           "initiativeName"
         ],
-        "description": "A readable task and its initiative; both null when it has none."
+        "description": "A readable task and its initiative; both null when it has none. `initiativeName` is also null when the initiative belongs to a project the caller cannot read (design 52)."
       },
       "Reaction": {
         "type": "object",
@@ -15564,7 +15655,7 @@
             }
           },
           "400": {
-            "description": "Invalid body (including a missing `automation` or `initiative`, or `completa` without verification), an initiative that does not exist or belongs to another project, or a repeating task in a final column",
+            "description": "Invalid body (including a missing `automation` or `initiative`, or `completa` without verification), an initiative that does not exist or is of a project the caller cannot read, or a repeating task in a final column",
             "content": {
               "application/json": {
                 "schema": {
@@ -15748,7 +15839,7 @@
             }
           },
           "400": {
-            "description": "Invalid task fields or request, no level or initiative to copy, or an initiative of another project",
+            "description": "Invalid task fields or request, no level or initiative to copy, or an initiative that does not exist or is of a project the caller cannot read",
             "content": {
               "application/json": {
                 "schema": {
@@ -16659,7 +16750,7 @@
             }
           },
           "400": {
-            "description": "Invalid body, no `automation` or `initiativeId`, or an initiative of another project",
+            "description": "Invalid body, no `automation` or `initiativeId`, or an initiative that does not exist or is of a project the caller cannot read",
             "content": {
               "application/json": {
                 "schema": {
@@ -32972,7 +33063,7 @@
           "Initiatives"
         ],
         "summary": "List a project's initiatives with their counters",
-        "description": "Every initiative of the project, oldest first, with its derived state, counters (active, done, cancelled, blocked; plan, added and unrecorded) and its Blocked tasks with their reason, plus the tasks without initiative. One call for the whole listing. Needs task:read and access to the project. Tasks of projects the caller cannot read are left out of every count, list and dependency, without any of their data.",
+        "description": "Every initiative of the project, oldest first, with its derived state, counters (active, done, cancelled, blocked; plan, added and unrecorded) and its Blocked tasks with their reason, plus the tasks without initiative. One call for the whole listing. Needs task:read and access to the project. Tasks of projects the caller cannot read count in the counters (and in `counters.hidden`), but are left out of every list and dependency, without any of their data.",
         "parameters": [
           {
             "schema": {
@@ -33206,6 +33297,71 @@
         }
       }
     },
+    "/intelia/project/{projectId}/initiative-options": {
+      "get": {
+        "operationId": "listInitiativeOptions",
+        "tags": [
+          "Initiatives"
+        ],
+        "summary": "List the initiatives a task of the project can join",
+        "description": "The initiatives of every project of the project's workspace that the caller can read, with their project, for the task's initiative selector (design 52 §3.1). Needs task:read and access to the project.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The initiatives",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InitiativeOptions"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
     "/intelia/initiative/{initiativeId}": {
       "get": {
         "operationId": "getInitiativeDetail",
@@ -33213,7 +33369,7 @@
           "Initiatives"
         ],
         "summary": "Get an initiative with its tasks",
-        "description": "The initiative, its counters and its tasks with origin, status, assignee, «no status change since» (from the activity log), block reason and `blocks` dependencies, the readable tasks outside it that they touch, and the longest pending chain. Needs task:read and access to the project. Tasks of projects the caller cannot read are left out of every count, list and dependency, without any of their data. A pending task with a dependency left out marks the chain partial.",
+        "description": "The initiative, its counters and its tasks with origin, status, assignee, «no status change since» (from the activity log), block reason and `blocks` dependencies, the readable tasks outside it that they touch, and the longest pending chain. Needs task:read and access to the project. Tasks of projects the caller cannot read count in the counters (and in `counters.hidden`), but are left out of every list and dependency, without any of their data. A pending task with a dependency left out marks the chain partial.",
         "parameters": [
           {
             "schema": {
@@ -33558,7 +33714,7 @@
           "Initiatives"
         ],
         "summary": "Get an initiative's estimated plan and critical path",
-        "description": "Real start and end of each task, its estimate (the median of similar finished tasks, or its `estimacion_horas`), planned dates chained along `blocks` from now, the critical path by hours with the mark of each pending task, and the estimated end (annex of design 19). The finished tasks behind the medians are read at most every 10 minutes. Needs task:read and access to the project. Tasks of projects the caller cannot read are left out of every count, list and dependency, without any of their data. Estimates learn only from tasks the caller can read.",
+        "description": "Real start and end of each task, its estimate (the median of similar finished tasks, or its `estimacion_horas`), planned dates chained along `blocks` from now, the critical path by hours with the mark of each pending task, and the estimated end (annex of design 19). The finished tasks behind the medians are read at most every 10 minutes. Needs task:read and access to the project. Tasks of projects the caller cannot read count in the counters (and in `counters.hidden`), but are left out of every list and dependency, without any of their data. Estimates learn only from tasks the caller can read.",
         "parameters": [
           {
             "schema": {
@@ -33808,7 +33964,7 @@
           "Initiatives"
         ],
         "summary": "Set a task's initiative",
-        "description": "Puts the task in an initiative of its project. The server sets its origin against that initiative's plan (`plan` while open, `añadido` once closed) and logs the move. Its current initiative changes nothing. A person's session or an account's API key, with task:update. Kaneo does not check who may write beyond that: the factory's gateway does, before calling (design 19 §3). With an API key, `actor` names who the caller acts for (informative, logged as given).",
+        "description": "Puts the task in an initiative of any project of its workspace; for one of another project, the caller must also be able to read that project (design 52 §3.1). The server sets its origin against that initiative's plan (`plan` while open, `añadido` once closed) and logs the move. Its current initiative changes nothing. A person's session or an account's API key, with task:update. Kaneo does not check who may write beyond that: the factory's gateway does, before calling (design 19 §3). With an API key, `actor` names who the caller acts for (informative, logged as given).",
         "parameters": [
           {
             "schema": {
@@ -33857,7 +34013,7 @@
             }
           },
           "400": {
-            "description": "Invalid body, `actor` from a session, an unknown initiative (INITIATIVE_NOT_FOUND) or one of another project (INITIATIVE_NOT_IN_PROJECT)",
+            "description": "Invalid body, `actor` from a session, or an initiative that does not exist, is of another workspace or of a project the caller cannot read (INITIATIVE_NOT_FOUND)",
             "content": {
               "application/json": {
                 "schema": {
@@ -33907,7 +34063,7 @@
           "Initiatives"
         ],
         "summary": "Get a task's initiative",
-        "description": "The task's initiative and origin, with who set them and when.",
+        "description": "The task's initiative and origin, with who set them and when. The initiative may be of another project; its name is null when the caller cannot read that project.",
         "parameters": [
           {
             "schema": {
@@ -34053,7 +34209,7 @@
           "Initiatives"
         ],
         "summary": "Get the initiative of many tasks",
-        "description": "The initiative id and name of each requested task, in one read (null for a task without initiative), ordered by task id. A POST only to carry up to 500 ids; it changes nothing. Needs task:read and access to the project. Tasks of projects the caller cannot read are left out of every count, list and dependency, without any of their data. Unknown tasks and tasks of other workspaces are left out the same way.",
+        "description": "The initiative id and name of each requested task, in one read (null for a task without initiative), ordered by task id. A POST only to carry up to 500 ids; it changes nothing. Needs task:read and access to the project. Tasks of projects the caller cannot read count in the counters (and in `counters.hidden`), but are left out of every list and dependency, without any of their data. Unknown tasks and tasks of other workspaces are left out the same way.",
         "parameters": [
           {
             "schema": {

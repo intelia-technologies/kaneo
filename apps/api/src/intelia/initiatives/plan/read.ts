@@ -146,7 +146,11 @@ export async function getInitiativePlan(
   let frontier = detail.externalTasks
     .filter((task) => directBlockers.has(task.id) && isPending(task.status))
     .map((task) => task.id);
-  let partial = detail.pendingChain.partial;
+  // A pending task of the initiative the reader cannot see (another project,
+  // design 52 §3.1) may sit on the real critical path: the plan is partial.
+  let partial =
+    detail.pendingChain.partial ||
+    detail.counters.hidden.active > detail.counters.hidden.done;
   while (frontier.length) {
     for (const id of frontier) inspected.add(id);
     const relations = await db

@@ -44,7 +44,8 @@ vi.mock("@/hooks/queries/task/use-get-task", () => ({
 vi.mock("../api", () => ({
   useTaskInitiative: () => mocks.initiative(),
   useTaskInitiativeHistory: () => mocks.taskHistory(),
-  useInitiativeHistory: () => mocks.initiativeHistory(),
+  useInitiativeHistory: (initiativeId: string | undefined) =>
+    mocks.initiativeHistory(initiativeId),
   useInitiativeOptions: () => mocks.options(),
   useCreateInitiative: () => ({
     mutateAsync: vi.fn(),
@@ -74,6 +75,7 @@ const savedInitiative = {
   taskId: "task-1",
   initiativeId: "init-1",
   initiativeName: "Plan Maestro",
+  initiativeReadable: true,
   origin: "plan" as const,
   since: "2026-10-30T09:00:00.000Z",
   setByUserId: "user-1",
@@ -82,9 +84,15 @@ const savedInitiative = {
   source: "session" as const,
 };
 
+const project = {
+  projectId: "proj-1",
+  projectSlug: "SF",
+  projectName: "Software Factory",
+};
+
 const sampleOptions = [
-  { id: "init-1", name: "Plan Maestro", planClosedAt: null },
-  { id: "init-2", name: "Fase Dos", planClosedAt: null },
+  { id: "init-1", name: "Plan Maestro", planClosedAt: null, ...project },
+  { id: "init-2", name: "Fase Dos", planClosedAt: null, ...project },
 ];
 
 beforeEach(() => {
@@ -248,6 +256,7 @@ describe("TaskInitiativePanel", () => {
           id: "init-1",
           name: "Plan Maestro",
           planClosedAt: "2026-10-31T12:00:00.000Z",
+          ...project,
         },
       ],
       isLoading: false,
@@ -265,5 +274,25 @@ describe("TaskInitiativePanel", () => {
         })}`,
       ),
     ).toBeTruthy();
+  });
+
+  it("shows an initiative of a project the reader cannot see without its name, milestones or plan button", () => {
+    mocks.initiative.mockReturnValue({
+      data: {
+        ...savedInitiative,
+        initiativeId: "init-hidden",
+        initiativeName: null,
+        initiativeReadable: false,
+      },
+      isError: false,
+    });
+
+    render(<TaskInitiativePanel taskId="task-1" />);
+
+    expect(
+      screen.getAllByText("intelia:initiative.otherProject").length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText("intelia:initiative.closePlan")).toBeNull();
+    expect(mocks.initiativeHistory).toHaveBeenCalledWith(undefined);
   });
 });

@@ -232,7 +232,8 @@ async function moveTask({
       .set({ projectId: destinationProjectId })
       .where(eq(assetTable.taskId, taskId));
 
-    // Intelia: an initiative belongs to one project; the task leaves it.
+    // Intelia: upstream's move drops the initiative (the fork's own move,
+    // POST /api/intelia/task/{taskId}/move, keeps it by name).
     await dropTaskInitiativeOnProjectMove(tx, taskId, currentUserId);
 
     return movedTask;

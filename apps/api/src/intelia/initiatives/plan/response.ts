@@ -111,7 +111,7 @@ export const initiativePlanSchema = z
         }),
         partial: z.boolean().openapi({
           description:
-            "A dependency endpoint is unreadable and was left out without any of its data.",
+            "A dependency endpoint is unreadable, or the initiative has a pending task of a project the caller cannot read (design 52); left out without any of their data.",
         }),
         cycle: z.boolean().openapi({
           description:

@@ -33,6 +33,8 @@ export type PickerOption = {
   id: string;
   name: string;
   planClosedAt: string | null;
+  // Only for an initiative of another project (design 52 §3.1).
+  projectSlug?: string;
   isCreate?: boolean;
 };
 
@@ -80,12 +82,16 @@ export function InitiativePicker({
     );
   }, [options, queryKey]);
 
+  // Names are unique per project: one of another project does not stop
+  // creating it here.
   const hasExactMatch = useMemo(() => {
     if (!queryKey) return false;
     return options.some(
-      (opt) => normalizeInitiativeName(opt.name) === queryKey,
+      (opt) =>
+        opt.projectId === projectId &&
+        normalizeInitiativeName(opt.name) === queryKey,
     );
-  }, [options, queryKey]);
+  }, [options, queryKey, projectId]);
 
   const showCreateOption = trimmedQuery.length > 0 && !hasExactMatch;
 
@@ -94,6 +100,7 @@ export function InitiativePicker({
       id: opt.id,
       name: opt.name,
       planClosedAt: opt.planClosedAt,
+      projectSlug: opt.projectId === projectId ? undefined : opt.projectSlug,
     }));
     if (showCreateOption) {
       list.push({
@@ -104,7 +111,7 @@ export function InitiativePicker({
       });
     }
     return list;
-  }, [filtered, showCreateOption, trimmedQuery]);
+  }, [filtered, showCreateOption, trimmedQuery, projectId]);
 
   const handleSelect = (initiativeId: string) => {
     onChange(initiativeId);
@@ -177,8 +184,12 @@ export function InitiativePicker({
             )}
           >
             {selectedOption
-              ? selectedOption.name
-              : t("intelia:initiative.placeholder")}
+              ? selectedOption.projectId === projectId
+                ? selectedOption.name
+                : `${selectedOption.projectSlug} · ${selectedOption.name}`
+              : value && !isLoading
+                ? t("intelia:initiative.otherProject")
+                : t("intelia:initiative.placeholder")}
           </span>
           <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
         </button>
@@ -242,6 +253,11 @@ export function InitiativePicker({
                   >
                     <div className="flex items-center justify-between gap-2 w-full">
                       <span className="truncate flex-1">{item.name}</span>
+                      {item.projectSlug && (
+                        <span className="shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                          {item.projectSlug}
+                        </span>
+                      )}
                       {item.planClosedAt !== null && (
                         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                           {t("intelia:initiative.planClosedBadge")}
