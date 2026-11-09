@@ -2,8 +2,11 @@ import { and, asc, desc, eq, getTableColumns, max } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
-import { taskTable, userTable } from "../../database/schema";
+import { projectTable, taskTable, userTable } from "../../database/schema";
 import { ApiError } from "../../errors/api-error";
+import { canAccessProject } from "../../project-access/can-access-project";
+import { findInaccessibleProjectIds } from "../../project-access/find-inaccessible-project-ids";
+import { projectAccessCondition } from "../../project-access/project-access-condition";
 import {
   type InitiativeChangeKind,
   type InitiativeChangeSource,
@@ -389,10 +392,14 @@ export async function closePlan(
 }
 
 // Locks the rows of the initiative's tasks, in id order, and returns them with
-// their current status. Every task, readable by the caller or not.
+// their project and current status. Every task, readable by the caller or not.
 function lockInitiativeTasks(tx: Transaction, initiativeId: string) {
   return tx
-    .select({ id: taskTable.id, status: taskTable.status })
+    .select({
+      id: taskTable.id,
+      projectId: taskTable.projectId,
+      status: taskTable.status,
+    })
     .from(taskInitiativeTable)
     .innerJoin(taskTable, eq(taskTable.id, taskInitiativeTable.taskId))
     .where(eq(taskInitiativeTable.initiativeId, initiativeId))
@@ -452,11 +459,22 @@ export async function deleteInitiative(
     await tx
       .delete(initiativeTable)
       .where(eq(initiativeTable.id, initiativeId));
+    // Every task counts and is unlinked, but the response names only those
+    // the caller can read: the others may be of other projects (design 52).
+    const hidden = new Set(
+      await findInaccessibleProjectIds(
+        writer.userId,
+        tasks.map((task) => task.projectId),
+        tx,
+      ),
+    );
     return {
       id: initiative.id,
       projectId: initiative.projectId,
       name: initiative.name,
-      unlinkedTaskIds: tasks.map((task) => task.id),
+      unlinkedTaskIds: tasks
+        .filter((task) => !hidden.has(task.projectId))
+        .map((task) => task.id),
     };
   });
 }
@@ -469,20 +487,47 @@ const NO_AUTHOR: Author = { userId: null, actor: null };
 // `task.status` (API, bulk, reorder, integrations, routines). It takes the
 // initiative's row lock like the code here, so an assignment never races it.
 
+// `reader`, when set, is who asked for the assignment: it must also be able
+// to read the initiative's project (design 52 §3.1). Automatic assignments
+// (a recurrence occurrence, a move to a project the mover reads) have none.
 type MembershipWrite = {
   source: TaskInitiativeChangeSource & ("session" | "api_key" | "migration");
   author: Author;
+  reader?: string;
 };
 
 function membershipWrite(writer: InitiativeWriter): MembershipWrite {
-  return { source: writer.source, author: authorOf(writer) };
+  return {
+    source: writer.source,
+    author: authorOf(writer),
+    reader: writer.userId,
+  };
+}
+
+function initiativeNotFound() {
+  return new ApiError(400, {
+    message: "Initiative not found",
+    code: "INITIATIVE_NOT_FOUND",
+  });
+}
+
+// The workspace of a project, for the same-workspace rule.
+async function projectWorkspaceId(tx: Transaction, projectId: string) {
+  const [row] = await tx
+    .select({ workspaceId: projectTable.workspaceId })
+    .from(projectTable)
+    .where(eq(projectTable.id, projectId))
+    .limit(1);
+  return row?.workspaceId ?? null;
 }
 
 /**
- * Puts a task in an initiative of its project inside the caller's
- * transaction, with the origin the plan gives it now: `plan` while open,
- * `añadido` once closed (design 19 §4). Moving it to the initiative it is
- * already in changes nothing and returns null.
+ * Puts a task in an initiative of any project of its workspace (design 52
+ * §3.1) inside the caller's transaction, with the origin the plan gives it
+ * now: `plan` while open, `añadido` once closed (design 19 §4). Moving it to
+ * the initiative it is already in changes nothing and returns null. An
+ * initiative of another workspace, or of a project `write.reader` cannot read,
+ * answers like one that does not exist.
  */
 export async function assignTaskInitiative(
   tx: Transaction,
@@ -491,17 +536,25 @@ export async function assignTaskInitiative(
   write: MembershipWrite,
 ): Promise<{ origin: TaskOrigin } | null> {
   const initiative = await lockInitiative(tx, initiativeId);
-  if (!initiative) {
-    throw new ApiError(400, {
-      message: "Initiative not found",
-      code: "INITIATIVE_NOT_FOUND",
-    });
-  }
+  if (!initiative) throw initiativeNotFound();
   if (initiative.projectId !== task.projectId) {
-    throw new ApiError(400, {
-      message: "The initiative belongs to another project",
-      code: "INITIATIVE_NOT_IN_PROJECT",
-    });
+    const [home, own] = await Promise.all([
+      projectWorkspaceId(tx, initiative.projectId),
+      projectWorkspaceId(tx, task.projectId),
+    ]);
+    if (!home || home !== own) throw initiativeNotFound();
+    if (
+      write.reader &&
+      (
+        await findInaccessibleProjectIds(
+          write.reader,
+          [initiative.projectId],
+          tx,
+        )
+      ).length > 0
+    ) {
+      throw initiativeNotFound();
+    }
   }
   const [current] = await tx
     .select()
@@ -545,31 +598,37 @@ export async function assignTaskInitiative(
 
 /**
  * The initiative a task being created asks for: its own, or its parent's. The
- * parent is looked up in the new task's project only, so a task of another
- * project answers the same as one that does not exist.
+ * parent may be of any project of the new task's workspace that `userId` can
+ * read; any other answers the same as one that does not exist. Whether the
+ * caller can read the initiative's project is checked when it is assigned.
  */
 export async function resolveInitiativeOnCreate(
   projectId: string,
   input: InitiativeOnCreate,
+  userId: string,
 ): Promise<string> {
   if ("id" in input) return input.id;
+  const project = alias(projectTable, "new_task_project");
   const [parent] = await db
     .select({
       id: taskTable.id,
       initiativeId: taskInitiativeTable.initiativeId,
     })
     .from(taskTable)
+    .innerJoin(projectTable, eq(taskTable.projectId, projectTable.id))
+    .innerJoin(project, eq(project.workspaceId, projectTable.workspaceId))
     .leftJoin(taskInitiativeTable, eq(taskInitiativeTable.taskId, taskTable.id))
     .where(
       and(
         eq(taskTable.id, input.parentTaskId),
-        eq(taskTable.projectId, projectId),
+        eq(project.id, projectId),
+        projectAccessCondition(userId, projectTable.id),
       ),
     )
     .limit(1);
   if (!parent) {
     throw new ApiError(400, {
-      message: "Parent task not found in this project",
+      message: "Parent task not found",
       code: "PARENT_TASK_NOT_FOUND",
     });
   }
@@ -596,8 +655,8 @@ export async function taskInitiativeId(
 }
 
 /**
- * A task that leaves its project loses its initiative (an initiative belongs
- * to one project, design 19 decision 6), with a row in the log.
+ * A task that leaves its project through upstream's move loses its
+ * initiative, with a row in the log (the fork's move keeps it by name).
  */
 export async function dropTaskInitiativeOnProjectMove(
   tx: Transaction,
@@ -644,7 +703,7 @@ export async function setTaskInitiative(
     if (!task) throw new HTTPException(404, { message: "Task not found" });
     await assignTaskInitiative(tx, task, initiativeId, membershipWrite(writer));
   });
-  return getTaskInitiative(taskId);
+  return getTaskInitiative(taskId, writer.userId);
 }
 
 /** Where a moved task's initiative went: matched by name, or created. */
@@ -772,11 +831,16 @@ export async function assignOccurrence(
   });
 }
 
-export async function getTaskInitiative(taskId: string) {
-  const [membership] = await db
+/**
+ * The task's initiative. Its name only when `readerId` can read the
+ * initiative's project, which may be another one (design 52 §3.1).
+ */
+export async function getTaskInitiative(taskId: string, readerId: string) {
+  const [row] = await db
     .select({
       ...getTableColumns(taskInitiativeTable),
       initiativeName: initiativeTable.name,
+      initiativeProjectId: initiativeTable.projectId,
       setByName: setBy.name,
     })
     .from(taskInitiativeTable)
@@ -787,10 +851,16 @@ export async function getTaskInitiative(taskId: string) {
     .leftJoin(setBy, eq(taskInitiativeTable.setByUserId, setBy.id))
     .where(eq(taskInitiativeTable.taskId, taskId))
     .limit(1);
-  if (!membership) {
+  if (!row) {
     throw new HTTPException(404, { message: "The task has no initiative" });
   }
-  return membership;
+  const { initiativeProjectId, initiativeName, ...membership } = row;
+  const readable = await canAccessProject(readerId, initiativeProjectId);
+  return {
+    ...membership,
+    initiativeName: readable ? initiativeName : null,
+    initiativeReadable: readable,
+  };
 }
 
 export function listTaskInitiativeChanges(taskId: string, limit: number) {

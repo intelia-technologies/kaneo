@@ -80,7 +80,7 @@ export const deletedInitiativeSchema = z
     name: z.string(),
     unlinkedTaskIds: z.array(z.string()).openapi({
       description:
-        "The cancelled tasks it had, now without initiative (each with a row in its initiative log). Empty when it had none.",
+        "The cancelled tasks it had, now without initiative (each with a row in its initiative log), only those of projects the caller can read (design 52). Empty when it had none.",
     }),
   })
   .openapi("DeletedInitiative");
@@ -89,7 +89,14 @@ export const taskInitiativeSchema = z
   .object({
     taskId: z.string(),
     initiativeId: z.string(),
-    initiativeName: z.string(),
+    initiativeName: z.string().nullable().openapi({
+      description:
+        "Null when the caller cannot read the initiative's project, which may not be the task's (design 52).",
+    }),
+    initiativeReadable: z.boolean().openapi({
+      description:
+        "Whether the caller can read the initiative's project, and so open the initiative.",
+    }),
     origin,
     since: responseTimestamp,
     setByUserId: z.string().nullable(),
@@ -148,10 +155,14 @@ const counters = z
       description:
         "Origin `sin_registro` (migrated). They count in the progress but not in plan or added; with any, the initiative shows no growth.",
     }),
+    hidden: tally.openapi({
+      description:
+        "Tasks of projects the caller cannot read (design 52 §3.1). They count in every other counter too, but none of their data is returned.",
+    }),
   })
   .openapi("InitiativeCounters", {
     description:
-      "Tasks of the initiative the caller can read. Cancelled tasks keep their origin and count in `total` and `cancelled`, never in `active` or `done`.",
+      "Every task of the initiative, of any project of its workspace, readable by the caller or not. Cancelled tasks keep their origin and count in `total` and `cancelled`, never in `active` or `done`.",
   });
 
 const state = z
@@ -181,10 +192,19 @@ const statusSince = responseTimestamp.openapi({
     "Last status change in the task's activity log, or its creation if it never changed: «sin cambios de estado desde».",
 });
 
+const taskProject = {
+  projectId: z.string().openapi({
+    description:
+      "The task's project: the initiative's or another of its workspace (design 52).",
+  }),
+  projectSlug: z.string(),
+};
+
 const blockedTaskSchema = z
   .object({
     id: z.string(),
     number: z.number().int().nullable(),
+    ...taskProject,
     title: z.string(),
     assignee,
     statusSince,
@@ -219,6 +239,7 @@ const initiativeTaskSchema = z
   .object({
     id: z.string(),
     number: z.number().int().nullable(),
+    ...taskProject,
     title: z.string(),
     status: z.string(),
     origin,
@@ -289,11 +310,31 @@ export const taskInitiativesSchema = z
         })
         .openapi("TaskInitiativeRef", {
           description:
-            "A readable task and its initiative; both null when it has none.",
+            "A readable task and its initiative; both null when it has none. `initiativeName` is also null when the initiative belongs to a project the caller cannot read (design 52).",
         }),
     ),
   })
   .openapi("TaskInitiatives", {
     description:
       "One entry per requested task of the workspace the caller can read, by task id. Unknown tasks, tasks of other workspaces and tasks of projects the caller cannot read are left out, indistinguishably.",
+  });
+
+export const initiativeOptionsSchema = z
+  .object({
+    initiatives: z.array(
+      z
+        .object({
+          id: z.string(),
+          name: z.string(),
+          planClosedAt: timestamp,
+          projectId: z.string(),
+          projectSlug: z.string(),
+          projectName: z.string(),
+        })
+        .openapi("InitiativeOption"),
+    ),
+  })
+  .openapi("InitiativeOptions", {
+    description:
+      "The initiatives of every project of the workspace the caller can read, by project slug and name (design 52 §3.1).",
   });

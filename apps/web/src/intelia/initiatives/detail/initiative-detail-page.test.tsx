@@ -59,9 +59,17 @@ vi.mock("@/components/page-title", () => ({
 }));
 
 vi.mock("@/components/task/task-details-sheet", () => ({
-  default: ({ taskId, onClose }: { taskId?: string; onClose: () => void }) =>
+  default: ({
+    taskId,
+    projectId,
+    onClose,
+  }: {
+    taskId?: string;
+    projectId: string;
+    onClose: () => void;
+  }) =>
     taskId ? (
-      <div data-testid="task-details-sheet">
+      <div data-testid="task-details-sheet" data-project-id={projectId}>
         <span>Sheet for {taskId}</span>
         <button type="button" onClick={onClose}>
           Close sheet
@@ -154,11 +162,14 @@ const mockInitiative: InitiativeDetail = {
     plan: { total: 2, active: 1, done: 1 },
     added: { total: 1, active: 1, done: 0 },
     unrecorded: { total: 0, active: 0, done: 0 },
+    hidden: { total: 0, active: 0, done: 0 },
   },
   tasks: [
     {
       id: "task-1",
       number: 101,
+      projectId: "proj-1",
+      projectSlug: "DEMO",
       title: "Validar contratos",
       status: "done",
       origin: "plan",
@@ -173,6 +184,8 @@ const mockInitiative: InitiativeDetail = {
     {
       id: "task-2",
       number: 102,
+      projectId: "proj-1",
+      projectSlug: "DEMO",
       title: "Verificar reintentos idempotentes",
       status: "blocked",
       origin: "plan",
@@ -187,6 +200,8 @@ const mockInitiative: InitiativeDetail = {
     {
       id: "task-3",
       number: 103,
+      projectId: "proj-1",
+      projectSlug: "DEMO",
       title: "Adaptador antiguo",
       status: "cancelled",
       origin: "añadido",
@@ -292,6 +307,36 @@ afterEach(() => {
 });
 
 describe("InitiativeDetailPage", () => {
+  it("opens a task of another project of the initiative in its own project", () => {
+    mocks.useInitiative.mockReturnValue({
+      data: {
+        ...mockInitiative,
+        tasks: mockInitiative.tasks.map((task) =>
+          task.id === "task-2"
+            ? { ...task, projectId: "proj-infra", projectSlug: "INFRA" }
+            : task,
+        ),
+      },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    render(
+      <InitiativeDetailPage
+        workspaceId="ws-1"
+        projectId="proj-1"
+        initiativeId="init-1"
+        search={{ taskId: "task-2" }}
+      />,
+    );
+
+    expect(screen.getByTestId("task-details-sheet")).toHaveAttribute(
+      "data-project-id",
+      "proj-infra",
+    );
+    expect(screen.getByText("INFRA-102")).toBeInTheDocument();
+  });
+
   it("renders header with name, state tag, progress figures, design link, approval and plan state", () => {
     render(
       <InitiativeDetailPage
@@ -777,6 +822,7 @@ describe("InitiativeDetailPage", () => {
             plan: { total: 0, active: 0, done: 0 },
             added: { total: 0, active: 0, done: 0 },
             unrecorded: { total: 0, active: 0, done: 0 },
+            hidden: { total: 0, active: 0, done: 0 },
           },
           tasks: [],
           externalTasks: [],
@@ -816,6 +862,7 @@ describe("InitiativeDetailPage", () => {
             plan: { total: 2, active: 0, done: 0 },
             added: { total: 0, active: 0, done: 0 },
             unrecorded: { total: 0, active: 0, done: 0 },
+            hidden: { total: 0, active: 0, done: 0 },
           },
           tasks: [
             {

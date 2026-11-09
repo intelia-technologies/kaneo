@@ -58,8 +58,14 @@ export function TaskInitiativePanel({
   const { data: taskHistory = [] } = useTaskInitiativeHistory(taskId);
   const { data: options = [] } = useInitiativeOptions(projectId);
   const currentInitiativeId = saved?.initiativeId;
-  const { data: initiativeHistory = [] } =
-    useInitiativeHistory(currentInitiativeId);
+  // An initiative of a project the reader cannot see (design 52): no name,
+  // milestones or plan to close.
+  const readable = saved?.initiativeReadable ?? false;
+  const savedName =
+    saved?.initiativeName ?? t("intelia:initiative.otherProject");
+  const { data: initiativeHistory = [] } = useInitiativeHistory(
+    readable ? currentInitiativeId : undefined,
+  );
 
   const setInitiative = useSetTaskInitiative();
   const closePlan = useClosePlan();
@@ -132,7 +138,7 @@ export function TaskInitiativePanel({
     const currentName =
       options.find((o) => o.id === entry.initiativeId)?.name ??
       (entry.initiativeId === saved?.initiativeId
-        ? saved.initiativeName
+        ? savedName
         : entry.initiativeId);
     const originLabel = entry.origin
       ? t(`intelia:initiative.origins.${entry.origin}`)
@@ -215,7 +221,7 @@ export function TaskInitiativePanel({
           <div className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-medium text-foreground">
-                {saved.initiativeName}
+                {savedName}
               </span>
               <Badge
                 variant={saved.origin === "plan" ? "secondary" : "outline"}
@@ -231,26 +237,28 @@ export function TaskInitiativePanel({
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
-              {isPlanClosed ? (
-                <span className="text-muted-foreground text-xs">
-                  {t("intelia:initiative.planClosedOn", {
-                    date: formatDateTime(planClosedAt!),
-                  })}
-                </span>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={closePlan.isPending}
-                  onClick={() => setConfirmCloseOpen(true)}
-                  className="h-7 text-xs"
-                >
-                  {t("intelia:initiative.closePlan")}
-                </Button>
-              )}
-            </div>
+            {readable && (
+              <div className="flex items-center gap-2">
+                {isPlanClosed ? (
+                  <span className="text-muted-foreground text-xs">
+                    {t("intelia:initiative.planClosedOn", {
+                      date: formatDateTime(planClosedAt!),
+                    })}
+                  </span>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={closePlan.isPending}
+                    onClick={() => setConfirmCloseOpen(true)}
+                    className="h-7 text-xs"
+                  >
+                    {t("intelia:initiative.closePlan")}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           !isError && (

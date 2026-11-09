@@ -11,21 +11,28 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime, formatRelativeTime } from "@/lib/format";
 import type { InitiativeDetail, InitiativeTask } from "../api";
-import { GrowthLine, ScopeBreakdown } from "../components/initiative-progress";
+import {
+  GrowthLine,
+  HiddenTasksLine,
+  ScopeBreakdown,
+} from "../components/initiative-progress";
 import type { InitiativeDetailSearch } from "../search";
 
 type TasksTabProps = {
   initiative: InitiativeDetail;
-  projectSlug: string;
   projectColumnsMap: Record<string, string>;
   search: InitiativeDetailSearch;
   onFilterChange: (filters: Partial<InitiativeDetailSearch>) => void;
   onOpenTask: (taskId: string) => void;
 };
 
+// Each task carries its own project: an initiative groups tasks of several
+// (design 52 §3.1).
+const taskKey = (task: { projectSlug: string; number: number | null }) =>
+  `${task.projectSlug}-${task.number ?? ""}`;
+
 export function TasksTab({
   initiative,
-  projectSlug,
   projectColumnsMap,
   search,
   onFilterChange,
@@ -110,12 +117,12 @@ export function TasksTab({
       }
       if (q.trim()) {
         const term = q.trim().toLowerCase();
-        const taskKey = `${projectSlug}-${task.number ?? ""}`.toLowerCase();
+        const key = taskKey(task).toLowerCase();
         const numStr = String(task.number ?? "");
         const title = task.title.toLowerCase();
         const id = task.id.toLowerCase();
         if (
-          !taskKey.includes(term) &&
+          !key.includes(term) &&
           !numStr.includes(term) &&
           !title.includes(term) &&
           !id.includes(term)
@@ -125,7 +132,7 @@ export function TasksTab({
       }
       return true;
     });
-  }, [initiative.tasks, origin, status, assignee, q, projectSlug]);
+  }, [initiative.tasks, origin, status, assignee, q]);
 
   const renderOriginTag = (originValue: InitiativeTask["origin"]) => {
     if (originValue === "plan") {
@@ -175,7 +182,7 @@ export function TasksTab({
       const depLabels = task.dependsOn.map((id) => {
         const local = tasksMap.get(id);
         if (local) {
-          return `${projectSlug}-${local.number ?? ""}`;
+          return taskKey(local);
         }
         const ext = externalTasksMap.get(id);
         if (ext) {
@@ -204,6 +211,7 @@ export function TasksTab({
       <div className="space-y-6 pt-2">
         <ScopeBreakdown counters={initiative.counters} />
         <GrowthLine counters={initiative.counters} />
+        <HiddenTasksLine counters={initiative.counters} />
         <div className="rounded-lg border border-dashed border-border p-8 text-center">
           <h3 className="text-base font-semibold text-foreground">
             {t("intelia:initiatives.detail.noTasksTitle")}
@@ -220,6 +228,7 @@ export function TasksTab({
     <div className="space-y-6 pt-2">
       <ScopeBreakdown counters={initiative.counters} />
       <GrowthLine counters={initiative.counters} />
+      <HiddenTasksLine counters={initiative.counters} />
 
       {/* Filters row */}
       <div className="flex flex-wrap items-center gap-3">
@@ -358,9 +367,7 @@ export function TasksTab({
                     <TableCell className="align-top py-2.5">
                       <div className="flex flex-col gap-0.5">
                         <span className="font-mono text-[11px] text-muted-foreground">
-                          {projectSlug
-                            ? `${projectSlug}-${task.number ?? ""}`
-                            : `#${task.number ?? ""}`}
+                          {taskKey(task)}
                         </span>
                         <button
                           id={`task-btn-${task.id}`}

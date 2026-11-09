@@ -25,6 +25,7 @@ function counters(over: Partial<InitiativeCounters> = {}): InitiativeCounters {
     plan: tally(0),
     added: tally(0),
     unrecorded: tally(0),
+    hidden: tally(0),
     ...over,
   };
 }

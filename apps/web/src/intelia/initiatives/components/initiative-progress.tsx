@@ -126,6 +126,27 @@ export function GrowthLine({
 }
 
 /**
+ * Tasks of the initiative in projects the reader cannot see (design 52
+ * §3.1): only how many and how many are done. Nothing when there are none.
+ */
+export function HiddenTasksLine({
+  counters,
+  className,
+}: {
+  counters: Pick<InitiativeCounters, "hidden">;
+  className?: string;
+}) {
+  const { t } = useTranslation();
+  const { total, done } = counters.hidden;
+  if (total === 0) return null;
+  return (
+    <p className={cn("text-muted-foreground text-xs", className)}>
+      {t("intelia:initiatives.hidden", { count: total, done })}
+    </p>
+  );
+}
+
+/**
  * Plan and added side by side, each with its own Done / active, plus the
  * migrated tasks when there are any. Cancelled ones keep their origin in the
  * totals.

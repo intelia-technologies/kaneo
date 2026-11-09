@@ -320,7 +320,7 @@ const createTaskRoute = createRoute({
   responses: {
     200: jsonResponse("The created task", taskSchema),
     400: errorResponse(
-      "Invalid body (including a missing `automation` or `initiative`, or `completa` without verification), an initiative that does not exist or belongs to another project, or a repeating task in a final column",
+      "Invalid body (including a missing `automation` or `initiative`, or `completa` without verification), an initiative that does not exist or is of a project the caller cannot read, or a repeating task in a final column",
     ),
     403: errorResponse(
       "No access to the project, or missing task:create permission",
@@ -352,7 +352,7 @@ const duplicateTaskRoute = createRoute({
   responses: {
     200: jsonResponse("The duplicated task", taskSchema),
     400: errorResponse(
-      "Invalid task fields or request, no level or initiative to copy, or an initiative of another project",
+      "Invalid task fields or request, no level or initiative to copy, or an initiative that does not exist or is of a project the caller cannot read",
     ),
     401: errorResponse("Unauthorized"),
     403: errorResponse(
@@ -513,7 +513,7 @@ const importTasksRoute = createRoute({
   responses: {
     200: jsonResponse("Per-task import outcome", taskImportResultSchema),
     400: errorResponse(
-      "Invalid body, no `automation` or `initiativeId`, or an initiative of another project",
+      "Invalid body, no `automation` or `initiativeId`, or an initiative that does not exist or is of a project the caller cannot read",
     ),
     403: errorResponse(
       "No access to the project, or missing task:create permission",

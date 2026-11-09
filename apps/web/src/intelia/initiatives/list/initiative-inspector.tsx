@@ -5,6 +5,7 @@ import type { InitiativeSummary } from "../api";
 import { DesignLink } from "../components/design-link";
 import {
   GrowthLine,
+  HiddenTasksLine,
   ProgressBar,
   ProgressFigures,
   ScopeBreakdown,
@@ -14,14 +15,12 @@ import "./i18n";
 
 type InitiativeInspectorProps = {
   initiative: InitiativeSummary;
-  projectSlug?: string | null;
   onOpenTask: (taskId: string) => void;
   onViewDetail: (tab: "tasks" | "tree") => void;
 };
 
 export function InitiativeInspector({
   initiative,
-  projectSlug,
   onOpenTask,
   onViewDetail,
 }: InitiativeInspectorProps) {
@@ -70,7 +69,8 @@ export function InitiativeInspector({
           counters={counters}
           className="my-3 sm:grid-cols-1 xl:grid-cols-2"
         />
-        <GrowthLine counters={counters} className="mb-4" />
+        <GrowthLine counters={counters} className="mb-1" />
+        <HiddenTasksLine counters={counters} className="mb-4" />
 
         {initiative.blockedTasks.length > 0 && (
           <div className="space-y-2 border-border border-t pt-4">
@@ -83,7 +83,7 @@ export function InitiativeInspector({
             <div className="space-y-2">
               {initiative.blockedTasks.map((task) => {
                 const taskNum = formatTaskIdentifier(
-                  projectSlug,
+                  task.projectSlug,
                   task.number,
                   task.id,
                 );
