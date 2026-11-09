@@ -188,3 +188,5 @@ export function hasRole(role: string | null | undefined, name: string) {
 
 export const STATUS_PLANNED = "planned";
 export const STATUS_ARCHIVED = "archived";
+// Intelia (design 52 §3.2): where requested tasks wait; never a default.
+export const STATUS_REQUESTED = "pedida";

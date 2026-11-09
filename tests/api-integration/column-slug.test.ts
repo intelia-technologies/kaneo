@@ -77,13 +77,13 @@ describe("column slugs", () => {
     expect(await first.json()).toMatchObject({
       name: "In Review",
       slug: "in-review-2",
-      position: 4,
+      position: 5,
     });
     expect(second.status).toBe(200);
     expect(await second.json()).toMatchObject({
       name: "in review",
       slug: "in-review-3",
-      position: 5,
+      position: 6,
     });
     expect(
       await db.query.taskTable.findFirst({
@@ -119,7 +119,7 @@ describe("column slugs", () => {
       "qa-5",
     ]);
     expect(created.map((column) => column.position).sort()).toEqual([
-      4, 5, 6, 7, 8,
+      5, 6, 7, 8, 9,
     ]);
   });
 });

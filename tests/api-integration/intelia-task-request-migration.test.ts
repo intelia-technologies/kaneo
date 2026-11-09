@@ -20,10 +20,9 @@ import { Client, Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vite-plus/test";
 import { schema } from "../../apps/api/src/database";
 import {
-  INTELIA_MIGRATIONS_TABLE,
+  migrateInteliaJournal,
   migrateInteliaSchema,
 } from "../../apps/api/src/intelia/migrate";
-import { INTELIA_SCHEMA } from "../../apps/api/src/intelia/schema";
 
 const apiDir = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -116,11 +115,7 @@ it("adds «Pedida» to every existing project, before Backlog or first, once", a
   await migrate(db, { migrationsFolder: join(apiDir, "drizzle") });
   // The deployed schema, without the startup check: today's code expects the
   // foreign key of task_request, which only 0014 creates.
-  await migrate(db, {
-    migrationsFolder: inteliaFolder,
-    migrationsSchema: INTELIA_SCHEMA,
-    migrationsTable: INTELIA_MIGRATIONS_TABLE,
-  });
+  await migrateInteliaJournal(db, inteliaFolder);
 
   await db.insert(schema.workspaceTable).values({
     id: "workspace-1",
@@ -133,15 +128,17 @@ it("adds «Pedida» to every existing project, before Backlog or first, once", a
       .insert(schema.projectTable)
       .values({ workspaceId: "workspace-1", name: slug, icon: "Folder", slug })
       .returning();
-    await db.insert(schema.columnTable).values(
-      columns.map((column, position) => ({
-        projectId: row!.id,
-        name: column,
-        slug: column,
-        position,
-        isFinal: column === "done" || column === "cancelled",
-      })),
-    );
+    if (columns.length > 0) {
+      await db.insert(schema.columnTable).values(
+        columns.map((column, position) => ({
+          projectId: row!.id,
+          name: column,
+          slug: column,
+          position,
+          isFinal: column === "done" || column === "cancelled",
+        })),
+      );
+    }
     return row!.id;
   };
   const withBacklog = await project("sf", [

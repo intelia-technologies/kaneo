@@ -52,6 +52,7 @@ import {
   type Day,
 } from "@/lib/format";
 import { qk, useAction } from "@/lib/query";
+import { STATUS_REQUESTED } from "@/lib/style";
 import { font, useColors } from "@/theme";
 
 import {
@@ -291,7 +292,7 @@ export function Subtasks({
       const target = isDone
         ? ([...columns].reverse().find((col) => col.isFinal) ??
           columns[columns.length - 1])
-        : columns.find((col) => !col.isFinal);
+        : columns.find((col) => !col.isFinal && col.slug !== STATUS_REQUESTED);
       if (target) await api.updateStatus(sub.id, target.slug);
     });
 

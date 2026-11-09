@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import getColumns from "@/fetchers/column/get-columns";
 import { useUpdateTaskStatus } from "@/hooks/mutations/task/use-update-task-status";
 import { toast } from "@/lib/toast";
+import { isRequestedStatus } from "@/intelia/requests/status";
 import queryClient from "@/query-client";
 import type Task from "@/types/task";
 
@@ -19,7 +20,10 @@ export function useToggleTaskCompletion() {
       const completed = columns.some(
         (column) => column.slug === task.status && column.isFinal,
       );
-      const nextColumn = columns.find((column) => column.isFinal !== completed);
+      const nextColumn = columns.find(
+        (column) =>
+          column.isFinal !== completed && !isRequestedStatus(column.slug),
+      );
       if (!nextColumn) {
         toast.error(t("tasks:subtasks.noCompletionColumn"));
         return;

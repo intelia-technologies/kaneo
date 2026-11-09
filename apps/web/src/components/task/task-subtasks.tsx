@@ -27,6 +27,7 @@ import { useGetActiveWorkspaceUsers } from "@/hooks/queries/workspace-users/use-
 import { useWorkspacePermission } from "@/hooks/use-workspace-permission";
 import { useTaskInitiative } from "@/intelia/initiatives/api";
 import "@/intelia/initiatives/i18n";
+import { isRequestedStatus } from "@/intelia/requests/status";
 import { toast } from "@/lib/toast";
 import queryClient from "@/query-client";
 import type Task from "@/types/task";
@@ -93,7 +94,9 @@ export default function TaskSubtasks({
   const canEdit = canUpdateTasks();
   const canCreate = canCreateTasks();
 
-  const todoSlug = columns.find((c) => !c.isFinal)?.slug;
+  const todoSlug = columns.find(
+    (c) => !c.isFinal && !isRequestedStatus(c.slug),
+  )?.slug;
   const canCreateSubtask =
     parentStatus === "planned" || (!isLoadingColumns && Boolean(todoSlug));
 
