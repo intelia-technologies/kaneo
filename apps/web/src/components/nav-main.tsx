@@ -21,6 +21,7 @@ import useGetAssignedTasks from "@/hooks/queries/task/use-get-assigned-tasks";
 import useActiveWorkspace from "@/hooks/queries/workspace/use-active-workspace";
 import { cn } from "@/lib/cn";
 import { requestsNavItem } from "@/intelia/requests/nav";
+import { prioritiesNavItem } from "@/intelia/priorities/nav";
 import { routinesNavItem } from "@/intelia/routines/nav";
 
 type NavItem = {
@@ -66,6 +67,7 @@ export function NavMain() {
     },
     requestsNavItem(t, homeUrl),
     routinesNavItem(t, homeUrl),
+    prioritiesNavItem(t, homeUrl),
     {
       title: t("navigation:sidebar.members"),
       icon: Users,

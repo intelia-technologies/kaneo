@@ -1,0 +1,36 @@
+{
+	"priorities": [
+		{
+			"id": "df54ycnpivaskvpfwp8a2ymw",
+			"workspaceId": "workspace-ba08e277-b5cd-4445-ab34-08fa490cb34b",
+			"parentId": "ku6lcp12jx1qu18eep4f233q",
+			"title": "Software Factory",
+			"body": "Archivar las tareas cerradas a las 24 h y prioridades en Kaneo.",
+			"position": 0,
+			"status": "active",
+			"projects": [
+				{
+					"id": "gdgfyedgn3poi4t6bib3ra6r",
+					"name": "Operación SF",
+					"slug": "OPS"
+				},
+				{
+					"id": "l3em1gtheb2kb1isp16iqgux",
+					"name": "Software Factory",
+					"slug": "SF"
+				}
+			],
+			"createdByUserId": "user-0c752cd6-c43b-41b0-8d89-5d40a0c90e9a",
+			"createdAt": "2026-11-09T22:54:17.679Z",
+			"updatedAt": "2026-11-09T22:54:17.700Z",
+			"chain": [
+				{
+					"id": "ku6lcp12jx1qu18eep4f233q",
+					"title": "Factory versión 1: no nos bloqueamos",
+					"status": "active",
+					"updatedAt": "2026-11-09T22:54:17.646Z"
+				}
+			]
+		}
+	]
+}

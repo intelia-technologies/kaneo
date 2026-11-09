@@ -2,6 +2,7 @@ import { apiRouter } from "../openapi";
 import boardSignals from "./board-signals";
 import comments from "./comments";
 import initiatives from "./initiatives";
+import priorities from "./priorities";
 import reactions from "./reactions";
 import relations from "./relations";
 import routines from "./routines";
@@ -20,6 +21,7 @@ const intelia = apiRouter()
   .route("/", initiatives)
   .route("/", reactions)
   .route("/", relations)
+  .route("/", priorities)
   .route("/", routines)
   .route("/", statusAge)
   .route("/", taskAutomation)
