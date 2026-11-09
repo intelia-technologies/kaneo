@@ -95,7 +95,7 @@ export const listTasksQuery = z.object({
   dueAfter: z.string().optional(),
   archived: z.enum(ARCHIVED_SCOPES).optional().openapi({
     description:
-      "Archived tasks (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just them. They come in `archivedTasks`, with `archivedAt`; tasks in upstream's virtual `archived` status count as archived too.",
+      "Tasks with the archive mark (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just the archived ones, those with the mark and those in upstream's virtual `archived` status. Archived tasks come in `archivedTasks`, the marked ones with `archivedAt`.",
   }),
 });
 

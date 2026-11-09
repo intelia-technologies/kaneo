@@ -192,8 +192,9 @@ describe("POST /api/intelia/tasks/archive", () => {
 
     const plain = await board(app, project.id);
     expect(plain.inColumns.sort()).toEqual([open.id, kept.id].sort());
-    expect(plain.archived).toEqual([]);
-    expect(plain.body.pagination.total).toBe(2);
+    // Upstream's old status keeps upstream's behavior: only the mark is left out.
+    expect(plain.archived).toEqual([legacy.id]);
+    expect(plain.body.pagination.total).toBe(3);
 
     const included = await board(app, project.id, "&archived=include");
     expect(included.inColumns.sort()).toEqual([open.id, kept.id].sort());

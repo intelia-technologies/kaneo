@@ -10335,10 +10335,10 @@
                 "include",
                 "only"
               ],
-              "description": "Archived tasks (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just them. They come in `archivedTasks`, with `archivedAt`; tasks in upstream's virtual `archived` status count as archived too."
+              "description": "Tasks with the archive mark (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just the archived ones, those with the mark and those in upstream's virtual `archived` status. Archived tasks come in `archivedTasks`, the marked ones with `archivedAt`."
             },
             "required": false,
-            "description": "Archived tasks (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just them. They come in `archivedTasks`, with `archivedAt`; tasks in upstream's virtual `archived` status count as archived too.",
+            "description": "Tasks with the archive mark (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just the archived ones, those with the mark and those in upstream's virtual `archived` status. Archived tasks come in `archivedTasks`, the marked ones with `archivedAt`.",
             "name": "archived",
             "in": "query"
           }
@@ -15443,10 +15443,10 @@
                 "include",
                 "only"
               ],
-              "description": "Archived tasks (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just them. They come in `archivedTasks`, with `archivedAt`; tasks in upstream's virtual `archived` status count as archived too."
+              "description": "Tasks with the archive mark (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just the archived ones, those with the mark and those in upstream's virtual `archived` status. Archived tasks come in `archivedTasks`, the marked ones with `archivedAt`."
             },
             "required": false,
-            "description": "Archived tasks (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just them. They come in `archivedTasks`, with `archivedAt`; tasks in upstream's virtual `archived` status count as archived too.",
+            "description": "Tasks with the archive mark (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just the archived ones, those with the mark and those in upstream's virtual `archived` status. Archived tasks come in `archivedTasks`, the marked ones with `archivedAt`.",
             "name": "archived",
             "in": "query"
           }
