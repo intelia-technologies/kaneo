@@ -27,6 +27,12 @@ describe("createStatus", () => {
     expect(slugOf(createStatus(columns, undefined, "Kaneo Web"))).toBe("to-do");
   });
 
+  it("never defaults to «Pedida», though it is first", () => {
+    const board = [column("pedida", "Pedida", 0), ...columns];
+    expect(slugOf(createStatus(board, undefined, "Kaneo Web"))).toBe("to-do");
+    expect(slugOf(createStatus(board, "pedida", "Kaneo Web"))).toBe("pedida");
+  });
+
   it("has no default without columns", () => {
     expect(slugOf(createStatus([], undefined, "Kaneo Web"))).toBeNull();
   });

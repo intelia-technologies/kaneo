@@ -15,7 +15,9 @@ ALTER TABLE "intelia"."task_request" ADD CONSTRAINT "task_request_set_by_user_id
 CREATE INDEX "task_request_requester_idx" ON "intelia"."task_request" USING btree ("requester_user_id","requested_at");--> statement-breakpoint
 -- Every existing project gets the «Pedida» column (slug `pedida`), before
 -- Backlog if the project has one, first otherwise; the columns from there on
--- move one place right. A project that already has `pedida` keeps it.
+-- move one place right. A project that already has `pedida` keeps it, and one
+-- without columns is left to upstream's column migration (migrateColumns
+-- seeds only projects with none), which runs after this one at startup.
 WITH "target" AS (
 	SELECT "p"."id" AS "project_id",
 		coalesce(
@@ -24,7 +26,9 @@ WITH "target" AS (
 			0
 		) AS "position"
 	FROM "public"."project" AS "p"
-	WHERE NOT EXISTS (
+	WHERE EXISTS (
+		SELECT 1 FROM "public"."column" AS "a" WHERE "a"."project_id" = "p"."id"
+	) AND NOT EXISTS (
 		SELECT 1 FROM "public"."column" AS "c"
 		WHERE "c"."project_id" = "p"."id" AND "c"."slug" = 'pedida'
 	)

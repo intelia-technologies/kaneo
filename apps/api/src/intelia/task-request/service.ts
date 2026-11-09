@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import db from "../../database";
 import {
   columnTable,
@@ -9,7 +9,8 @@ import {
 } from "../../database/schema";
 import { ApiError } from "../../errors/api-error";
 import createNotification from "../../notification/controllers/create-notification";
-import updateTaskStatus from "../../task/controllers/update-task-status";
+import { publishTaskMutation } from "../../task/controllers/task-mutation-effects";
+import { withLockedTask } from "../../task/controllers/with-locked-task";
 import { CANCELLED } from "../initiatives/service";
 import { taskRequestTable } from "../schema";
 import { isRequestedStatus } from "./status";
@@ -192,76 +193,60 @@ export async function syncTaskRequest({ taskId }: { taskId: string }) {
 
 /**
  * Rejects a request still in «Pedida»: moves the task to its project's
- * cancelled column, through the same status change as the board, and the
- * requester gets the reason in the notice.
+ * cancelled column and keeps the reason for the requester's notice. The
+ * check and the move run under the task's row lock, the one every status
+ * change takes, so a task moved out of «Pedida» meanwhile is not cancelled.
  */
 export async function rejectTaskRequest(
   taskId: string,
   reason: string,
   currentUserId: string,
 ) {
-  const [task] = await db
-    .select({
-      status: taskTable.status,
-      projectId: taskTable.projectId,
-      requester: taskRequestTable.requesterUserId,
-    })
-    .from(taskTable)
-    .leftJoin(taskRequestTable, eq(taskRequestTable.taskId, taskTable.id))
-    .where(eq(taskTable.id, taskId))
-    .limit(1);
-  if (!task) throw notFound();
-  if (!task.requester) {
-    throw new ApiError(409, {
-      message: "The task has no requester",
-      code: "TASK_NOT_REQUESTED",
-    });
-  }
-  if (!isRequestedStatus(task.status)) {
-    throw new ApiError(409, {
-      message: "Only a task in «Pedida» can be rejected",
-      code: "TASK_NOT_PENDING_REQUEST",
-    });
-  }
-  const columns = await db
-    .select({ slug: columnTable.slug })
-    .from(columnTable)
-    .where(eq(columnTable.projectId, task.projectId));
-  const cancelled = columns.find((column) => isCancelledStatus(column.slug));
-  if (!cancelled) {
-    throw new ApiError(409, {
-      message: "The project has no cancelled column",
-      code: "NO_CANCELLED_COLUMN",
-    });
-  }
-
-  await db
-    .update(taskRequestTable)
-    .set({ pendingReason: reason })
-    .where(
-      and(
-        eq(taskRequestTable.taskId, taskId),
-        isNull(taskRequestTable.closedAt),
-      ),
-    );
-  try {
-    await updateTaskStatus({
-      id: taskId,
-      status: cancelled.slug,
-      currentUserId,
-    });
-  } catch (error) {
-    await db
+  const { before, after } = await withLockedTask(taskId, async (tx, task) => {
+    const [request] = await tx
+      .select({ closedAt: taskRequestTable.closedAt })
+      .from(taskRequestTable)
+      .where(eq(taskRequestTable.taskId, taskId))
+      .limit(1);
+    if (!request) {
+      throw new ApiError(409, {
+        message: "The task has no requester",
+        code: "TASK_NOT_REQUESTED",
+      });
+    }
+    if (!isRequestedStatus(task.status)) {
+      throw new ApiError(409, {
+        message: "Only a task in «Pedida» can be rejected",
+        code: "TASK_NOT_PENDING_REQUEST",
+      });
+    }
+    const columns = await tx
+      .select({ id: columnTable.id, slug: columnTable.slug })
+      .from(columnTable)
+      .where(eq(columnTable.projectId, task.projectId))
+      .orderBy(asc(columnTable.position));
+    const cancelled = columns.find((column) => isCancelledStatus(column.slug));
+    if (!cancelled) {
+      throw new ApiError(409, {
+        message: "The project has no cancelled column",
+        code: "NO_CANCELLED_COLUMN",
+      });
+    }
+    await tx
       .update(taskRequestTable)
-      .set({ pendingReason: null })
-      .where(
-        and(
-          eq(taskRequestTable.taskId, taskId),
-          isNull(taskRequestTable.closedAt),
-        ),
-      );
-    throw error;
-  }
+      .set({ pendingReason: reason })
+      .where(eq(taskRequestTable.taskId, taskId));
+    const [updated] = await tx
+      .update(taskTable)
+      .set({ status: cancelled.slug, columnId: cancelled.id })
+      .where(eq(taskTable.id, taskId))
+      .returning();
+    return updated!;
+  });
+  // The same events as any status change (activity, webhooks, live boards).
+  await publishTaskMutation(before, after, currentUserId, {
+    fields: ["status"],
+  });
   // The status event closes it too; whichever runs first sends the notice.
   await syncTaskRequest({ taskId });
   return getTaskRequester(taskId);

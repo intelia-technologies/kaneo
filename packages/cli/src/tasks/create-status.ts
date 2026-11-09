@@ -11,7 +11,11 @@ export function createStatus(
   projectName: string,
 ): Result.Result<Column | null, InvalidArgument> {
   const ordered = [...columns].sort((a, b) => a.position - b.position);
-  if (wanted === undefined) return Result.succeed(ordered[0] ?? null);
+  // Intelia: «Pedida» is first but never a default (design 52 §3.2).
+  if (wanted === undefined)
+    return Result.succeed(
+      ordered.find((column) => column.slug !== "pedida") ?? ordered[0] ?? null,
+    );
   const match = matchColumn(ordered, wanted);
   if (match) return Result.succeed(match);
   return Result.fail(
