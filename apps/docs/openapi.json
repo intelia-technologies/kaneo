@@ -9052,6 +9052,55 @@
           "changedAt"
         ]
       },
+      "PriorityWebhookList": {
+        "type": "object",
+        "properties": {
+          "webhooks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriorityWebhook"
+            }
+          }
+        },
+        "required": [
+          "webhooks"
+        ]
+      },
+      "PriorityWebhook": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "hasSecret": {
+            "type": "boolean"
+          },
+          "createdByUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "url",
+          "hasSecret",
+          "createdByUserId",
+          "createdAt"
+        ]
+      },
       "WorkspaceRoutine": {
         "allOf": [
           {
@@ -35921,6 +35970,254 @@
           },
           "404": {
             "description": "Priority not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/workspace/{workspaceId}/priority-webhooks": {
+      "get": {
+        "operationId": "listPriorityWebhooks",
+        "tags": [
+          "Priorities"
+        ],
+        "summary": "List the destinations of priority events",
+        "description": "Without their secrets. Workspace administrators only (workspace:update and workspace:manage_settings, also in an API key's scope). These are the only destinations of `intelia.priority_changed`: the projects' webhooks never receive it.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "workspaceId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The destinations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityWebhookList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPriorityWebhook",
+        "tags": [
+          "Priorities"
+        ],
+        "summary": "Send priority events to a destination",
+        "description": "Every change of the workspace's priorities is POSTed there from now on. Workspace administrators only (workspace:update and workspace:manage_settings, also in an API key's scope). These are the only destinations of `intelia.priority_changed`: the projects' webhooks never receive it.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "workspaceId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "format": "uri",
+                    "description": "Where to POST each `intelia.priority_changed` event; http or https, never a private address."
+                  },
+                  "secret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "description": "Signs each body: X-Kaneo-Signature is its HMAC-SHA256 in hex. Never returned."
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityWebhook"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, or a private destination (PRIORITY_WEBHOOK_DESTINATION)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The workspace already sends priorities to that URL (PRIORITY_WEBHOOK_TAKEN)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/workspace/{workspaceId}/priority-webhooks/{priorityWebhookId}": {
+      "delete": {
+        "operationId": "deletePriorityWebhook",
+        "tags": [
+          "Priorities"
+        ],
+        "summary": "Stop sending priority events to a destination",
+        "description": "Workspace administrators only (workspace:update and workspace:manage_settings, also in an API key's scope). These are the only destinations of `intelia.priority_changed`: the projects' webhooks never receive it.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "workspaceId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "priorityWebhookId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The removed destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityWebhook"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace or destination not found",
             "content": {
               "application/json": {
                 "schema": {

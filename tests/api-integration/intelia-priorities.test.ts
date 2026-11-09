@@ -39,10 +39,13 @@ const SECRET = "priority-webhook-secret";
 const SAMPLES = new URL("./contract-samples/", import.meta.url);
 
 // A real receiver: the events go through upstream's generic webhook client,
-// signature included.
+// signature included. `/priorities` is the workspace's priority destination;
+// `/project` is every project's own generic webhook, which must get nothing.
 let server: Server;
 let webhookUrl: string;
+let projectWebhookUrl: string;
 let deliveries: Delivery[] = [];
+let projectHits = 0;
 const previousAllowPrivate =
   process.env.KANEO_ALLOW_PRIVATE_WEBHOOK_DESTINATIONS;
 
@@ -54,6 +57,11 @@ beforeAll(async () => {
       raw += chunk;
     });
     req.on("end", () => {
+      if (req.url !== "/priorities") {
+        projectHits += 1;
+        res.writeHead(200).end("ok");
+        return;
+      }
       const expected = createHmac("sha256", SECRET).update(raw).digest("hex");
       deliveries.push({
         body: JSON.parse(raw),
@@ -65,7 +73,9 @@ beforeAll(async () => {
   const listening = Promise.withResolvers<void>();
   server.listen(0, "127.0.0.1", listening.resolve);
   await listening.promise;
-  webhookUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/kaneo`;
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  webhookUrl = `${base}/priorities`;
+  projectWebhookUrl = `${base}/project`;
 });
 
 afterAll(async () => {
@@ -79,6 +89,7 @@ beforeEach(async () => {
   await resetTestDatabase();
   vi.restoreAllMocks();
   deliveries = [];
+  projectHits = 0;
 });
 
 // Events leave after the commit without holding the request, so a test can
@@ -138,18 +149,27 @@ async function setup() {
     name: "Otro",
     slug: "other",
   });
-  // Every project points at the same receiver, as in the factory.
+  // Every project keeps its own generic webhook, sending every task event:
+  // none of them may receive priorities.
   for (const project of [build, ops, other]) {
     await db.insert(schema.integrationTable).values({
       projectId: project.id,
       type: "generic-webhook",
       isActive: true,
-      config: JSON.stringify({ webhookUrl, secret: SECRET }),
+      config: JSON.stringify({ webhookUrl: projectWebhookUrl, secret: SECRET }),
     });
   }
   const member = await addMember(workspace.id, "member", "Coder");
   mockAuthenticatedSession(admin);
-  return { app: createApp().app, admin, member, workspace, build, ops, other };
+  const app = createApp().app;
+  const registered = await send(
+    app,
+    "POST",
+    `/workspace/${workspace.id}/priority-webhooks`,
+    { url: webhookUrl, secret: SECRET },
+  );
+  expect(registered.status).toBe(201);
+  return { app, admin, member, workspace, build, ops, other };
 }
 
 function send(app: App, method: string, path: string, body?: unknown) {
@@ -281,10 +301,11 @@ describe("priorities", () => {
       },
     });
 
-    // root, child, second, reorder, edit: five changes, five events, each
-    // once although three projects point at the receiver.
+    // root, child, second, reorder, edit: five changes, five events, only to
+    // the workspace's priority destination; the projects' webhooks get none.
     const events = await waitForDeliveries(5);
     expect(events).toHaveLength(5);
+    expect(projectHits).toBe(0);
     expect(events.every((d) => d.signed)).toBe(true);
     expect(events.map((d) => d.body.event)).toEqual(
       Array(5).fill("intelia.priority_changed"),
@@ -575,6 +596,21 @@ describe("priorities", () => {
     );
     const forbidden = await patch(app, priority.id, { projectIds: [ops.id] });
     expect(forbidden.status).toBe(400);
+    // The history hides `ops` from this reader too, as the links do.
+    const restrictedHistory = await send(
+      app,
+      "GET",
+      `/priority/${priority.id}/history`,
+    );
+    const { changes: hidden } = (await restrictedHistory.json()) as {
+      changes: { kind: string; previous: Body | null; value: Body }[];
+    };
+    expect(
+      hidden.map((c) => [c.previous?.projectIds, c.value.projectIds]),
+    ).toEqual([
+      [[build.id], []],
+      [undefined, [build.id]],
+    ]);
 
     vi.restoreAllMocks();
     mockAuthenticatedSession(admin);
@@ -582,6 +618,16 @@ describe("priorities", () => {
     expect(
       ((await full.json()) as { projects: Body[] }).projects.map((p) => p.id),
     ).toEqual([ops.id]);
+    const fullHistory = await send(
+      app,
+      "GET",
+      `/priority/${priority.id}/history`,
+    );
+    const { changes: all } = (await fullHistory.json()) as {
+      changes: { previous: Body | null; value: Body }[];
+    };
+    expect(all[0]?.previous?.projectIds).toEqual([build.id, ops.id].sort());
+    expect(all[0]?.value.projectIds).toEqual([ops.id]);
   });
 
   it("answers 404 for a priority of another workspace", async () => {
@@ -592,6 +638,119 @@ describe("priorities", () => {
     mockAuthenticatedSession(stranger);
     expect((await send(app, "GET", `/priority/${mine.id}`)).status).toBe(404);
     expect((await patch(app, mine.id, { title: "x" })).status).toBe(404);
+  });
+
+  it("sends priorities only to destinations administrators registered, and stops when one is removed", async () => {
+    const { app, admin, member, workspace } = await setup();
+
+    // Without a registered destination nothing leaves, though the project
+    // has a generic webhook that sends every task event.
+    const { user: otherAdmin, workspace: bare } = await createWorkspaceMember({
+      role: "owner",
+    });
+    const { project: bareProject } = await createProjectFixture({
+      workspaceId: bare.id,
+    });
+    await db.insert(schema.integrationTable).values({
+      projectId: bareProject.id,
+      type: "generic-webhook",
+      isActive: true,
+      config: JSON.stringify({ webhookUrl: projectWebhookUrl, secret: SECRET }),
+    });
+    vi.restoreAllMocks();
+    mockAuthenticatedSession(otherAdmin);
+    await createPriority(app, bare.id, { title: "Sin destino" });
+    await quietWindow();
+    expect(deliveries).toHaveLength(0);
+    expect(projectHits).toBe(0);
+
+    vi.restoreAllMocks();
+    mockAuthenticatedSession(admin);
+
+    const list = await send(
+      app,
+      "GET",
+      `/workspace/${workspace.id}/priority-webhooks`,
+    );
+    expect(list.status).toBe(200);
+    const { webhooks } = (await list.json()) as { webhooks: Body[] };
+    expect(webhooks).toHaveLength(1);
+    expect(webhooks[0]).toMatchObject({ url: webhookUrl, hasSecret: true });
+    expect(webhooks[0]).not.toHaveProperty("secret");
+
+    const again = await send(
+      app,
+      "POST",
+      `/workspace/${workspace.id}/priority-webhooks`,
+      {
+        url: webhookUrl,
+      },
+    );
+    expect(again.status).toBe(409);
+    const notHttp = await send(
+      app,
+      "POST",
+      `/workspace/${workspace.id}/priority-webhooks`,
+      {
+        url: "file:///etc/passwd",
+      },
+    );
+    expect(notHttp.status).toBe(400);
+
+    // A member can neither see nor change the destinations.
+    vi.restoreAllMocks();
+    mockAuthenticatedSession(member);
+    expect(
+      (await send(app, "GET", `/workspace/${workspace.id}/priority-webhooks`))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await send(
+          app,
+          "POST",
+          `/workspace/${workspace.id}/priority-webhooks`,
+          {
+            url: "https://example.com/hook",
+          },
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await send(
+          app,
+          "DELETE",
+          `/workspace/${workspace.id}/priority-webhooks/${webhooks[0]?.id}`,
+        )
+      ).status,
+    ).toBe(403);
+
+    // Another workspace's administrator cannot remove it either.
+    vi.restoreAllMocks();
+    mockAuthenticatedSession(otherAdmin);
+    expect(
+      (
+        await send(
+          app,
+          "DELETE",
+          `/workspace/${bare.id}/priority-webhooks/${webhooks[0]?.id}`,
+        )
+      ).status,
+    ).toBe(404);
+
+    vi.restoreAllMocks();
+    mockAuthenticatedSession(admin);
+    const removed = await send(
+      app,
+      "DELETE",
+      `/workspace/${workspace.id}/priority-webhooks/${webhooks[0]?.id}`,
+    );
+    expect(removed.status).toBe(200);
+    await createPriority(app, workspace.id, { title: "Tras quitarlo" });
+    await quietWindow();
+    expect(deliveries).toHaveLength(0);
+    expect(projectHits).toBe(0);
   });
 
   it("keeps the published contract samples in the shape of the real API", async () => {

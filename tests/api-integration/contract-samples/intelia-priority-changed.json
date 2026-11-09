@@ -1,37 +1,37 @@
 {
 	"event": "intelia.priority_changed",
-	"timestamp": "2026-11-09T22:54:17.703Z",
+	"timestamp": "2026-11-09T23:46:59.039Z",
 	"integration": {
-		"type": "generic-webhook"
+		"type": "priority-webhook"
 	},
 	"workspace": {
-		"id": "workspace-ba08e277-b5cd-4445-ab34-08fa490cb34b",
+		"id": "workspace-7cfdf1cf-2f61-455e-b496-e36b18e74fdc",
 		"name": "Galaxia"
 	},
 	"priority": {
-		"id": "df54ycnpivaskvpfwp8a2ymw",
-		"parentId": "ku6lcp12jx1qu18eep4f233q",
+		"id": "m7mhof09pdvx992372uzc0r4",
+		"parentId": "s8j32xsit4kzvsm5bity5umt",
 		"title": "Software Factory",
 		"body": "Archivar las tareas cerradas a las 24 h y prioridades en Kaneo.",
 		"position": 0,
 		"status": "active",
-		"projectIds": ["gdgfyedgn3poi4t6bib3ra6r", "l3em1gtheb2kb1isp16iqgux"],
+		"projectIds": ["enov8lsdds5o5um3xfmf0qhv", "mud211wq1mxk2h3tai1fumwq"],
 		"chain": [
 			{
-				"id": "ku6lcp12jx1qu18eep4f233q",
+				"id": "s8j32xsit4kzvsm5bity5umt",
 				"title": "Factory versión 1: no nos bloqueamos",
 				"status": "active",
-				"updatedAt": "2026-11-09T22:54:17.646Z"
+				"updatedAt": "2026-11-09T23:46:58.998Z"
 			}
 		],
-		"updatedAt": "2026-11-09T22:54:17.700Z"
+		"updatedAt": "2026-11-09T23:46:59.037Z"
 	},
 	"actor": {
-		"id": "user-0c752cd6-c43b-41b0-8d89-5d40a0c90e9a",
+		"id": "user-2075b6d5-998e-4871-8183-1f43124149e7",
 		"name": "Jaime"
 	},
 	"data": {
-		"changeId": "yq22bzhwzcn91tppez80ttac",
+		"changeId": "uzigrbsg2k4429mas56lbmpb",
 		"kind": "updated",
 		"previous": {
 			"body": "Archivar las tareas cerradas a las 24 h."
@@ -40,10 +40,10 @@
 			"body": "Archivar las tareas cerradas a las 24 h y prioridades en Kaneo."
 		},
 		"source": "session",
-		"changedAt": "2026-11-09T22:54:17.700Z",
+		"changedAt": "2026-11-09T23:46:59.037Z",
 		"affectedProjectIds": [
-			"gdgfyedgn3poi4t6bib3ra6r",
-			"l3em1gtheb2kb1isp16iqgux"
+			"enov8lsdds5o5um3xfmf0qhv",
+			"mud211wq1mxk2h3tai1fumwq"
 		]
 	}
 }

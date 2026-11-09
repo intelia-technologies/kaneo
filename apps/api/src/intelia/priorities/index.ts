@@ -190,6 +190,7 @@ const priorities = apiRouter()
       await listPriorityChanges(
         c.req.valid("param").priorityId,
         c.req.valid("query").limit,
+        priorityReader(c),
       ),
       200,
     ),

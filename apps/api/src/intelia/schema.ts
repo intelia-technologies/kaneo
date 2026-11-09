@@ -724,3 +724,37 @@ export const priorityChangeTable = inteliaSchema.table(
     ),
   ],
 );
+
+// Where a workspace's administrators send `intelia.priority_changed`: only
+// destinations registered for it, never the projects' webhooks, so no
+// existing integration receives priorities it was not set up for.
+export const priorityWebhookTable = inteliaSchema.table(
+  "priority_webhook",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaceTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    url: text("url").notNull(),
+    // Signs each body (X-Kaneo-Signature); never returned by the API.
+    secret: text("secret"),
+    createdByUserId: text("created_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    createdAt: timestamp("created_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("priority_webhook_workspace_url_idx").on(
+      table.workspaceId,
+      table.url,
+    ),
+  ],
+);

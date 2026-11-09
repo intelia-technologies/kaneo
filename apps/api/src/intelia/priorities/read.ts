@@ -179,7 +179,20 @@ export async function getPriority(priorityId: string, reader: PriorityReader) {
   };
 }
 
-export async function listPriorityChanges(priorityId: string, limit: number) {
+// The log keeps every linked project id; a reader sees only those of the
+// projects it can read, the same rule as the links themselves.
+function projectIdsOf(fields: Record<string, unknown> | null): string[] {
+  const ids = fields?.projectIds;
+  return Array.isArray(ids)
+    ? ids.filter((id): id is string => typeof id === "string")
+    : [];
+}
+
+export async function listPriorityChanges(
+  priorityId: string,
+  limit: number,
+  reader: PriorityReader,
+) {
   const changes = await db
     .select({
       id: priorityChangeTable.id,
@@ -197,5 +210,43 @@ export async function listPriorityChanges(priorityId: string, limit: number) {
     .where(eq(priorityChangeTable.priorityId, priorityId))
     .orderBy(desc(priorityChangeTable.changedAt), desc(priorityChangeTable.id))
     .limit(limit);
-  return { changes };
+
+  const mentioned = [
+    ...new Set(
+      changes.flatMap((change) => [
+        ...projectIdsOf(change.previous),
+        ...projectIdsOf(change.value),
+      ]),
+    ),
+  ];
+  const readable = new Set(
+    mentioned.length === 0
+      ? []
+      : (
+          await db
+            .select({ id: projectTable.id })
+            .from(projectTable)
+            .where(
+              and(
+                inArray(projectTable.id, mentioned),
+                eq(projectTable.workspaceId, reader.workspaceId),
+                projectAccessCondition(reader.userId, projectTable.id),
+              ),
+            )
+        ).map((row) => row.id),
+  );
+  const visible = (fields: Record<string, unknown> | null) =>
+    fields && "projectIds" in fields
+      ? {
+          ...fields,
+          projectIds: projectIdsOf(fields).filter((id) => readable.has(id)),
+        }
+      : fields;
+  return {
+    changes: changes.map((change) => ({
+      ...change,
+      previous: visible(change.previous),
+      value: visible(change.value) ?? change.value,
+    })),
+  };
 }

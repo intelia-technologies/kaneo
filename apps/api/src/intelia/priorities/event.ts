@@ -1,19 +1,15 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import db from "../../database";
-import {
-  integrationTable,
-  projectTable,
-  userTable,
-  workspaceTable,
-} from "../../database/schema";
-import { activeIntegrationCondition } from "../../plugins/active-integration-condition";
+import { userTable, workspaceTable } from "../../database/schema";
+import { integrationProviderEnabled } from "../../plugins/active-integration-condition";
 import { postToGenericWebhook } from "../../plugins/generic-webhook/client";
-import {
-  type GenericWebhookConfig,
-  normalizeGenericWebhookConfig,
-} from "../../plugins/generic-webhook/config";
 import { safeOutboundError } from "../../utils/outbound-request";
-import type { PriorityChangeKind, PriorityChangeSource } from "../schema";
+import { workspaceIsActive } from "../../workspace/archive/active-workspace-sql";
+import {
+  type PriorityChangeKind,
+  type PriorityChangeSource,
+  priorityWebhookTable,
+} from "../schema";
 import type { Transaction } from "../task-automation/service";
 import {
   loadLinkedProjectIds,
@@ -22,6 +18,7 @@ import {
 } from "./read";
 import { ancestorsOf, subtreeIds } from "./tree";
 
+export const PRIORITY_WEBHOOK_TYPE = "priority-webhook";
 export const PRIORITY_CHANGED_EVENT = "intelia.priority_changed";
 
 export type PriorityChange = {
@@ -36,7 +33,7 @@ export type PriorityChange = {
 export type PriorityEvent = {
   event: typeof PRIORITY_CHANGED_EVENT;
   timestamp: string;
-  integration: { type: "generic-webhook" };
+  integration: { type: typeof PRIORITY_WEBHOOK_TYPE };
   workspace: { id: string; name: string };
   priority: Record<string, unknown>;
   actor: { id: string; name: string | null };
@@ -83,7 +80,7 @@ export async function buildPriorityEvent(
   return {
     event: PRIORITY_CHANGED_EVENT,
     timestamp: new Date().toISOString(),
-    integration: { type: "generic-webhook" },
+    integration: { type: PRIORITY_WEBHOOK_TYPE },
     workspace: { id: workspaceId, name: workspace?.name ?? "" },
     priority: {
       id: row.id,
@@ -110,43 +107,35 @@ export async function buildPriorityEvent(
 }
 
 /**
- * Sends the event once to each distinct destination (URL and secret) among
- * the active generic webhooks of the workspace's projects that send
- * task.status_changed, the same rule as our task events (../webhooks.ts),
- * with upstream's envelope client and X-Kaneo-Signature. A priority belongs
- * to the workspace, not to a project, so no project's webhook is its own; the
- * factory points every project at the same receiver, which gets it once.
+ * Sends the event to each destination the workspace's administrators
+ * registered for priorities (`priority_webhook`), never to the projects'
+ * webhooks: an integration set up for one project's tasks must not receive
+ * the workspace's priorities. Upstream's client signs it (X-Kaneo-Signature)
+ * and refuses private destinations. Nothing goes out while the workspace is
+ * archived or the instance administrator turned `generic-webhook` off.
  * Failures are logged without the destination and never thrown.
  */
 export async function sendPriorityEvent(event: PriorityEvent): Promise<void> {
-  const integrations = await db
-    .select({ config: integrationTable.config })
-    .from(integrationTable)
-    .innerJoin(projectTable, eq(integrationTable.projectId, projectTable.id))
+  const destinations = await db
+    .select({
+      url: priorityWebhookTable.url,
+      secret: priorityWebhookTable.secret,
+    })
+    .from(priorityWebhookTable)
     .where(
       and(
-        eq(projectTable.workspaceId, event.workspace.id),
-        eq(integrationTable.type, "generic-webhook"),
-        activeIntegrationCondition(),
+        eq(priorityWebhookTable.workspaceId, event.workspace.id),
+        workspaceIsActive(priorityWebhookTable.workspaceId),
+        integrationProviderEnabled(sql`'generic-webhook'`),
       ),
     );
-  const destinations = new Map<string, GenericWebhookConfig>();
-  for (const integration of integrations) {
-    // One unreadable configuration must not cost the other destinations.
-    let config: GenericWebhookConfig;
+  for (const destination of destinations) {
     try {
-      config = normalizeGenericWebhookConfig(
-        JSON.parse(integration.config) as GenericWebhookConfig,
+      await postToGenericWebhook(
+        destination.url,
+        event,
+        destination.secret ?? undefined,
       );
-    } catch {
-      continue;
-    }
-    if (!config.events?.taskStatusChanged || !config.webhookUrl) continue;
-    destinations.set(`${config.webhookUrl}\n${config.secret ?? ""}`, config);
-  }
-  for (const config of destinations.values()) {
-    try {
-      await postToGenericWebhook(config.webhookUrl, event, config.secret);
     } catch (error) {
       console.error("priority webhook failed", {
         error: safeOutboundError(error),
