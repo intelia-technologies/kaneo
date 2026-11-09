@@ -24,11 +24,13 @@ export type ProjectPlacement = {
   slug: string;
 };
 
+// Intelia (design 52 §3.2): «Pedida» first, where requested tasks wait.
 export const DEFAULT_PROJECT_COLUMNS = [
-  { name: "To Do", slug: "to-do", position: 0, isFinal: false },
-  { name: "In Progress", slug: "in-progress", position: 1, isFinal: false },
-  { name: "In Review", slug: "in-review", position: 2, isFinal: false },
-  { name: "Done", slug: "done", position: 3, isFinal: true },
+  { name: "Pedida", slug: "pedida", position: 0, isFinal: false },
+  { name: "To Do", slug: "to-do", position: 1, isFinal: false },
+  { name: "In Progress", slug: "in-progress", position: 2, isFinal: false },
+  { name: "In Review", slug: "in-review", position: 3, isFinal: false },
+  { name: "Done", slug: "done", position: 4, isFinal: true },
 ] as const;
 
 async function seedDefaultColumns(tx: Transaction, projectId: string) {

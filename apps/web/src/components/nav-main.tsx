@@ -20,6 +20,7 @@ import useGetNotifications from "@/hooks/queries/notification/use-get-notificati
 import useGetAssignedTasks from "@/hooks/queries/task/use-get-assigned-tasks";
 import useActiveWorkspace from "@/hooks/queries/workspace/use-active-workspace";
 import { cn } from "@/lib/cn";
+import { requestsNavItem } from "@/intelia/requests/nav";
 import { routinesNavItem } from "@/intelia/routines/nav";
 
 type NavItem = {
@@ -63,6 +64,7 @@ export function NavMain() {
       url: `${homeUrl}/my-tasks`,
       count: assignedTasks?.total,
     },
+    requestsNavItem(t, homeUrl),
     routinesNavItem(t, homeUrl),
     {
       title: t("navigation:sidebar.members"),

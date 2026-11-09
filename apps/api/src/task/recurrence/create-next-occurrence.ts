@@ -1,6 +1,7 @@
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, ne } from "drizzle-orm";
 import db from "../../database";
 import { columnTable, taskTable } from "../../database/schema";
+import { REQUESTED_STATUS } from "../../intelia/task-request/status";
 import { publishEvent } from "../../events";
 import duplicateTask from "../controllers/duplicate-task";
 import { taskIsCompleted } from "../task-is-completed";
@@ -34,6 +35,7 @@ async function createInCurrentProject(
       and(
         eq(columnTable.projectId, task.projectId),
         eq(columnTable.isFinal, false),
+        ne(columnTable.slug, REQUESTED_STATUS),
       ),
     )
     .orderBy(asc(columnTable.position))

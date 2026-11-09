@@ -2,6 +2,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { asc, eq } from "drizzle-orm";
 import type db from "../../database";
 import { columnTable } from "../../database/schema";
+import { isRequestedStatus } from "../../intelia/task-request/status";
 import { chunk } from "./chunk";
 import type { ImportColumnPlan } from "./plan-import-columns";
 import type { BoardColumn } from "./plan-import-tasks";
@@ -27,7 +28,10 @@ export async function writeImportColumns(
       .orderBy(asc(columnTable.position));
     return {
       byKey: new Map(),
-      fallback: defaults[0] ?? null,
+      fallback:
+        defaults.find((column) => !isRequestedStatus(column.slug)) ??
+        defaults[0] ??
+        null,
       count: defaults.length,
     };
   }
