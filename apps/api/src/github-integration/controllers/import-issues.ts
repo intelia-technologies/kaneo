@@ -4,10 +4,11 @@ import { canSyncTask } from "../../plugins/sync/eligibility";
 import { importIssueLabels } from "../../plugins/sync/issue-labels";
 import { parseLinkMetadata } from "../../plugins/github/utils/parse-link-metadata";
 import { createId } from "@paralleldrive/cuid2";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
 import { publishEvent } from "../../events";
+import { REQUESTED_STATUS } from "../../intelia/task-request/status";
 import {
   activityTable,
   columnTable,
@@ -73,7 +74,10 @@ async function resolveImportedStatus(
       return { status, columnId: null };
   }
   const first = await tx.query.columnTable.findFirst({
-    where: eq(columnTable.projectId, projectId),
+    where: and(
+      eq(columnTable.projectId, projectId),
+      ne(columnTable.slug, REQUESTED_STATUS),
+    ),
     orderBy: asc(columnTable.position),
     columns: { id: true, slug: true },
   });

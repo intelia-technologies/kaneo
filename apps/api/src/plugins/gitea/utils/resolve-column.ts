@@ -1,6 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import db from "../../../database";
 import { columnTable, workflowRuleTable } from "../../../database/schema";
+import { isRequestedStatus } from "../../../intelia/task-request/status";
 
 export async function resolveTargetStatus(
   projectId: string,
@@ -45,5 +46,8 @@ export async function resolveTargetStatus(
     return fallbackColumn.slug;
   }
 
-  return projectColumns[0]?.slug ?? fallbackStatus;
+  return (
+    projectColumns.find((column) => !isRequestedStatus(column.slug))?.slug ??
+    fallbackStatus
+  );
 }

@@ -84,14 +84,17 @@ describe("API integration: project creation", () => {
       orderBy: (column, { asc }) => [asc(column.position)],
     });
 
-    expect(columns).toHaveLength(4);
+    // Intelia: «Pedida» first (design 52 §3.2).
+    expect(columns).toHaveLength(5);
     expect(columns.map((column) => column.slug)).toEqual([
+      "pedida",
       "to-do",
       "in-progress",
       "in-review",
       "done",
     ]);
     expect(columns.map((column) => column.isFinal)).toEqual([
+      false,
       false,
       false,
       false,

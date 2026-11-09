@@ -110,7 +110,8 @@ describe("bounded board related pages", () => {
       }
       expect(labels.size).toBe(237);
       expect(links.size).toBe(203);
-      expect(columns.size).toBe(241);
+      // 237 added + the 5 default columns, «Pedida» included (Intelia).
+      expect(columns.size).toBe(242);
     },
   );
   it("does not let malformed legacy link metadata break the board", async () => {

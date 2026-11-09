@@ -427,13 +427,15 @@ describe("API integration: import from other tools", () => {
         isFinal,
       })),
     ).toEqual([
-      { name: "Backlog", slug: "backlog", position: 0, isFinal: false },
-      { name: "Doing", slug: "doing", position: 1, isFinal: false },
-      { name: "Shipped", slug: "shipped", position: 2, isFinal: true },
+      // Intelia: every board keeps «Pedida», first (design 52 §3.2).
+      { name: "Pedida", slug: "pedida", position: 0, isFinal: false },
+      { name: "Backlog", slug: "backlog", position: 1, isFinal: false },
+      { name: "Doing", slug: "doing", position: 2, isFinal: false },
+      { name: "Shipped", slug: "shipped", position: 3, isFinal: true },
       {
         name: "Planned list",
         slug: "planned-list",
-        position: 3,
+        position: 4,
         isFinal: false,
       },
     ]);

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { asc, eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import { columnTable, taskTable } from "../../database/schema";
+import { isRequestedStatus } from "../../intelia/task-request/status";
 import { updateExternalLink } from "../../plugins/github/services/link-manager";
 import { parseDeferredIssueEdit } from "../../plugins/github/utils/deferred-issue-edit";
 import {
@@ -39,7 +40,9 @@ export async function applySyncResume(
         .where(eq(columnTable.projectId, task.projectId))
         .orderBy(asc(columnTable.position));
       const fallback = columns.find(
-        (column) => column.isFinal === (review.remote.state === "closed"),
+        (column) =>
+          column.isFinal === (review.remote.state === "closed") &&
+          !isRequestedStatus(column.slug),
       );
       if (!fallback)
         throw new HTTPException(409, {

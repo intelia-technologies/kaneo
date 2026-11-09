@@ -195,7 +195,8 @@ describe("bounded task pages", () => {
       );
       const payload = await response.json();
       expect(allTasks(payload.data)).toHaveLength(0);
-      expect(payload.data.columns).toHaveLength(4);
+      // Intelia: the default columns include «Pedida» (design 52 §3.2).
+      expect(payload.data.columns).toHaveLength(5);
       expect(payload.pagination).toMatchObject({
         total: 0,
         totalPages: 1,

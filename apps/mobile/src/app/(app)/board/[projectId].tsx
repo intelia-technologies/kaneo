@@ -56,7 +56,7 @@ import { useMembers, useWorkspaceLabels, useWorkspaces } from "@/lib/hooks";
 import { qk, useAction } from "@/lib/query";
 import { useRealtime } from "@/lib/realtime";
 import { useRequiredSession } from "@/lib/session";
-import { STATUS_ARCHIVED, STATUS_PLANNED } from "@/lib/style";
+import { STATUS_ARCHIVED, STATUS_PLANNED, STATUS_REQUESTED } from "@/lib/style";
 import { font, inset, useColors } from "@/theme";
 
 const LANE_GAP = 12;
@@ -145,7 +145,11 @@ export default function BoardScreen() {
       params: {
         projectId,
         workspaceId,
-        ...(view === "board" && current && current.status !== STATUS_ARCHIVED
+        // Intelia: requests reach «Pedida» by API, never by hand.
+        ...(view === "board" &&
+        current &&
+        current.status !== STATUS_ARCHIVED &&
+        current.status !== STATUS_REQUESTED
           ? { status: current.status }
           : {}),
       },
@@ -404,7 +408,8 @@ export default function BoardScreen() {
                         : t("mobile:board.noTasksHere")}
                   </Txt>
                 ) : null}
-                {lane.status !== STATUS_ARCHIVED ? (
+                {lane.status !== STATUS_ARCHIVED &&
+                lane.status !== STATUS_REQUESTED ? (
                   <Touch
                     onPress={() =>
                       router.push({

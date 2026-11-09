@@ -565,3 +565,44 @@ export const boardSignalTable = inteliaSchema.table("board_signal", {
     .default(utcNow)
     .notNull(),
 });
+
+// Who asked for a task (design 52 §3.2, IM-04): someone who may follow and
+// comment on that one task without access to its project. The access ends
+// when the task reaches a cancelled column (`closedAt`); `closedReason` is the
+// rejection's reason, sent to the requester in the notice. `pendingReason`
+// carries a rejection's reason from the reject route to the close, which runs
+// on the status change, whichever path made it.
+export const taskRequestTable = inteliaSchema.table(
+  "task_request",
+  {
+    taskId: text("task_id")
+      .primaryKey()
+      .references(() => taskTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    requesterUserId: text("requester_user_id")
+      .notNull()
+      .references(() => userTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    setByUserId: text("set_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    setByActor: text("set_by_actor"),
+    requestedAt: timestamp("requested_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+    pendingReason: text("pending_reason"),
+    closedAt: timestamp("closed_at", { mode: "date" }),
+    closedReason: text("closed_reason"),
+  },
+  (table) => [
+    index("task_request_requester_idx").on(
+      table.requesterUserId,
+      table.requestedAt,
+    ),
+  ],
+);

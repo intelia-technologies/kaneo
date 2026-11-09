@@ -20,7 +20,10 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client, Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vite-plus/test";
-import { migrateInteliaSchema } from "../../apps/api/src/intelia/migrate";
+import {
+  migrateInteliaJournal,
+  migrateInteliaSchema,
+} from "../../apps/api/src/intelia/migrate";
 
 type Journal = {
   entries: Array<{ idx: number; when: number; tag: string }>;
@@ -155,7 +158,7 @@ it("keeps the stored operations and applies upstream v2.49.0's migrations when u
     journal.entries = journal.entries.slice(0, newIndex);
   });
   await migrate(db, { migrationsFolder: oldUpstream });
-  await migrateInteliaSchema(db, oldIntelia);
+  await migrateInteliaJournal(db, oldIntelia);
   await db.execute(sql`INSERT INTO public.project_access_operation
     (workspace_id, user_id, actor_id, operation_id, request, response)
     VALUES ('ws', 'member', 'actor', ${OPERATION_ID}::uuid,

@@ -17,7 +17,10 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client, Pool } from "pg";
 import { afterAll, beforeAll, expect, it } from "vite-plus/test";
 import { schema } from "../../apps/api/src/database";
-import { migrateInteliaSchema } from "../../apps/api/src/intelia/migrate";
+import {
+  migrateInteliaJournal,
+  migrateInteliaSchema,
+} from "../../apps/api/src/intelia/migrate";
 import {
   taskAutomationChangeTable,
   taskAutomationTable,
@@ -101,7 +104,7 @@ it("translates manual to automatica no and arranque and completa to yes, keeps t
   journal.entries = journal.entries.slice(0, fieldsIndex);
   writeFileSync(journalPath, JSON.stringify(journal));
   await migrate(db, { migrationsFolder: join(apiDir, "drizzle") });
-  await migrateInteliaSchema(db, inteliaFolder);
+  await migrateInteliaJournal(db, inteliaFolder);
 
   await db.insert(schema.workspaceTable).values({
     id: "workspace-1",

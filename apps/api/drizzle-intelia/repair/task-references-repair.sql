@@ -22,7 +22,8 @@ BEGIN
 		('task_initiative', 'task_initiative_task_id_task_id_fk', 'cascade'),
 		('task_initiative_change', 'task_initiative_change_task_id_task_id_fk', 'cascade'),
 		('task_alias', 'task_alias_task_id_task_id_fk', 'cascade'),
-		('task_classification', 'task_classification_task_id_task_id_fk', 'cascade')
+		('task_classification', 'task_classification_task_id_task_id_fk', 'cascade'),
+		('task_request', 'task_request_task_id_task_id_fk', 'cascade')
 	) AS v(tbl, constraint_name, on_delete)
 	LOOP
 		IF EXISTS (

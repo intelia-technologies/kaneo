@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Archive, ChevronRight, Plus } from "lucide-react";
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { isRequestedStatus } from "@/intelia/requests/status";
 import { cn } from "@/lib/cn";
 import { getColumnIcon } from "@/lib/column";
 import { EASE_OUT } from "@/lib/motion";
@@ -99,15 +100,18 @@ const ListColumnSection = memo(function ListColumnSection({
         </button>
 
         <div className="flex items-center gap-1 pointer-coarse:gap-6">
-          <button
-            type="button"
-            onClick={() => onAddTask(column.id)}
-            className="touch-hitbox relative p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
-            title={t("tasks:listView.addTask")}
-            aria-label={t("tasks:listView.addTask")}
-          >
-            <Plus className="w-3 h-3" />
-          </button>
+          {/* Intelia: requests reach «Pedida» by API, never by hand. */}
+          {!isRequestedStatus(column.id) && (
+            <button
+              type="button"
+              onClick={() => onAddTask(column.id)}
+              className="touch-hitbox relative p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
+              title={t("tasks:listView.addTask")}
+              aria-label={t("tasks:listView.addTask")}
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+          )}
 
           {column.isFinal && column.tasks.length > 0 && (
             <button

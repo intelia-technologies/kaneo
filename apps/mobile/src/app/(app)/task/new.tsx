@@ -34,7 +34,12 @@ import { formatDate, toApiDate, toIsoDay, type Day } from "@/lib/format";
 import { useMembers, useWorkspaceLabels } from "@/lib/hooks";
 import { qk, useAction } from "@/lib/query";
 import { useRequiredSession } from "@/lib/session";
-import { PRIORITIES, priorityLabel, STATUS_PLANNED } from "@/lib/style";
+import {
+  PRIORITIES,
+  priorityLabel,
+  STATUS_PLANNED,
+  STATUS_REQUESTED,
+} from "@/lib/style";
 import { font, useColors } from "@/theme";
 
 type Picker =
@@ -110,7 +115,10 @@ export default function NewTaskScreen() {
   const sortedColumns = [...(columns.data ?? [])].sort(
     (a, b) => (a.position ?? 0) - (b.position ?? 0),
   );
-  const effectiveStatus = status ?? sortedColumns[0]?.slug ?? STATUS_PLANNED;
+  const effectiveStatus =
+    status ??
+    sortedColumns.find((col) => col.slug !== STATUS_REQUESTED)?.slug ??
+    STATUS_PLANNED;
   const statusLabel =
     effectiveStatus === STATUS_PLANNED
       ? t("mobile:taskFields.planned")

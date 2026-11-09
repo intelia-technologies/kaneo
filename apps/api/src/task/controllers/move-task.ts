@@ -12,6 +12,7 @@ import {
 } from "../../database/schema";
 import { publishEvent } from "../../events";
 import { dropTaskInitiativeOnProjectMove } from "../../intelia/initiatives/service";
+import { isRequestedStatus } from "../../intelia/task-request/status";
 import { assertProjectAccess } from "../../project-access/assert-project-access";
 import { filterUsersWithProjectAccess } from "../../project-access/filter-users-with-project-access";
 import { lockAssignableUser } from "../../utils/assert-assignable-user";
@@ -62,7 +63,12 @@ async function resolveDestinationStatus(
     (column) => column.slug === currentStatus,
   );
 
-  return requestedColumn ?? matchingCurrentColumn ?? firstColumn;
+  return (
+    requestedColumn ??
+    matchingCurrentColumn ??
+    destinationColumns.find((column) => !isRequestedStatus(column.slug)) ??
+    firstColumn
+  );
 }
 
 async function moveTask({

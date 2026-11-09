@@ -15,11 +15,21 @@ export const INTELIA_MIGRATIONS_TABLE = "__intelia_migrations";
 export async function migrateInteliaSchema<
   TSchema extends Record<string, unknown>,
 >(db: NodePgDatabase<TSchema>, migrationsFolder: string): Promise<void> {
+  await migrateInteliaJournal(db, migrationsFolder);
+  await installTaskHooks(db);
+  await assertTaskHooks(db);
+}
+
+/**
+ * Only the journal, without the startup check: for tests that rebuild the
+ * schema of an older image, which lacks the keys today's code expects.
+ */
+export async function migrateInteliaJournal<
+  TSchema extends Record<string, unknown>,
+>(db: NodePgDatabase<TSchema>, migrationsFolder: string): Promise<void> {
   await migrate(db, {
     migrationsFolder,
     migrationsSchema: INTELIA_SCHEMA,
     migrationsTable: INTELIA_MIGRATIONS_TABLE,
   });
-  await installTaskHooks(db);
-  await assertTaskHooks(db);
 }
