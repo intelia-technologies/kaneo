@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
@@ -56,7 +57,28 @@ function wrapper({ children }: { children: ReactNode }) {
   );
 }
 
-const radio = (name: string) => screen.getByRole("radio", { name });
+const option = (
+  group: "automatica" | "verification" | "entrega",
+  value: "yes" | "no" | "pr" | "sin_pr",
+) =>
+  within(
+    screen.getByRole("radiogroup", { name: `intelia:automation.${group}` }),
+  ).getByRole("radio", {
+    name:
+      group === "entrega"
+        ? `intelia:automation.card.entrega.${value}`
+        : `intelia:automation.${value}`,
+  });
+
+function chooseAutomation(
+  automatica: "yes" | "no",
+  verification: "yes" | "no",
+  entrega: "pr" | "sin_pr",
+) {
+  fireEvent.click(option("automatica", automatica));
+  fireEvent.click(option("verification", verification));
+  fireEvent.click(option("entrega", entrega));
+}
 const selectFileButton = () =>
   screen.getByRole("button", { name: "settings:tasksImportExport.selectFile" });
 const fileInput = () =>
@@ -90,14 +112,11 @@ function pickFile() {
 }
 
 describe("ImportTasksDialog automation", () => {
-  it("blocks the import, with the reason visible, until level and verification are chosen", () => {
+  it("blocks the import, with the reason visible, until automática, verification and delivery are chosen", () => {
     renderDialog();
 
-    expect(radio("intelia:automation.levels.manual")).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
-    expect(radio("intelia:automation.yes")).toHaveAttribute(
+    expect(option("automatica", "no")).toHaveAttribute("aria-checked", "false");
+    expect(option("verification", "yes")).toHaveAttribute(
       "aria-checked",
       "false",
     );
@@ -107,18 +126,18 @@ describe("ImportTasksDialog automation", () => {
     pickFile();
     expect(mocks.importTasks).not.toHaveBeenCalled();
 
-    fireEvent.click(radio("intelia:automation.levels.arranque"));
+    fireEvent.click(option("automatica", "yes"));
+    fireEvent.click(option("verification", "no"));
     expect(selectFileButton()).toBeDisabled();
   });
 
-  it("imports with the chosen level and verification for every task", async () => {
+  it("imports with the chosen automática, verification and delivery for every task", async () => {
     mocks.importTasks.mockResolvedValue({
       results: { successful: 1, failed: 0 },
     });
     const onOpenChange = renderDialog();
 
-    fireEvent.click(radio("intelia:automation.levels.arranque"));
-    fireEvent.click(radio("intelia:automation.no"));
+    chooseAutomation("yes", "no", "sin_pr");
     chooseInitiative();
     expect(selectFileButton()).toBeEnabled();
     expect(
@@ -131,31 +150,23 @@ describe("ImportTasksDialog automation", () => {
       expect(mocks.importTasks).toHaveBeenCalledWith({
         projectId: "project-1",
         tasks: [{ title: "Imported", status: "to-do", type: "validacion" }],
-        automation: { level: "arranque", verification: false },
+        automation: {
+          automatica: true,
+          verification: false,
+          entrega: "sin_pr",
+        },
         initiativeId: "init-import",
       }),
     );
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
-  it("never allows completa without verification", () => {
-    renderDialog();
-
-    fireEvent.click(radio("intelia:automation.no"));
-
-    expect(radio("intelia:automation.levels.completa")).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
-  });
-
   it("keeps select file disabled until an initiative is chosen, and sends initiativeId", async () => {
     mocks.importTasks.mockResolvedValue({
       results: { successful: 1, failed: 0 },
     });
     renderDialog();
 
-    fireEvent.click(radio("intelia:automation.levels.manual"));
-    fireEvent.click(radio("intelia:automation.yes"));
+    chooseAutomation("no", "yes", "pr");
     expect(selectFileButton()).toBeDisabled();
 
     chooseInitiative();
@@ -166,7 +177,7 @@ describe("ImportTasksDialog automation", () => {
       expect(mocks.importTasks).toHaveBeenCalledWith(
         expect.objectContaining({
           projectId: "project-1",
-          automation: { level: "manual", verification: true },
+          automation: { automatica: false, verification: true, entrega: "pr" },
           initiativeId: "init-import",
         }),
       ),
@@ -177,8 +188,7 @@ describe("ImportTasksDialog automation", () => {
       results: { successful: 2, failed: 0 },
     });
     renderDialog();
-    fireEvent.click(radio("intelia:automation.levels.manual"));
-    fireEvent.click(radio("intelia:automation.yes"));
+    chooseAutomation("no", "yes", "pr");
     chooseInitiative();
     const tasks = [
       { title: "Old", status: "to-do", type: null },
@@ -199,8 +209,7 @@ describe("ImportTasksDialog automation", () => {
       results: { successful: 2, failed: 0 },
     });
     renderDialog();
-    fireEvent.click(radio("intelia:automation.levels.manual"));
-    fireEvent.click(radio("intelia:automation.yes"));
+    chooseAutomation("no", "yes", "pr");
     chooseInitiative();
     const file = new File(
       [

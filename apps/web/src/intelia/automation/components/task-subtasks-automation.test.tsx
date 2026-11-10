@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import {
   afterEach,
@@ -105,7 +106,28 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-const radio = (name: string) => screen.getByRole("radio", { name });
+const option = (
+  group: "automatica" | "verification" | "entrega",
+  value: "yes" | "no" | "pr" | "sin_pr",
+) =>
+  within(
+    screen.getByRole("radiogroup", { name: `intelia:automation.${group}` }),
+  ).getByRole("radio", {
+    name:
+      group === "entrega"
+        ? `intelia:automation.card.entrega.${value}`
+        : `intelia:automation.${value}`,
+  });
+
+function chooseAutomation(
+  automatica: "yes" | "no",
+  verification: "yes" | "no",
+  entrega: "pr" | "sin_pr",
+) {
+  fireEvent.click(option("automatica", automatica));
+  fireEvent.click(option("verification", verification));
+  fireEvent.click(option("entrega", entrega));
+}
 
 function openAddRow() {
   render(
@@ -125,16 +147,13 @@ function openAddRow() {
 }
 
 describe("TaskSubtasks automation", () => {
-  it("blocks subtask creation until level and verification are chosen, then sends them", async () => {
+  it("blocks subtask creation until automática, verification and delivery are chosen, then sends them", async () => {
     const input = openAddRow();
-    fireEvent.change(input, { target: { value: "Needs a level" } });
+    fireEvent.change(input, { target: { value: "Needs automation" } });
     fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
       target: { value: "validacion" },
     });
-    expect(radio("intelia:automation.levels.manual")).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
+    expect(option("automatica", "no")).toHaveAttribute("aria-checked", "false");
 
     const addButton = screen.getByRole("button", {
       name: "tasks:subtasks.addAction",
@@ -142,18 +161,23 @@ describe("TaskSubtasks automation", () => {
     expect(addButton).toBeDisabled();
     expect(screen.getByText("intelia:automation.required")).toBeInTheDocument();
     fireEvent.keyDown(input, { key: "Enter" });
-    fireEvent.click(radio("intelia:automation.levels.arranque"));
+    fireEvent.click(option("automatica", "yes"));
+    fireEvent.click(option("verification", "no"));
     expect(addButton).toBeDisabled();
     fireEvent.keyDown(input, { key: "Enter" });
     expect(mocks.createTask).not.toHaveBeenCalled();
 
-    fireEvent.click(radio("intelia:automation.no"));
+    fireEvent.click(option("entrega", "sin_pr"));
     expect(addButton).toBeEnabled();
     fireEvent.click(addButton);
     await waitFor(() => expect(mocks.createTask).toHaveBeenCalledTimes(1));
     expect(mocks.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
-        automation: { level: "arranque", verification: false },
+        automation: {
+          automatica: true,
+          verification: false,
+          entrega: "sin_pr",
+        },
         initiative: { parentTaskId: "parent-1" },
       }),
     );
@@ -161,13 +185,13 @@ describe("TaskSubtasks automation", () => {
 
   it("shows the reason right under the Add row, before the radio groups", () => {
     const input = openAddRow();
-    fireEvent.change(input, { target: { value: "Needs a level" } });
+    fireEvent.change(input, { target: { value: "Needs automation" } });
 
     const addButton = screen.getByRole("button", {
       name: "tasks:subtasks.addAction",
     });
     const reason = screen.getByText("intelia:automation.required");
-    const firstRadio = radio("intelia:automation.levels.manual");
+    const firstRadio = option("automatica", "no");
 
     expect(screen.getAllByText("intelia:automation.required")).toHaveLength(1);
     expect(
@@ -186,8 +210,7 @@ describe("TaskSubtasks automation", () => {
     fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
       target: { value: "validacion" },
     });
-    fireEvent.click(radio("intelia:automation.levels.manual"));
-    fireEvent.click(radio("intelia:automation.yes"));
+    chooseAutomation("no", "yes", "pr");
     fireEvent.click(
       screen.getByRole("button", { name: "common:actions.cancel" }),
     );
@@ -207,13 +230,10 @@ describe("TaskSubtasks automation", () => {
     expect(
       screen.getByRole("button", { name: "tasks:subtasks.addAction" }),
     ).toBeDisabled();
-    expect(radio("intelia:automation.levels.manual")).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
+    expect(option("automatica", "no")).toHaveAttribute("aria-checked", "false");
   });
 
-  it("keeps the list's keyboard navigation off the level and verification radios", () => {
+  it("keeps the list's keyboard navigation off the automation radios", () => {
     mocks.getRelations.mockReturnValue({
       data: [
         {
@@ -235,7 +255,7 @@ describe("TaskSubtasks automation", () => {
     // Focus the existing row so the list's document-level handler is armed.
     fireEvent.mouseDown(screen.getByRole("button", { name: "Open child" }));
 
-    const manual = radio("intelia:automation.levels.manual");
+    const manual = option("automatica", "no");
     manual.focus();
     fireEvent.keyDown(manual, { key: "Enter" });
 
@@ -252,8 +272,7 @@ describe("TaskSubtasks automation", () => {
       screen.getByText("intelia:initiative.inheritsFromParent"),
     ).toBeInTheDocument();
 
-    fireEvent.click(radio("intelia:automation.levels.manual"));
-    fireEvent.click(radio("intelia:automation.yes"));
+    chooseAutomation("no", "yes", "pr");
     fireEvent.click(
       screen.getByRole("button", { name: "tasks:subtasks.addAction" }),
     );
@@ -274,8 +293,7 @@ describe("TaskSubtasks automation", () => {
     fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
       target: { value: "validacion" },
     });
-    fireEvent.click(radio("intelia:automation.levels.manual"));
-    fireEvent.click(radio("intelia:automation.yes"));
+    chooseAutomation("no", "yes", "pr");
 
     expect(
       screen.getByText("intelia:initiative.parentWithout"),

@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { countActiveFilters } from "@/lib/task-filters/count-active-filters";
 import { filterProjectTasks } from "@/lib/task-filters/filter-project-tasks";
 import { useProjectAutomation } from "@/intelia/automation/api";
+import { isAutomationFilterValue } from "@/intelia/automation/filter";
 import type { TaskOrigins } from "@/intelia/initiatives/origin/origin";
 import {
   expandLabelFilter,
@@ -73,7 +74,12 @@ function normalizeFilters(raw: unknown): BoardFilters {
     }
     const value = candidate[key];
     if (Array.isArray(value)) {
-      const values = value.filter((v): v is string => typeof v === "string");
+      // Intelia: values of the former automation level are no longer offered.
+      const values = value.filter((v): v is string =>
+        key === "automation"
+          ? isAutomationFilterValue(v)
+          : typeof v === "string",
+      );
       normalized[key] = values.length > 0 ? values : null;
     }
   }

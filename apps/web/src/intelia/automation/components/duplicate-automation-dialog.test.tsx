@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from "@testing-library/react";
 import {
   afterEach,
@@ -40,7 +41,28 @@ vi.mock("@/hooks/mutations/task/use-duplicate-task", () => ({
 }));
 
 const request = { taskId: "task-1", title: "Copy of task" };
-const radio = (name: string) => screen.getByRole("radio", { name });
+const option = (
+  group: "automatica" | "verification" | "entrega",
+  value: "yes" | "no" | "pr" | "sin_pr",
+) =>
+  within(
+    screen.getByRole("radiogroup", { name: `intelia:automation.${group}` }),
+  ).getByRole("radio", {
+    name:
+      group === "entrega"
+        ? `intelia:automation.card.entrega.${value}`
+        : `intelia:automation.${value}`,
+  });
+
+function chooseAutomation(
+  automatica: "yes" | "no",
+  verification: "yes" | "no",
+  entrega: "pr" | "sin_pr",
+) {
+  fireEvent.click(option("automatica", automatica));
+  fireEvent.click(option("verification", verification));
+  fireEvent.click(option("entrega", entrega));
+}
 const confirmButton = () =>
   screen.getByRole("button", { name: "intelia:automation.duplicate.confirm" });
 
@@ -54,22 +76,19 @@ afterEach(() => {
 });
 
 describe("DuplicateAutomationDialog", () => {
-  it("renders nothing while no duplicate waits for a level", () => {
+  it("renders nothing while no duplicate waits for its automation", () => {
     render(<DuplicateAutomationDialog />);
 
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("blocks the duplicate, with the reason visible, until a level is chosen", () => {
+  it("blocks the duplicate, with the reason visible, until the automation is chosen", () => {
     render(<DuplicateAutomationDialog />);
     act(() => useDuplicateAutomationStore.getState().ask(request));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(radio("intelia:automation.levels.manual")).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
-    expect(radio("intelia:automation.yes")).toHaveAttribute(
+    expect(option("automatica", "no")).toHaveAttribute("aria-checked", "false");
+    expect(option("verification", "yes")).toHaveAttribute(
       "aria-checked",
       "false",
     );
@@ -80,29 +99,23 @@ describe("DuplicateAutomationDialog", () => {
     expect(mocks.mutate).not.toHaveBeenCalled();
   });
 
-  it("duplicates with the chosen level and verification", () => {
+  it("duplicates with the chosen automática, verification and delivery", () => {
     render(<DuplicateAutomationDialog />);
     act(() => useDuplicateAutomationStore.getState().ask(request));
 
-    fireEvent.click(radio("intelia:automation.levels.arranque"));
-    fireEvent.click(radio("intelia:automation.no"));
+    chooseAutomation("yes", "no", "sin_pr");
     fireEvent.click(confirmButton());
 
     expect(mocks.mutate).toHaveBeenCalledWith(
-      { ...request, automation: { level: "arranque", verification: false } },
+      {
+        ...request,
+        automation: {
+          automatica: true,
+          verification: false,
+          entrega: "sin_pr",
+        },
+      },
       expect.objectContaining({ onSuccess: expect.any(Function) }),
-    );
-  });
-
-  it("never offers completa without verification", () => {
-    render(<DuplicateAutomationDialog />);
-    act(() => useDuplicateAutomationStore.getState().ask(request));
-
-    fireEvent.click(radio("intelia:automation.no"));
-
-    expect(radio("intelia:automation.levels.completa")).toHaveAttribute(
-      "aria-disabled",
-      "true",
     );
   });
 
@@ -113,28 +126,28 @@ describe("DuplicateAutomationDialog", () => {
     render(<DuplicateAutomationDialog />);
     act(() => useDuplicateAutomationStore.getState().ask(request));
 
-    fireEvent.click(radio("intelia:automation.levels.manual"));
-    fireEvent.click(radio("intelia:automation.yes"));
+    chooseAutomation("no", "yes", "pr");
     fireEvent.click(confirmButton());
 
     expect(useDuplicateAutomationStore.getState().request).toBeNull();
   });
 
-  it("asks for an initiative when only the initiative is missing and sends initiativeId", () => {
+  it("asks for the initiative too when the source has none, and sends both", () => {
     render(<DuplicateAutomationDialog />);
     act(() =>
       useDuplicateAutomationStore.getState().ask({
         taskId: "task-1",
         projectId: "proj-1",
         title: "Copy of task",
-        missingAutomation: false,
         missingInitiative: true,
       }),
     );
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.getAllByRole("radiogroup")).toHaveLength(3);
     expect(screen.getByTestId("mock-initiative-picker")).toBeInTheDocument();
+
+    chooseAutomation("yes", "yes", "pr");
     expect(confirmButton()).toBeDisabled();
 
     fireEvent.click(screen.getByTestId("mock-initiative-picker"));
@@ -142,11 +155,12 @@ describe("DuplicateAutomationDialog", () => {
     fireEvent.click(confirmButton());
 
     expect(mocks.mutate).toHaveBeenCalledWith(
-      expect.objectContaining({
+      {
         taskId: "task-1",
         title: "Copy of task",
+        automation: { automatica: true, verification: true, entrega: "pr" },
         initiativeId: "init-copy",
-      }),
+      },
       expect.anything(),
     );
   });

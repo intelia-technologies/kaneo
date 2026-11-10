@@ -16,7 +16,7 @@ export function useDuplicateTask() {
     onSuccess: (task) => {
       invalidateMyWork(queryClient);
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
-      // Intelia fork: the copy carries an automation level and initiative, refresh the caches.
+      // Intelia fork: the copy carries automation and an initiative, refresh the caches.
       void queryClient.invalidateQueries({ queryKey: [AUTOMATION_QUERY_ROOT] });
       void queryClient.invalidateQueries({ queryKey: [INITIATIVE_QUERY_ROOT] });
       toast.success(t("tasks:duplicate.success"), { icon: CopyPlusIcon });

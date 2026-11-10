@@ -1,33 +1,27 @@
 import { registerInteliaI18n } from "../i18n";
 
-// The level names are the factory's terms (design 18 §3) and read the same
-// in both languages.
-const levels = {
-  manual: "Manual",
-  arranque: "Arranque",
-  completa: "Completa",
-};
-
 const en = {
   automation: {
     title: "Automation",
-    level: "Level",
+    automatica: "Automatic",
     verification: "Verification",
-    levels,
-    levelHint: {
-      manual: "The orchestrator starts, merges and closes.",
-      arranque: "Starts on its own once ready; the orchestrator merges.",
-      completa: "Starts on its own and, once verified, merges and closes.",
-    },
+    entrega: "Delivery",
     yes: "Yes",
     no: "No",
     verified: "Verification",
     notVerified: "No verification",
-    badgeLabel: "Automation: {{level}}, {{verification}}",
-    completaNeedsVerification: "Completa requires verification.",
-    required: "Choose the automation level and verification.",
-    noLevel: "No level",
+    required: "Choose automatic, verification and delivery.",
+    none: "No automation",
     setBy: "Set by {{name}} · {{date}}",
+    pauseReason: "Pause reason",
+    pauseReasonPlaceholder: "Pause reason (optional)",
+    savePauseReason: "Save reason",
+    filterValues: {
+      automatica: "Automatic",
+      manual: "Manual",
+      paused: "Paused",
+      none: "No automation",
+    },
     history: "History",
     noHistory: "No changes yet",
     change: "{{from}} → {{to}}",
@@ -39,18 +33,16 @@ const en = {
       migration: "migration",
     },
     unknownAuthor: "Unknown",
-    saveError: "Failed to change the automation level",
-    loadError: "Failed to load the automation level",
-    filter: "Automation",
+    saveError: "Failed to change the automation",
+    loadError: "Failed to load the automation",
     duplicate: {
-      title: "Choose the automation level",
-      description:
-        "The task you are duplicating has no automation level. Choose one for the copy.",
+      title: "Choose the automation",
+      description: "Choose automatic, verification and delivery for the copy.",
       confirm: "Duplicate",
     },
     importAppliesToAll: "Applied to every imported task.",
     importBlocked:
-      "In this Kaneo every task needs an automation level; this import does not ask for it yet.",
+      "In this Kaneo every task needs its automation; this import does not ask for it yet.",
     card: {
       automatica: "Automatic",
       manual: "Manual",
@@ -67,23 +59,25 @@ const en = {
 const es = {
   automation: {
     title: "Automatización",
-    level: "Nivel",
+    automatica: "Automática",
     verification: "Verificación",
-    levels,
-    levelHint: {
-      manual: "El orquestador arranca, mergea y cierra.",
-      arranque: "Arranca sola en cuanto está lista; el orquestador mergea.",
-      completa: "Arranca sola y, verificada, se mergea y se cierra.",
-    },
+    entrega: "Entrega",
     yes: "Sí",
     no: "No",
     verified: "Verificación",
     notVerified: "Sin verificación",
-    badgeLabel: "Automatización: {{level}}, {{verification}}",
-    completaNeedsVerification: "Completa exige verificación.",
-    required: "Elige el nivel de automatización y la verificación.",
-    noLevel: "Sin nivel",
+    required: "Elige automática, verificación y entrega.",
+    none: "Sin automatización",
     setBy: "Fijado por {{name}} · {{date}}",
+    pauseReason: "Motivo de pausa",
+    pauseReasonPlaceholder: "Motivo de pausa (opcional)",
+    savePauseReason: "Guardar motivo",
+    filterValues: {
+      automatica: "Automática",
+      manual: "Manual",
+      paused: "Pausada",
+      none: "Sin automatización",
+    },
     history: "Diario",
     noHistory: "Sin cambios todavía",
     change: "{{from}} → {{to}}",
@@ -95,18 +89,16 @@ const es = {
       migration: "migración",
     },
     unknownAuthor: "Desconocido",
-    saveError: "No se pudo cambiar el nivel de automatización",
-    loadError: "No se pudo cargar el nivel de automatización",
-    filter: "Automatización",
+    saveError: "No se pudo cambiar la automatización",
+    loadError: "No se pudo cargar la automatización",
     duplicate: {
-      title: "Elige el nivel de automatización",
-      description:
-        "La tarea que vas a duplicar no tiene nivel de automatización. Elige uno para la copia.",
+      title: "Elige la automatización",
+      description: "Elige automática, verificación y entrega para la copia.",
       confirm: "Duplicar",
     },
     importAppliesToAll: "Se aplica a todas las tareas importadas.",
     importBlocked:
-      "En este Kaneo cada tarea necesita nivel de automatización; esta importación aún no lo pide.",
+      "En este Kaneo cada tarea necesita su automatización; esta importación aún no la pide.",
     card: {
       automatica: "Automática",
       manual: "Manual",

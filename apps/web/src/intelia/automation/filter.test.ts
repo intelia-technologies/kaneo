@@ -6,6 +6,7 @@ import {
   taskMatchesFilters,
 } from "@/lib/task-filters/task-matches-filters";
 import type Task from "@/types/task";
+import { isAutomationFilterValue } from "./filter";
 
 const noFilters: BoardFilters = {
   status: null,
@@ -21,18 +22,15 @@ const context: TaskFilterContext = {
   today: new Date(2026, 9, 14),
   getCustomFieldValues: () => [],
   automation: new Map([
-    ["manual-task", { level: "manual" }],
-    ["arranque-task", { level: "arranque" }],
-    ["completa-task", { level: "completa" }],
+    ["auto-task", { automatica: true, pausaMotivo: null }],
+    ["manual-task", { automatica: false, pausaMotivo: null }],
+    ["paused-task", { automatica: false, pausaMotivo: "movida_a_mano" }],
   ]),
 };
 
-const tasks = [
-  "manual-task",
-  "arranque-task",
-  "completa-task",
-  "bare-task",
-].map((id) => ({ id, title: id, status: "todo" }) as Task);
+const tasks = ["auto-task", "manual-task", "paused-task", "bare-task"].map(
+  (id) => ({ id, title: id, status: "todo" }) as Task,
+);
 
 function visible(filters: Partial<BoardFilters>) {
   return tasks
@@ -44,16 +42,14 @@ function visible(filters: Partial<BoardFilters>) {
 
 describe("automation filter", () => {
   it("shows every task without a selection", () => {
-    expect(visible({})).toEqual([
-      "manual-task",
-      "arranque-task",
-      "completa-task",
-      "bare-task",
-    ]);
+    expect(visible({})).toEqual(tasks.map((task) => task.id));
   });
 
-  it("leaves only the tasks of the selected level", () => {
-    expect(visible({ automation: ["completa"] })).toEqual(["completa-task"]);
+  it("tells each task apart", () => {
+    expect(visible({ automation: ["automatica"] })).toEqual(["auto-task"]);
+    expect(visible({ automation: ["manual"] })).toEqual(["manual-task"]);
+    expect(visible({ automation: ["paused"] })).toEqual(["paused-task"]);
+    expect(visible({ automation: ["none"] })).toEqual(["bare-task"]);
   });
 
   it("skips the filter while the project map is not loaded", () => {
@@ -62,46 +58,39 @@ describe("automation filter", () => {
       tasks.filter((task) =>
         taskMatchesFilters(
           task,
-          { ...noFilters, automation: ["completa"] },
+          { ...noFilters, automation: ["automatica"] },
           unloaded,
         ),
       ),
     ).toEqual(tasks);
   });
 
-  it("matches any of several selected levels", () => {
-    expect(visible({ automation: ["manual", "arranque"] })).toEqual([
+  it("matches any of several selected values", () => {
+    expect(visible({ automation: ["manual", "paused"] })).toEqual([
       "manual-task",
-      "arranque-task",
+      "paused-task",
     ]);
   });
 
-  it("treats tasks without a level as `none`", () => {
-    expect(visible({ automation: ["none"] })).toEqual(["bare-task"]);
-    expect(visible({ automation: ["manual"] })).not.toContain("bare-task");
-  });
-
-  it("negated, keeps every other level and the tasks without one", () => {
+  it("negated, keeps every other value and the tasks without automation", () => {
     expect(
-      visible({ automation: ["completa"], negated: ["automation"] }),
-    ).toEqual(["manual-task", "arranque-task", "bare-task"]);
-  });
-
-  it("negated `none` keeps only the tasks that have a level", () => {
-    expect(visible({ automation: ["none"], negated: ["automation"] })).toEqual([
-      "manual-task",
-      "arranque-task",
-      "completa-task",
-    ]);
+      visible({ automation: ["automatica"], negated: ["automation"] }),
+    ).toEqual(["manual-task", "paused-task", "bare-task"]);
   });
 
   it("combines with the other filters", () => {
     expect(
-      visible({ automation: ["manual", "completa"], status: ["done"] }),
+      visible({ automation: ["automatica", "paused"], status: ["done"] }),
     ).toEqual([]);
     expect(
-      visible({ automation: ["manual", "completa"], status: ["todo"] }),
-    ).toEqual(["manual-task", "completa-task"]);
+      visible({ automation: ["automatica", "paused"], status: ["todo"] }),
+    ).toEqual(["auto-task", "paused-task"]);
+  });
+
+  it("keeps only the current values of a stored filter", () => {
+    expect(
+      ["arranque", "completa", "manual", 3].filter(isAutomationFilterValue),
+    ).toEqual(["manual"]);
   });
 
   it("counts as an active filter only when it has values", () => {

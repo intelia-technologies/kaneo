@@ -1,18 +1,28 @@
-import { AUTOMATION_LEVELS } from "./levels";
+import type { TaskAutomation } from "./api";
 
-// The filter value for tasks that have no level yet.
-export const NO_AUTOMATION_LEVEL = "none";
-
+// Design 48 §3.2: on, off without a reason, off with one (paused), and the
+// tasks that have no automation row.
 export const AUTOMATION_FILTER_VALUES = [
-  ...AUTOMATION_LEVELS,
-  NO_AUTOMATION_LEVEL,
+  "automatica",
+  "manual",
+  "paused",
+  "none",
 ] as const;
 
-// `automation` is the task's row of the project map; a task without a level
-// has none and matches only the `none` value.
-export function matchesAutomationFilter(
-  selected: readonly string[],
-  automation: { level: string } | undefined,
-): boolean {
-  return selected.includes(automation?.level ?? NO_AUTOMATION_LEVEL);
+export type AutomationFilterValue = (typeof AUTOMATION_FILTER_VALUES)[number];
+
+export function isAutomationFilterValue(
+  value: unknown,
+): value is AutomationFilterValue {
+  return (AUTOMATION_FILTER_VALUES as readonly unknown[]).includes(value);
+}
+
+// `automation` is the task's row of the project map; a task without one
+// matches only `none`.
+export function automationFilterValue(
+  automation: Pick<TaskAutomation, "automatica" | "pausaMotivo"> | undefined,
+): AutomationFilterValue {
+  if (!automation) return "none";
+  if (automation.automatica) return "automatica";
+  return automation.pausaMotivo ? "paused" : "manual";
 }

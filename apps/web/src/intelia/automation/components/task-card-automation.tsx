@@ -4,6 +4,8 @@ import {
   GitPullRequestClosed,
   Hand,
   PauseCircle,
+  ShieldCheck,
+  ShieldOff,
   Undo2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -11,7 +13,6 @@ import { Badge } from "@/components/ui/badge";
 import type Task from "@/types/task";
 import { type TaskAutomation, useProjectAutomation } from "../api";
 import "../i18n";
-import { AutomationBadge } from "./automation-badge";
 
 const ROLES = ["responsable", "implementador", "verificador"] as const;
 
@@ -30,8 +31,7 @@ export function TaskCardAutomation({
 }
 
 // The task's fields in words, each with its own icon: `automatica` is the
-// primary mark; the level badge stays while the old engine reads it (design
-// 48 §3.2). Null fields render nothing.
+// primary mark (design 48 §3.2). Null fields render nothing.
 function TaskCardAutomationFields({
   automation,
 }: {
@@ -39,6 +39,7 @@ function TaskCardAutomationFields({
 }) {
   const { t } = useTranslation();
   const AutomaticaIcon = automation.automatica ? Bot : Hand;
+  const VerificationIcon = automation.verification ? ShieldCheck : ShieldOff;
   const paused = !automation.automatica && automation.pausaMotivo;
   const pausedText = paused
     ? t("intelia:automation.card.paused", { motivo: automation.pausaMotivo })
@@ -80,10 +81,19 @@ function TaskCardAutomationFields({
             <span className="truncate">{pausedText}</span>
           </Badge>
         )}
-        <AutomationBadge
-          level={automation.level}
-          verification={automation.verification}
-        />
+        <Badge
+          variant="outline"
+          size="sm"
+          className="gap-1"
+          data-automation-verification={automation.verification}
+        >
+          <VerificationIcon aria-hidden="true" />
+          <span>
+            {automation.verification
+              ? t("intelia:automation.verified")
+              : t("intelia:automation.notVerified")}
+          </span>
+        </Badge>
         {automation.entrega && (
           <Badge
             variant="outline"

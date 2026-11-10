@@ -9,7 +9,7 @@ import {
   type BoardFilters,
   DUE_DATE_FILTER_VALUES,
 } from "@/hooks/use-task-filters";
-import { matchesAutomationFilter } from "@/intelia/automation/filter";
+import { automationFilterValue } from "@/intelia/automation/filter";
 import {
   matchesOriginFilter,
   type TaskOrigins,
@@ -25,7 +25,10 @@ export type TaskFilterContext = {
   weekStartsOn: Day;
   today: Date;
   labelIds?: ReadonlySet<string>;
-  automation?: ReadonlyMap<string, { level: string }>;
+  automation?: ReadonlyMap<
+    string,
+    { automatica: boolean; pausaMotivo: string | null }
+  >;
   // Only the initiative's «Tareas» tab has origins; elsewhere the filter does
   // not apply.
   origins?: TaskOrigins;
@@ -133,12 +136,11 @@ export function taskMatchesFilters(
     ],
     [
       "automation",
-      // Unknown (map not loaded yet) is not "no level": skip the filter.
+      // Unknown (map not loaded yet) is not "no automation": skip the filter.
       context.automation && filters.automation,
       () =>
-        matchesAutomationFilter(
-          filters.automation ?? [],
-          context.automation?.get(task.id),
+        (filters.automation ?? []).includes(
+          automationFilterValue(context.automation?.get(task.id)),
         ),
     ],
     [

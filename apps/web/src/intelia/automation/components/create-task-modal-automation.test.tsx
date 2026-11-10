@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
@@ -132,7 +138,18 @@ const renderModal = () =>
     wrapper: createWrapper(),
   });
 
-const radio = (name: string) => screen.getByRole("radio", { name });
+const option = (
+  group: "automatica" | "verification" | "entrega",
+  value: "yes" | "no" | "pr" | "sin_pr",
+) =>
+  within(
+    screen.getByRole("radiogroup", { name: `intelia:automation.${group}` }),
+  ).getByRole("radio", {
+    name:
+      group === "entrega"
+        ? `intelia:automation.card.entrega.${value}`
+        : `intelia:automation.${value}`,
+  });
 
 function enterTitle(title: string) {
   fireEvent.change(
@@ -146,12 +163,14 @@ function enterTitle(title: string) {
   });
 }
 
-function chooseLevel(level: "manual" | "arranque" | "completa") {
-  fireEvent.click(radio(`intelia:automation.levels.${level}`));
-}
-
-function chooseVerification(verification: "yes" | "no") {
-  fireEvent.click(radio(`intelia:automation.${verification}`));
+function chooseAutomation(
+  automatica: "yes" | "no",
+  verification: "yes" | "no",
+  entrega: "pr" | "sin_pr",
+) {
+  fireEvent.click(option("automatica", automatica));
+  fireEvent.click(option("verification", verification));
+  fireEvent.click(option("entrega", entrega));
 }
 
 function chooseInitiative() {
@@ -168,8 +187,7 @@ describe("CreateTaskModal automation", () => {
     fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
       target: { value: "" },
     });
-    chooseLevel("manual");
-    chooseVerification("yes");
+    chooseAutomation("no", "yes", "pr");
     chooseInitiative();
     expect(screen.getByLabelText("Tipo de tarea")).toBeInvalid();
     submit();
@@ -180,32 +198,33 @@ describe("CreateTaskModal automation", () => {
     expect(screen.getByLabelText("Tipo de tarea")).toBeValid();
   });
 
-  it("keeps Create Task disabled, with the reason visible, until level and verification are chosen", async () => {
+  it("keeps Create Task disabled, with the reason visible, until automática, verification and delivery are chosen", async () => {
     renderModal();
     enterTitle("Task");
     const createButton = screen.getByText(
       "common:modals.createTask.createButton",
     );
-    expect(radio("intelia:automation.levels.manual")).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
-    expect(radio("intelia:automation.yes")).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
+    for (const [group, value] of [
+      ["automatica", "yes"],
+      ["verification", "yes"],
+      ["entrega", "pr"],
+    ] as const) {
+      expect(option(group, value)).toHaveAttribute("aria-checked", "false");
+    }
+    expect(screen.queryByText(/levels?\./)).not.toBeInTheDocument();
     expect(createButton).toBeDisabled();
     expect(screen.getByText("intelia:automation.required")).toBeInTheDocument();
 
     submit();
     expect(createTask).not.toHaveBeenCalled();
 
-    chooseLevel("arranque");
+    fireEvent.click(option("automatica", "yes"));
+    fireEvent.click(option("verification", "no"));
+    chooseInitiative();
     submit();
     expect(createTask).not.toHaveBeenCalled();
 
-    chooseVerification("no");
-    chooseInitiative();
+    fireEvent.click(option("entrega", "sin_pr"));
     expect(createButton).toBeEnabled();
     expect(
       screen.queryByText("intelia:automation.required"),
@@ -214,7 +233,11 @@ describe("CreateTaskModal automation", () => {
     await vi.waitFor(() =>
       expect(createTask).toHaveBeenCalledWith(
         expect.objectContaining({
-          automation: { level: "arranque", verification: false },
+          automation: {
+            automatica: true,
+            verification: false,
+            entrega: "sin_pr",
+          },
         }),
       ),
     );
@@ -239,32 +262,19 @@ describe("CreateTaskModal automation", () => {
     expect(screen.getByText("intelia:automation.required")).toBeInTheDocument();
     expect(createTask).not.toHaveBeenCalled();
 
-    chooseLevel("completa");
-    chooseVerification("yes");
+    chooseAutomation("yes", "yes", "pr");
     chooseInitiative();
     fireEvent.keyDown(document, { key: "Enter", ctrlKey: true });
     await vi.waitFor(() =>
       expect(createTask).toHaveBeenCalledWith(
         expect.objectContaining({
-          automation: { level: "completa", verification: true },
+          automation: {
+            automatica: true,
+            verification: true,
+            entrega: "pr",
+          },
         }),
       ),
-    );
-  });
-
-  it("never allows completa without verification", () => {
-    renderModal();
-    chooseVerification("no");
-    expect(radio("intelia:automation.levels.completa")).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
-
-    chooseVerification("yes");
-    chooseLevel("completa");
-    expect(radio("intelia:automation.no")).toHaveAttribute(
-      "aria-disabled",
-      "true",
     );
   });
 
@@ -274,21 +284,17 @@ describe("CreateTaskModal automation", () => {
       screen.getByLabelText("common:modals.createTask.createMore"),
     );
     enterTitle("First");
-    chooseLevel("manual");
-    chooseVerification("yes");
+    chooseAutomation("no", "yes", "pr");
     chooseInitiative();
     submit();
     await vi.waitFor(() => expect(createTask).toHaveBeenCalledOnce());
     await vi.waitFor(() =>
-      expect(radio("intelia:automation.levels.manual")).toHaveAttribute(
+      expect(option("automatica", "no")).toHaveAttribute(
         "aria-checked",
         "false",
       ),
     );
-    expect(radio("intelia:automation.yes")).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
+    expect(option("entrega", "pr")).toHaveAttribute("aria-checked", "false");
     enterTitle("Second");
     chooseInitiative();
     submit();
@@ -297,8 +303,7 @@ describe("CreateTaskModal automation", () => {
   it("keeps Create Task disabled with InitiativeRequiredReason until an initiative is chosen, then sends { id }", async () => {
     renderModal();
     enterTitle("Initiative test task");
-    chooseLevel("manual");
-    chooseVerification("yes");
+    chooseAutomation("no", "yes", "pr");
 
     const createButton = screen.getByText(
       "common:modals.createTask.createButton",

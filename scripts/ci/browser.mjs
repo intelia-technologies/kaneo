@@ -74,10 +74,16 @@ try {
     .fill("Browser persistence task");
   await taskDialog.getByLabel("Tipo de tarea").selectOption("diseno");
   // Not the manual/true test default: proves the form really sends the choice.
-  await taskDialog
-    .getByRole("radio", { name: "Arranque", exact: true })
-    .click();
-  await taskDialog.getByRole("radio", { name: "No", exact: true }).click();
+  for (const [group, value] of [
+    ["Automatic", "Yes"],
+    ["Verification", "No"],
+    ["Delivery", "No PR"],
+  ]) {
+    await taskDialog
+      .getByRole("radiogroup", { name: group, exact: true })
+      .getByRole("radio", { name: value, exact: true })
+      .click();
+  }
   await taskDialog.getByRole("combobox", { name: "Initiative" }).click();
   await page
     .getByPlaceholder("Search or create initiative…")
@@ -99,8 +105,9 @@ try {
   const automation = await owner.json(
     `/api/intelia/task/${task.id}/automation`,
   );
-  assert.equal(automation.level, "arranque");
+  assert.equal(automation.automatica, true);
   assert.equal(automation.verification, false);
+  assert.equal(automation.entrega, "sin_pr");
   const taskInitiative = await owner.json(
     `/api/intelia/task/${task.id}/initiative`,
   );

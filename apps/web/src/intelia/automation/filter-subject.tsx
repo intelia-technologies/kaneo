@@ -7,7 +7,7 @@ import type {
 import { countValues } from "@/lib/task-filters/count-values";
 import type Task from "@/types/task";
 import { useProjectAutomation } from "./api";
-import { AUTOMATION_FILTER_VALUES, NO_AUTOMATION_LEVEL } from "./filter";
+import { AUTOMATION_FILTER_VALUES, automationFilterValue } from "./filter";
 import "./i18n";
 
 type BuildSubject = (
@@ -16,9 +16,10 @@ type BuildSubject = (
     Partial<FilterSubject>,
 ) => FilterSubject;
 
-// The "Automation" subject of the project filter bar: the three levels plus
-// the tasks that have none. `build` is the filter bar's own subject builder,
-// so operators, negation and clearing behave like the other fields.
+// The "Automation" subject of the project filter bar: automatic, manual,
+// paused and the tasks that have no automation. `build` is the filter bar's
+// own subject builder, so operators, negation and clearing behave like the
+// other fields.
 export function useAutomationFilterSubject({
   projectId,
   controls,
@@ -33,10 +34,10 @@ export function useAutomationFilterSubject({
   const { t } = useTranslation();
   const { data: automation } = useProjectAutomation(projectId);
   // Counts only make sense once the map is known: before that every task
-  // would look level-less.
+  // would look like it has no automation.
   const counts = automation
     ? countValues(tasks, (task) => [
-        automation.get(task.id)?.level ?? NO_AUTOMATION_LEVEL,
+        automationFilterValue(automation.get(task.id)),
       ])
     : {};
 
@@ -45,10 +46,7 @@ export function useAutomationFilterSubject({
     icon: <Bot />,
     options: AUTOMATION_FILTER_VALUES.map((value) => ({
       value,
-      label:
-        value === NO_AUTOMATION_LEVEL
-          ? t("intelia:automation.noLevel")
-          : t(`intelia:automation.levels.${value}`),
+      label: t(`intelia:automation.filterValues.${value}`),
       count: counts[value],
     })),
     selected: controls.filters.automation ?? [],

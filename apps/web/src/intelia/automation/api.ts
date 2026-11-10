@@ -2,6 +2,7 @@ import { client } from "@kaneo/libs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { HttpError } from "@/lib/http-error";
+import { HISTORY_LIMIT } from "./history-values";
 
 type TaskAutomationRoute =
   (typeof client)["intelia"]["task"][":taskId"]["automation"];
@@ -14,16 +15,17 @@ export type TaskAutomationChange = InferResponseType<
   TaskAutomationRoute["history"]["$get"],
   200
 >[number];
-export type AutomationLevel = TaskAutomation["level"];
-// The API's own union: `completa` only with verification (design 18 §3). The
-// same type as `automation` when creating a task.
+export type DeliveryKind = NonNullable<TaskAutomation["entrega"]>;
+// The API's own union, the same type as `automation` when creating a task.
 export type AutomationInput = InferRequestType<
   (typeof client)["task"][":projectId"]["$post"]
 >["json"]["automation"];
+// A change: any subset of the fields (design 48 §3.2).
+export type AutomationChangeInput = InferRequestType<
+  TaskAutomationRoute["$put"]
+>["json"];
 
-export const HISTORY_LIMIT = 50;
-
-// A task without a level answers 404: that is "no level", not an error.
+// A task without automation answers 404: that is "none", not an error.
 export async function getTaskAutomation(
   taskId: string,
 ): Promise<TaskAutomation | null> {
@@ -41,7 +43,8 @@ export async function getTaskAutomationHistory(
   const response = await client.intelia.task[":taskId"].automation.history.$get(
     {
       param: { taskId },
-      query: { limit: String(HISTORY_LIMIT) },
+      // One more than is shown: the oldest shown takes its before from it.
+      query: { limit: String(HISTORY_LIMIT + 1) },
     },
   );
   if (response.status === 404) return [];
@@ -61,7 +64,7 @@ export async function getProjectAutomation(
 
 export async function putTaskAutomation(
   taskId: string,
-  input: AutomationInput,
+  input: AutomationChangeInput,
 ): Promise<TaskAutomation> {
   const response = await client.intelia.task[":taskId"].automation.$put({
     param: { taskId },
@@ -126,7 +129,7 @@ export function useSetTaskAutomation() {
       input,
     }: {
       taskId: string;
-      input: AutomationInput;
+      input: AutomationChangeInput;
     }) => putTaskAutomation(taskId, input),
     onSettled: invalidate,
   });

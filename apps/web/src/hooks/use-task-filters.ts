@@ -10,7 +10,7 @@ export type BoardFilters = {
   assignee: string[] | null;
   dueDate: string[] | null;
   labels: string[] | null;
-  // Intelia: task automation level (see intelia/automation/filter.ts).
+  // Intelia: task automation (see intelia/automation/filter.ts).
   automation?: string[] | null;
   // Intelia (design 55 §3.2): the wait reason of To do tasks.
   waitReason?: string[] | null;

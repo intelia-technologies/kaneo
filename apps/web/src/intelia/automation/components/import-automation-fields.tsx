@@ -3,7 +3,7 @@ import type { AutomationDraftControl } from "../use-automation-draft";
 import { AutomationCreateFields } from "./automation-create-fields";
 import "../i18n";
 
-// The level every task of a JSON import gets: required, nothing preselected.
+// The automation every task of a JSON import gets: required, nothing preselected.
 export function ImportAutomationFields({
   control,
   disabled,
