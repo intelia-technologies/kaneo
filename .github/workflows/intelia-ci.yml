@@ -1,17 +1,20 @@
 name: Intelia CI
 
-# Intelia fork (README-INTELIA.md): the CI the fork runs on every PR and on main.
-# Upstream's ci.yml stays intact and disabled in Actions; integration tests run
-# in intelia-integration.yml (release and on demand).
+# Intelia fork (README-INTELIA.md): the fork's CI. intelia-release.yml calls it on
+# main's tip every 15 minutes before publishing; also runs on demand. Not on PRs nor
+# on pushes to main: the fork's PRs merge without CI (design 58). Upstream's ci.yml
+# stays intact and disabled in Actions; integration tests run in intelia-integration.yml.
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      sha:
+        description: "Commit to test (default: the triggering commit)"
+        type: string
+        default: ""
 
 concurrency:
-  group: intelia-ci-${{ github.ref }}
+  group: intelia-ci-${{ github.ref }}-${{ inputs.sha }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
@@ -24,6 +27,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.sha }}
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
@@ -44,6 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.sha }}
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
@@ -69,6 +74,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.sha }}
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
@@ -86,6 +92,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.sha }}
           persist-credentials: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - name: Build bundled image for runtime tests
@@ -147,6 +154,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.sha }}
           persist-credentials: false
       - name: Install verified actionlint and zizmor
         run: |
@@ -173,23 +181,21 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.sha }}
           persist-credentials: false
-          # TruffleHog resolves the diff base locally, so the base commit must exist.
+          # TruffleHog resolves the base locally, so history and tags must be there.
           fetch-depth: 0
-      - name: Scan the change for leaked credentials
-        env:
-          # Pull requests: since the PR base. Pushes to main: since the previous head; if that
-          # commit is gone (force-push) the whole history is scanned, never an empty range.
-          # Anything else (manual runs, the release): since the merge base with main.
-          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          EVENT: ${{ github.event_name }}
+      - name: Scan the commits since the last release for leaked credentials
+        # Since the newest vX.Y.Z-intelia.N tag behind the commit's parent (the release
+        # scans main's untagged tip), so each release covers everything merged since the
+        # previous one. Without such a tag, the whole history: never an empty range.
         run: |
-          if ! git rev-parse --verify --quiet "${BASE:-none}^{commit}" >/dev/null; then
-            if [ "$EVENT" = push ]; then
-              echo "::notice::Push base ${BASE:-none} not found; scanning the whole history"
-              BASE=""
-            else
-              BASE="$(git merge-base origin/main HEAD)"
-            fi
+          head="$(git rev-parse HEAD)"
+          tag="$(git describe --tags --abbrev=0 --match 'v*-intelia.*' HEAD^ 2>/dev/null || true)"
+          base=""
+          if [ -n "$tag" ]; then
+            base="$(git rev-parse "$tag^{commit}")"
+          else
+            echo "::notice::No vX.Y.Z-intelia.N tag behind ${head:0:12}; scanning the whole history"
           fi
-          bash scripts/ci/intelia-secret-scan.sh "$(git rev-parse HEAD)" ${BASE:+"$BASE"}
+          bash scripts/ci/intelia-secret-scan.sh "$head" ${base:+"$base"}
