@@ -4,6 +4,7 @@ import comments from "./comments";
 import initiatives from "./initiatives";
 import priorities from "./priorities";
 import priorityWebhooks from "./priorities/webhooks";
+import projectName from "./project-name";
 import reactions from "./reactions";
 import relations from "./relations";
 import routines from "./routines";
@@ -26,6 +27,7 @@ const intelia = apiRouter()
   .route("/", relations)
   .route("/", priorities)
   .route("/", priorityWebhooks)
+  .route("/", projectName)
   .route("/", routines)
   .route("/", statusAge)
   .route("/", taskArchive)

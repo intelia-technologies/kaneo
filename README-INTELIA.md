@@ -2,7 +2,7 @@
 
 Este repositorio es el fork de [Kaneo](https://github.com/usekaneo/kaneo) que mantiene Intelia (`intelia-technologies/kaneo`). Desplegamos Kaneo desde nuestras imágenes, no desde las públicas. Diseño de referencia: [diseño 11: fork de Kaneo](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-fork-kaneo.md) en `intelia-technologies/software-factory`.
 
-Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas», «Relaciones por proyecto», «Foto de perfil con API key», «Rutinas programadas», «Nivel de automatización de las tareas», «Mover una tarea de proyecto con alias», «Prioridades» y «Archivado de tareas»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
+Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas», «Relaciones por proyecto», «Foto de perfil con API key», «Rutinas programadas», «Nivel de automatización de las tareas», «Mover una tarea de proyecto con alias», «Prioridades», «Archivado de tareas» y «Renombrar un proyecto»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
 
 **Este repositorio es público.** Aquí no va nada interno de Intelia: ni secretos, ni hostnames o IPs, ni configuración de despliegue, ni datos de clientes o de la factory. Todo eso vive en `software-factory`, que es privado. Código propietario dentro de Kaneo, solo tras hablarlo antes. Secret scanning y push protection están activados.
 
@@ -377,6 +377,15 @@ Archivar es una **marca aparte del estado** ([diseño 53](https://github.com/int
 - **Guardas:** las de upstream: 403 si el proveedor OAuth/OIDC gestiona la foto, 413/408 por tamaño o tiempo del cuerpo, 400 si el fichero no es válido (sin tocar `user.image`).
 - **Solo tablas de upstream** (`user_avatar` y `user.image`): sin tablas ni migraciones propias.
 - **Test:** `tests/api-integration/intelia-user-avatar.test.ts`.
+
+## Renombrar un proyecto
+
+`PUT /api/intelia/project/{id}/name` con `{ name }` (OpenAPI, etiqueta `Projects`; código en `apps/api/src/intelia/project-name/`) cambia solo el nombre del proyecto y devuelve el proyecto leído tras el cambio. El `PUT /api/project/{id}` de upstream sustituye todos los campos y rechaza la descripción `null` que tienen casi todos los proyectos creados por API, así que no sirve para renombrar sin tocar lo demás.
+
+- **Nombre:** sin espacios a los lados, no vacío y de 100 caracteres como máximo; si no, 400 sin cambiar nada.
+- **Permisos:** los de la edición de upstream (`project:update` en el workspace del proyecto, con su acceso por proyecto); sin ellos, 403. Proyecto inexistente, 404.
+- **Solo tablas de upstream** (`project.name`): sin tablas ni migraciones propias.
+- **Test:** `tests/api-integration/intelia-project-name.test.ts`.
 
 ## Rutinas programadas
 
