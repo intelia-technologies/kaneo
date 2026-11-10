@@ -5,6 +5,7 @@ import { ApiError } from "../../errors/api-error";
 import { publishEvent } from "../../events";
 import { taskIsCompleted } from "../../task/task-is-completed";
 import { taskArchiveTable } from "../schema";
+import { taskNotClosedError } from "./not-closed";
 
 export const TASKS_ARCHIVED_EVENT = "intelia.tasks_archived";
 
@@ -45,7 +46,7 @@ async function lockTasks(
   return rows;
 }
 
-async function announce(projectIds: Iterable<string>) {
+export async function announceArchived(projectIds: Iterable<string>) {
   for (const projectId of new Set(projectIds))
     await publishEvent(TASKS_ARCHIVED_EVENT, { projectId });
 }
@@ -60,14 +61,7 @@ export async function archiveTasks(ids: string[], caller: Caller) {
   const { rows, inserted } = await db.transaction(async (tx) => {
     const rows = await lockTasks(tx, taskIds, caller.workspaceId);
     const open = rows.filter((row) => !row.completed);
-    if (open.length > 0) {
-      throw new ApiError(409, {
-        code: "TASK_NOT_CLOSED",
-        message: `Only tasks in a final column can be archived; nothing was archived. Open: ${open
-          .map((row) => `${row.id} (${row.status})`)
-          .join(", ")}`,
-      });
-    }
+    if (open.length > 0) throw taskNotClosedError(open);
     const inserted = await tx
       .insert(taskArchiveTable)
       .values(
@@ -89,7 +83,7 @@ export async function archiveTasks(ids: string[], caller: Caller) {
 
   if (inserted.length > 0) {
     const newly = new Set(inserted.map((row) => row.taskId));
-    await announce(
+    await announceArchived(
       rows.filter((row) => newly.has(row.id)).map((row) => row.projectId),
     );
   }
@@ -109,7 +103,7 @@ export async function unarchiveTasks(ids: string[], caller: Caller) {
   });
   if (removed.length > 0) {
     const gone = new Set(removed.map((row) => row.taskId));
-    await announce(
+    await announceArchived(
       rows.filter((row) => gone.has(row.id)).map((row) => row.projectId),
     );
   }
@@ -144,5 +138,5 @@ export async function dropArchiveIfReopened({
       ),
     )
     .returning({ taskId: taskArchiveTable.taskId });
-  if (removed.length > 0 && projectId) await announce([projectId]);
+  if (removed.length > 0 && projectId) await announceArchived([projectId]);
 }

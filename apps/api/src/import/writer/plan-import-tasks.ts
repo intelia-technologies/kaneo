@@ -5,7 +5,7 @@ import type {
 } from "@kaneo/importers";
 import { VALID_PRIORITIES } from "../../task/validate-task-fields";
 
-export type BoardColumn = { id: string; slug: string };
+export type BoardColumn = { id: string; slug: string; isFinal: boolean };
 
 export type PlannedImportTask = {
   id: string;
@@ -15,6 +15,8 @@ export type PlannedImportTask = {
   description: string;
   status: string;
   columnId: string | null;
+  // Intelia (design 53 §3.2): imported with the archive mark.
+  archived: boolean;
   position: number;
   priority: string;
   startDate: Date | null;
@@ -29,6 +31,7 @@ type PlanImportTasksInput = {
   tasks: readonly ImportedTask[];
   columns: ReadonlyMap<string, BoardColumn>;
   fallbackColumn: BoardColumn | null;
+  archiveColumn: BoardColumn | null;
   numbers: readonly number[];
   now: Date;
   newId: () => string;
@@ -54,23 +57,36 @@ export function importPriority(priority: string): string {
     : "no-priority";
 }
 
+// An archived task keeps its column when that column is final; otherwise its
+// closed column is unknown and it goes to `archiveColumn` (`done`). Without a
+// final column on the board it comes in as an open task, never in upstream's
+// virtual `archived` status.
 function placeTask(
   task: ImportedTask,
   columns: ReadonlyMap<string, BoardColumn>,
   fallbackColumn: BoardColumn | null,
-): { status: string; columnId: string | null } {
-  if (task.archived) return { status: "archived", columnId: null };
-  if (task.columnKey === null) return { status: "planned", columnId: null };
+  archiveColumn: BoardColumn | null,
+): { status: string; columnId: string | null; archived: boolean } {
+  if (task.archived) {
+    const own =
+      task.columnKey === null ? undefined : columns.get(task.columnKey);
+    const closed = own?.isFinal ? own : archiveColumn;
+    if (closed)
+      return { status: closed.slug, columnId: closed.id, archived: true };
+  }
+  if (task.columnKey === null)
+    return { status: "planned", columnId: null, archived: false };
   const column = columns.get(task.columnKey) ?? fallbackColumn;
   return column
-    ? { status: column.slug, columnId: column.id }
-    : { status: "planned", columnId: null };
+    ? { status: column.slug, columnId: column.id, archived: false }
+    : { status: "planned", columnId: null, archived: false };
 }
 
 export function planImportTasks({
   tasks,
   columns,
   fallbackColumn,
+  archiveColumn,
   numbers,
   now,
   newId,
@@ -83,7 +99,7 @@ export function planImportTasks({
     if (number === undefined) {
       throw new Error("Every imported task needs a number");
     }
-    const placement = placeTask(task, columns, fallbackColumn);
+    const placement = placeTask(task, columns, fallbackColumn, archiveColumn);
     const bucket = placement.columnId ?? `status:${placement.status}`;
     const position = (positions.get(bucket) ?? 0) + 1;
     positions.set(bucket, position);

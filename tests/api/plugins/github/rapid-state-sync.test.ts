@@ -2,6 +2,13 @@ import { beforeEach, expect, it, vi } from "vite-plus/test";
 import { handleTaskStatusChanged as github } from "../../../../apps/api/src/plugins/github/events/task-status-changed";
 import { handleTaskStatusChanged as gitea } from "../../../../apps/api/src/plugins/gitea/events/task-status-changed";
 const m = vi.hoisted(() => ({ status: "", write: vi.fn(), save: vi.fn() }));
+// The archive mark is read from the database these tests mock; they cover
+// upstream's status only.
+vi.mock("../../../../apps/api/src/plugins/sync/state-sync-paused", () => ({
+  isArchivedStatus: (status: string) => status === "archived",
+  isStateSyncPaused: async (task: { status: string }) =>
+    task.status === "archived",
+}));
 vi.mock("../../../../apps/api/src/database", () => ({
   default: {
     query: {

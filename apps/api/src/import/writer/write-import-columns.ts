@@ -8,6 +8,7 @@ import {
   REQUESTED_STATUS,
 } from "../../intelia/task-request/status";
 import { chunk } from "./chunk";
+import { archiveColumn } from "../../intelia/task-archive/archive-column";
 import type { ImportColumnPlan } from "./plan-import-columns";
 import type { BoardColumn } from "./plan-import-tasks";
 
@@ -16,6 +17,8 @@ type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export type ImportBoard = {
   byKey: Map<string, BoardColumn>;
   fallback: BoardColumn | null;
+  // Intelia (design 53 §3.2): where archived tasks without a closed column go.
+  archive: BoardColumn | null;
   count: number;
 };
 
@@ -26,7 +29,11 @@ export async function writeImportColumns(
 ): Promise<ImportBoard> {
   if (plan.columns.length === 0) {
     const defaults = await tx
-      .select({ id: columnTable.id, slug: columnTable.slug })
+      .select({
+        id: columnTable.id,
+        slug: columnTable.slug,
+        isFinal: columnTable.isFinal,
+      })
       .from(columnTable)
       .where(eq(columnTable.projectId, projectId))
       .orderBy(asc(columnTable.position));
@@ -36,6 +43,7 @@ export async function writeImportColumns(
         defaults.find((column) => !isRequestedStatus(column.slug)) ??
         defaults[0] ??
         null,
+      archive: archiveColumn(defaults) ?? null,
       count: defaults.length,
     };
   }
@@ -72,13 +80,15 @@ export async function writeImportColumns(
     await tx.insert(columnTable).values(batch);
   }
 
-  const byKey = new Map(
-    planned.map(({ key, row }) => [key, { id: row.id, slug: row.slug }]),
-  );
-  const first = planned[0]?.row;
+  const columns = planned.map(({ key, row }) => ({
+    key,
+    column: { id: row.id, slug: row.slug, isFinal: row.isFinal },
+  }));
+  const byKey = new Map(columns.map(({ key, column }) => [key, column]));
   return {
     byKey,
-    fallback: first ? { id: first.id, slug: first.slug } : null,
+    fallback: columns[0]?.column ?? null,
+    archive: archiveColumn(columns.map(({ column }) => column)) ?? null,
     count: planned.length,
   };
 }

@@ -1,7 +1,13 @@
 import { and, asc, eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
-import { taskClassificationTable } from "../../intelia/schema";
+import {
+  taskArchiveTable,
+  taskClassificationTable,
+} from "../../intelia/schema";
+import { archiveColumn } from "../../intelia/task-archive/archive-column";
+import { ARCHIVED_STATUS } from "../../intelia/task-archive/archive-status";
+import { announceArchived } from "../../intelia/task-archive/service";
 import { columnTable, projectTable, taskTable } from "../../database/schema";
 import { publishEvent } from "../../events";
 import { filterUsersWithProjectAccess } from "../../project-access/filter-users-with-project-access";
@@ -77,6 +83,7 @@ async function importTasks(
   });
 
   const results = [];
+  let archivedAny = false;
 
   for (const taskData of tasksToImport) {
     const reference = taskData.userId?.trim() || null;
@@ -97,11 +104,21 @@ async function importTasks(
         results.push({ success: false, error: resolved.error, task: taskData });
         continue;
       }
-      const { status: resolvedStatus, warning: statusWarning } = resolved;
+      const { warning: statusWarning } = resolved;
+      // Intelia (design 53 §3.2): an archived task comes in closed, with the
+      // mark. Its closed column is unknown, so it goes to `done`.
+      const archived = resolved.status === ARCHIVED_STATUS;
+      const resolvedStatus = archived
+        ? (archiveColumn(columns)?.slug ?? "planned")
+        : resolved.status;
       const { priority, warning: priorityWarning } = coercePriority(
         taskData.priority || "low",
       );
       const warnings = [statusWarning, priorityWarning].filter(Boolean);
+      if (archived && resolvedStatus === "planned")
+        warnings.push(
+          'The project has no final column to archive into. Mapped to "planned".',
+        );
 
       const createdTask = await db.transaction(async (tx) => {
         if (assigneeId) {
@@ -170,6 +187,12 @@ async function importTasks(
           });
         }
 
+        if (task && archived && column)
+          await tx.insert(taskArchiveTable).values({
+            taskId: task.id,
+            archivedByUserId: currentUserId || null,
+          });
+
         // Intelia: the level and the initiative commit with the task or the
         // task does not exist.
         if (task) await writeAutomation(tx, task.id, automation);
@@ -185,6 +208,7 @@ async function importTasks(
       });
 
       if (createdTask) {
+        if (archived && createdTask.status !== "planned") archivedAny = true;
         await publishEvent("task.created", {
           ...createdTask,
           taskId: createdTask.id,
@@ -218,6 +242,7 @@ async function importTasks(
     }
   }
 
+  if (archivedAny) await announceArchived([projectId]);
   return {
     importedAt: new Date().toISOString(),
     project: {

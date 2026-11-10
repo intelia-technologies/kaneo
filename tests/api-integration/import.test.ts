@@ -10,6 +10,7 @@ import db, { schema } from "../../apps/api/src/database";
 import { waitForActiveImports } from "../../apps/api/src/import/active-imports";
 import { writeImportRelations } from "../../apps/api/src/import/writer/write-import-relations";
 import { createApp } from "../../apps/api/src/index";
+import { taskArchiveTable } from "../../apps/api/src/intelia/schema";
 import { mockAuthenticatedSession } from "./helpers/auth";
 import { resetTestDatabase } from "./helpers/database";
 import { readErrorBody } from "./helpers/error-body";
@@ -488,8 +489,9 @@ describe("API integration: import from other tools", () => {
       {
         number: 4,
         title: "Old launch",
-        status: "archived",
-        columnId: null,
+        // Intelia (design 53 §3.2): closed, in its final column, with the mark.
+        status: "shipped",
+        columnId: columnId("shipped"),
         position: 1,
         priority: "no-priority",
         userId: null,
@@ -499,12 +501,25 @@ describe("API integration: import from other tools", () => {
         title: "Ship it",
         status: "shipped",
         columnId: columnId("shipped"),
-        position: 1,
+        position: 2,
         priority: "urgent",
         userId: null,
       },
     ]);
-    const [first, , someday, , shipIt] = tasks;
+    const [first, , someday, oldLaunch, shipIt] = tasks;
+    expect(
+      (
+        await db
+          .select({ taskId: taskArchiveTable.taskId })
+          .from(taskArchiveTable)
+          .where(
+            inArray(
+              taskArchiveTable.taskId,
+              tasks.map((task) => task.id),
+            ),
+          )
+      ).map((mark) => mark.taskId),
+    ).toEqual([oldLaunch?.id]);
     expect(first?.description).toBe("Draft **all** pages");
     expect(first?.createdAt.toISOString()).toBe("2023-05-06T07:08:09.000Z");
     expect(first?.dueDate?.toISOString()).toBe("2024-02-01T00:00:00.000Z");

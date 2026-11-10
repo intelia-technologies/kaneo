@@ -84,7 +84,7 @@ export async function reviewSyncResume(
   const local = {
     title: task.title,
     description: task.description ?? "",
-    state: isStateSyncPaused(task.status)
+    state: (await isStateSyncPaused(task, database))
       ? remote.state
       : (await isTaskInFinalState(task, database))
         ? ("closed" as const)

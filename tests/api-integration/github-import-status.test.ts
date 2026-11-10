@@ -130,16 +130,30 @@ describe("GitHub import project workflow validation", () => {
     });
   });
 
-  it.each(["planned", "archived"])(
-    "allows virtual status %s and clears the old column",
-    async (status) => {
-      const { project } = await setup();
-      await importIssues(project.id);
-      m.labels = [`status:${status}`];
-      await importIssues(project.id);
-      expect(await storedTask()).toMatchObject({ status, columnId: null });
-    },
-  );
+  it("allows virtual status planned and clears the old column", async () => {
+    const { project } = await setup();
+    await importIssues(project.id);
+    m.labels = ["status:planned"];
+    await importIssues(project.id);
+    expect(await storedTask()).toMatchObject({
+      status: "planned",
+      columnId: null,
+    });
+  });
+
+  // Intelia (design 53 §3.2): archiving is a mark, never a status a label sets.
+  it("ignores a status:archived label", async () => {
+    const { project } = await setup();
+    await importIssues(project.id);
+    const before = await storedTask();
+    m.labels = ["status:archived"];
+    await importIssues(project.id);
+    expect(before?.status).not.toBe("archived");
+    expect(await storedTask()).toMatchObject({
+      status: before?.status,
+      columnId: before?.columnId,
+    });
+  });
 
   it("uses planned without workflow columns and repairs an invalid legacy status on reimport", async () => {
     const { project } = await setup();

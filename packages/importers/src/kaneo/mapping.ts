@@ -90,7 +90,10 @@ export function mapTask(
   members: Map<string, KaneoMember>,
   extras: TaskExtras = {},
 ): ImportedTask {
-  const archived = task.status === ARCHIVED_STATUS;
+  // Upstream's virtual status, or the Intelia fork's mark on a closed task,
+  // which keeps its column.
+  const legacyArchived = task.status === ARCHIVED_STATUS;
+  const archived = legacyArchived || Boolean(task.archivedAt);
   const assignee = mapAssignee(task, members);
   const labelKeys = [
     ...new Set(
@@ -101,7 +104,8 @@ export function mapTask(
   return {
     key: task.id,
     ...(typeof task.number === "number" ? { number: task.number } : {}),
-    columnKey: !archived && columnKeys.has(task.status) ? task.status : null,
+    columnKey:
+      !legacyArchived && columnKeys.has(task.status) ? task.status : null,
     ...(archived ? { archived: true } : {}),
     title: task.title,
     description: extras.description ?? task.description ?? "",

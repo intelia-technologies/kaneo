@@ -79,7 +79,9 @@ export async function syncLatestTaskValue(
       where: linkedTaskScope(taskId, projectId),
       columns: { status: true },
     });
-    return !!task && isStateSyncPaused(task.status);
+    return (
+      !!task && (await isStateSyncPaused({ id: taskId, status: task.status }))
+    );
   };
   for (;;) {
     const binding = await currentBinding();

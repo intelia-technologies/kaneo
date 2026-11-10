@@ -108,7 +108,7 @@ export async function handleGiteaIssueClosed(
               return;
             }
 
-            if (isStateSyncPaused(task.status)) return;
+            if (await isStateSyncPaused(task, db)) return;
 
             const existingMetadata = parseLinkMetadata<
               Record<string, unknown> & { lastSync?: { state?: SyncStamp } }

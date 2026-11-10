@@ -14,6 +14,7 @@ import {
   taskTable,
   userTable,
 } from "../../database/schema";
+import { ARCHIVED_STATUS } from "../../intelia/task-archive/archive-status";
 import { publishEvent } from "../../events";
 import { projectAccessCondition } from "../../project-access/project-access-condition";
 import {
@@ -210,7 +211,11 @@ async function duplicateTask({
     });
   }
 
-  const status = occurrence?.status ?? sourceTask.status;
+  // Intelia (design 53 §3.2): nothing is written in the old `archived` status;
+  // a copy of a task left in it is new work, in the backlog.
+  const sourceStatus =
+    sourceTask.status === ARCHIVED_STATUS ? "planned" : sourceTask.status;
+  const status = occurrence?.status ?? sourceStatus;
   await assertValidTaskStatus(status, sourceTask.projectId);
   // A manual copy reports a departed assignee; an occurrence goes unassigned
   // so the series keeps going.

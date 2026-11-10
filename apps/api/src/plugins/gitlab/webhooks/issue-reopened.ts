@@ -76,7 +76,7 @@ export async function handleGitlabIssueReopened(
           return;
         }
 
-        if (isStateSyncPaused(task.status)) return;
+        if (await isStateSyncPaused(task, db)) return;
 
         let existingMetadata: Record<string, unknown> = {};
         if (externalLink.metadata) {

@@ -20,15 +20,25 @@ function task(
   };
 }
 
-function plan(tasks: ImportedTask[], numbers = tasks.map((_, i) => 41 + i)) {
+const todo = { id: "col-todo", slug: "to-do", isFinal: false };
+const done = { id: "col-done", slug: "done", isFinal: true };
+const cancelled = { id: "col-cancelled", slug: "cancelled", isFinal: true };
+
+function plan(
+  tasks: ImportedTask[],
+  numbers = tasks.map((_, i) => 41 + i),
+  archiveColumn: typeof done | null = done,
+) {
   let id = 0;
   return planImportTasks({
     tasks,
     columns: new Map([
-      ["todo", { id: "col-todo", slug: "to-do" }],
-      ["done", { id: "col-done", slug: "done" }],
+      ["todo", todo],
+      ["done", done],
+      ["cancelled", cancelled],
     ]),
-    fallbackColumn: { id: "col-todo", slug: "to-do" },
+    fallbackColumn: todo,
+    archiveColumn,
     numbers,
     now,
     newId: () => `task-${++id}`,
@@ -78,7 +88,13 @@ describe("planImportTasks", () => {
         position: 2,
       },
       { key: "d", number: 44, status: "planned", columnId: null, position: 1 },
-      { key: "e", number: 45, status: "archived", columnId: null, position: 1 },
+      {
+        key: "e",
+        number: 45,
+        status: "done",
+        columnId: "col-done",
+        position: 2,
+      },
       { key: "f", number: 46, status: "planned", columnId: null, position: 2 },
     ]);
   });
@@ -108,6 +124,56 @@ describe("planImportTasks", () => {
     expect(plan([task("a", { columnKey: "gone" })])[0]).toMatchObject({
       status: "to-do",
       columnId: "col-todo",
+    });
+  });
+
+  // Design 53 §3.2: an archived task comes in closed, with the mark, never in
+  // the old `archived` status.
+  it("puts archived tasks in their closed column, or done, with the mark", () => {
+    const planned = plan([
+      task("a", { archived: true, columnKey: "cancelled" }),
+      task("b", { archived: true, columnKey: "todo" }),
+      task("c", { archived: true, columnKey: null }),
+      task("d", { columnKey: "done" }),
+    ]);
+    expect(
+      planned.map(({ key, status, columnId, archived }) => ({
+        key,
+        status,
+        columnId,
+        archived,
+      })),
+    ).toEqual([
+      {
+        key: "a",
+        status: "cancelled",
+        columnId: "col-cancelled",
+        archived: true,
+      },
+      { key: "b", status: "done", columnId: "col-done", archived: true },
+      { key: "c", status: "done", columnId: "col-done", archived: true },
+      { key: "d", status: "done", columnId: "col-done", archived: false },
+    ]);
+  });
+
+  it("brings archived tasks in open when the board has no final column", () => {
+    const [a, b] = plan(
+      [
+        task("a", { archived: true, columnKey: "todo" }),
+        task("b", { archived: true, columnKey: null }),
+      ],
+      [1, 2],
+      null,
+    );
+    expect(a).toMatchObject({
+      status: "to-do",
+      columnId: "col-todo",
+      archived: false,
+    });
+    expect(b).toMatchObject({
+      status: "planned",
+      columnId: null,
+      archived: false,
     });
   });
 

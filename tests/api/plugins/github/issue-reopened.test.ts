@@ -9,6 +9,13 @@ const m = vi.hoisted(() => ({
   status: vi.fn(),
   publish: vi.fn(),
 }));
+// The archive mark is read from the database these tests mock; they cover
+// upstream's status only.
+vi.mock("../../../../apps/api/src/plugins/sync/state-sync-paused", () => ({
+  isArchivedStatus: (status: string) => status === "archived",
+  isStateSyncPaused: async (task: { status: string }) =>
+    task.status === "archived",
+}));
 vi.mock("../../../../apps/api/src/database", () => ({
   default: {
     query: {
