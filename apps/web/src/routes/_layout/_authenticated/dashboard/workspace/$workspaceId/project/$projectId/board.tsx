@@ -245,6 +245,8 @@ function RouteComponent() {
                 disableDragDrop={
                   boardFetching || boardError || sort.field !== "position"
                 }
+                sort={sort}
+                onSortChange={setSort}
               />
             )
           ) : boardError ? (

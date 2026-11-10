@@ -1,3 +1,4 @@
+import type { BlockersSummary } from "./blockers-summary";
 import type { TaskRecurrence } from "./recurrence";
 
 type TaskLabel = {
@@ -47,13 +48,7 @@ type Task = {
   validationInProductionReason?: string | null;
   // Intelia (design 53 §3.2): archived, apart from the status.
   archivedAt?: string | null;
-  blockersSummary?: {
-    pendingCount: number;
-    hasCancelledBlocker: boolean;
-    waitingRelease: boolean;
-    blockers: { id: string; ticket: string; status: string }[];
-    externalCount: number;
-  };
+  blockersSummary?: BlockersSummary;
   subtaskCounts?: { completed: number; total: number };
   labels?: TaskLabel[];
   externalLinks?: TaskExternalLink[];

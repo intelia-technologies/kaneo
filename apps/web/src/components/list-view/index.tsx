@@ -28,6 +28,7 @@ import {
   readExpandedRows,
   writeExpandedRows,
 } from "@/lib/expanded-rows-storage";
+import type { SortConfig } from "@/lib/sort-tasks";
 import { buildSubtaskChildren, flattenSubtaskRows } from "@/lib/subtask-tree";
 import { toast } from "@/lib/toast";
 import useBulkSelectionStore from "@/store/bulk-selection";
@@ -43,12 +44,16 @@ type ListViewProps = {
   project: ProjectWithTasks;
   disableDragDrop?: boolean;
   disableCollectionActions?: boolean;
+  sort?: SortConfig;
+  onSortChange?: (sort: SortConfig) => void;
 };
 
 function ListView({
   project,
   disableDragDrop = false,
   disableCollectionActions = false,
+  sort,
+  onSortChange,
 }: ListViewProps) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
@@ -437,6 +442,8 @@ function ListView({
               onToggleTaskExpanded={toggleTaskExpanded}
               relationsLoading={relationsLoading}
               draggingTaskId={activeId === null ? null : String(activeId)}
+              sort={sort}
+              onSortChange={onSortChange}
             />
           ))}
         </div>

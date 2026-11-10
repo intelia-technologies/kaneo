@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { BoardFilters } from "@/hooks/use-task-filters";
+import { summaryByReason } from "@/intelia/wait/sample.test-data";
 import type Task from "@/types/task";
 import {
   type TaskFilterContext,
@@ -38,41 +39,45 @@ function task(overrides: Partial<Task>): Task {
   } as Task;
 }
 
-const summary = {
-  pendingCount: 0,
-  hasCancelledBlocker: false,
-  waitingRelease: false,
-  blockers: [],
-  externalCount: 0,
-};
+describe("wait reason filter", () => {
+  it.each(Object.keys(summaryByReason))(
+    "keeps To do tasks whose reason is %s",
+    (reason) => {
+      const filters = { ...noFilters, waitReason: [reason] };
+      for (const [other, summary] of Object.entries(summaryByReason)) {
+        expect(
+          taskMatchesFilters(
+            task({ status: "to-do", blockersSummary: summary }),
+            filters,
+            context,
+          ),
+        ).toBe(other === reason);
+      }
+    },
+  );
 
-describe("readiness filter", () => {
-  it.each([
-    ["ready", {}, true],
-    ["waiting", {}, false],
-    ["waiting", { pendingCount: 1 }, true],
-    ["waiting", { hasCancelledBlocker: true }, true],
-    ["waiting", { waitingRelease: true }, true],
-    ["ready", { waitingRelease: true }, false],
-  ])("%s matches summary %o: %s", (value, changes, expected) => {
-    const candidate = task({
+  it("keeps any of several reasons and inverts when negated", () => {
+    const filters = { ...noFilters, waitReason: ["person", "cancelled"] };
+    const person = task({
       status: "to-do",
-      blockersSummary: { ...summary, ...changes },
+      blockersSummary: summaryByReason.person,
     });
-    expect(
-      taskMatchesFilters(
-        candidate,
-        { ...noFilters, readiness: [value] },
-        context,
-      ),
-    ).toBe(expected);
+    const ready = task({
+      status: "to-do",
+      blockersSummary: summaryByReason.ready,
+    });
+    expect(taskMatchesFilters(person, filters, context)).toBe(true);
+    expect(taskMatchesFilters(ready, filters, context)).toBe(false);
+    const negated = { ...filters, negated: ["waitReason"] };
+    expect(taskMatchesFilters(person, negated, context)).toBe(false);
+    expect(taskMatchesFilters(ready, negated, context)).toBe(true);
   });
 
-  it("limits readiness to To do and does not assume missing summaries are ready", () => {
-    const filters = { ...noFilters, readiness: ["ready"] };
+  it("limits the reason to To do and does not assume missing summaries are ready", () => {
+    const filters = { ...noFilters, waitReason: ["ready"] };
     expect(
       taskMatchesFilters(
-        task({ status: "in-progress", blockersSummary: summary }),
+        task({ status: "in-progress", blockersSummary: summaryByReason.ready }),
         filters,
         context,
       ),

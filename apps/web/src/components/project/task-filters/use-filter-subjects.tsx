@@ -10,6 +10,8 @@ import { getColumnIcon } from "@/lib/column";
 import { getPriorityLabel } from "@/lib/i18n/domain";
 import { getPriorityIcon } from "@/lib/priority";
 import { useAutomationFilterSubject } from "@/intelia/automation/filter-subject";
+import { reasonLabel } from "@/intelia/wait/labels";
+import { WAIT_REASONS, waitSummaryOf } from "@/intelia/wait/reasons";
 import { countValues } from "@/lib/task-filters/count-values";
 import { DUE_DATE_OPTIONS } from "@/lib/task-filters/due-date-options";
 import { customFieldSubjectId } from "@/lib/task-filters/filter-subject-id";
@@ -72,7 +74,7 @@ export function useFilterSubjects({
   });
 
   const listSubject = (
-    key: "status" | "priority" | "assignee" | "dueDate" | "readiness",
+    key: "status" | "priority" | "assignee" | "dueDate" | "waitReason",
     fields: Pick<FilterSubject, "label" | "icon" | "options">,
   ) =>
     subject(key, {
@@ -95,6 +97,7 @@ export function useFilterSubjects({
         groupIdByLabel.get(labelGroupKey(label)),
       ),
     ),
+    waitReason: countValues(tasks, (task) => [waitSummaryOf(task)?.reason]),
   };
 
   const core = [
@@ -112,36 +115,17 @@ export function useFilterSubjects({
           }),
         ]
       : []),
-    subject("readiness", {
-      label: t("tasks:boardFilters.readiness", {
-        defaultValue: "Disponibilidad",
+    // Intelia (design 55 §3.2): the To do tasks by wait reason.
+    listSubject("waitReason", {
+      label: t("tasks:boardFilters.waitReason", {
+        defaultValue: "Motivo de espera",
       }),
       icon: <Hourglass />,
-      options: [
-        {
-          value: "all",
-          label: t("tasks:boardFilters.all", { defaultValue: "Todas" }),
-        },
-        {
-          value: "ready",
-          label: t("tasks:boardFilters.ready", {
-            defaultValue: "Lista para empezar",
-          }),
-        },
-        {
-          value: "waiting",
-          label: t("tasks:boardFilters.waiting", { defaultValue: "Esperando" }),
-        },
-      ],
-      selected: filters.readiness ?? [],
-      onToggle: (value) =>
-        updateFilter(
-          "readiness",
-          value === "all" || filters.readiness?.includes(value)
-            ? null
-            : [value],
-        ),
-      onClear: () => updateFilter("readiness", null),
+      options: WAIT_REASONS.map((reason) => ({
+        value: reason,
+        label: reasonLabel(t, reason),
+        count: counts.waitReason[reason],
+      })),
     }),
     listSubject("assignee", {
       label: t("tasks:boardFilters.subjects.assignee"),

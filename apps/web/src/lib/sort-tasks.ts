@@ -1,3 +1,4 @@
+import { compareSortKeys, rootSortKey, waitSortKey } from "@/intelia/wait/sort";
 import type Task from "@/types/task";
 
 export type SortField =
@@ -6,7 +7,10 @@ export type SortField =
   | "priority"
   | "dueDate"
   | "title"
-  | "number";
+  | "number"
+  // Intelia (design 55 §3.2): only To do tasks have a wait or a root.
+  | "wait"
+  | "root";
 
 export type SortDirection = "asc" | "desc";
 
@@ -61,6 +65,16 @@ export function sortTasks(tasks: Task[], config: SortConfig): Task[] {
       }
       case "number": {
         comparison = (a.number ?? 0) - (b.number ?? 0);
+        break;
+      }
+      case "wait":
+      case "root": {
+        const key = config.field === "wait" ? waitSortKey : rootSortKey;
+        const aKey = key(a);
+        const bKey = key(b);
+        // Without one, last whatever the direction.
+        if (!aKey || !bKey) return aKey ? -1 : bKey ? 1 : 0;
+        comparison = compareSortKeys(aKey, bKey);
         break;
       }
     }

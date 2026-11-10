@@ -16,6 +16,10 @@ import { getPriorityIcon } from "@/lib/priority";
 import { useUserPreferencesStore } from "@/store/user-preferences";
 import type Task from "@/types/task";
 import { StatusAgeChip } from "@/intelia/status-age/components/status-age-chip";
+import { WAIT_COLUMN_CLASS } from "@/intelia/wait/columns";
+import { WaitChip } from "@/intelia/wait/components/wait-chip";
+import { WaitRootCell } from "@/intelia/wait/components/wait-root-cell";
+import { waitSummaryOf } from "@/intelia/wait/reasons";
 
 const inlineMetaClass =
   "h-5 gap-1 border-transparent bg-transparent px-1 font-normal text-muted-foreground hover:border-transparent hover:text-foreground data-popup-open:border-transparent";
@@ -53,6 +57,7 @@ export function TaskRowBody({
   } = useUserPreferencesStore();
   const cardFields = useTaskCardFields(task.projectId, task.id);
   const priorityLabel = `${t("tasks:priority.label")}: ${getPriorityLabel(task.priority ?? "")}`;
+  const waitSummary = waitSummaryOf(task);
 
   return (
     <>
@@ -126,6 +131,17 @@ export function TaskRowBody({
           image={assigneeImage}
           avatarClassName="size-5.5 text-[9px]"
         />
+      )}
+
+      {/* Intelia (design 55 §3.2): the «Espera» and «Raíz» columns of To do,
+          last so they line up with the section's header. */}
+      {waitSummary && (
+        <>
+          <div className={WAIT_COLUMN_CLASS}>
+            <WaitChip summary={waitSummary} className="max-w-full" />
+          </div>
+          <WaitRootCell root={waitSummary.root} />
+        </>
       )}
     </>
   );
