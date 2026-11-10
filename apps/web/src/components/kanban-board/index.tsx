@@ -28,7 +28,7 @@ import { useDragPreview } from "./drag-preview/use-drag-preview";
 import { useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useTaskViewShortcuts } from "@/components/project/task-view-keys/use-task-view-shortcuts";
-import { TaskViewReadOnlyContext } from "@/components/project/views/task-view-read-only";
+import { useTaskViewReadOnly } from "@/components/project/views/task-view-read-only";
 import { useProjectBackground } from "@/hooks/use-project-background";
 import { cn } from "@/lib/cn";
 import { EASE_OUT_CSS } from "@/lib/motion";
@@ -48,21 +48,17 @@ type KanbanBoardProps = {
   disableCollectionActions?: boolean;
   sortedByNumber?: boolean;
   sortedByPriority?: boolean;
-  /** No dragging, no multiple selection and no column actions. */
-  readOnly?: boolean;
 };
 
 function KanbanBoard({
   project,
-  disableDragDrop: dragDisabled = false,
-  disableCollectionActions: collectionActionsDisabled = false,
+  disableDragDrop = false,
+  disableCollectionActions = false,
   sortedByNumber = false,
   sortedByPriority = false,
-  readOnly = false,
 }: KanbanBoardProps) {
-  const disableDragDrop = readOnly || dragDisabled;
-  const disableCollectionActions = readOnly || collectionActionsDisabled;
   const isAutomaticallySorted = sortedByNumber || sortedByPriority;
+  const readOnly = useTaskViewReadOnly();
   const queryClient = useQueryClient();
   const isFetching =
     useIsFetching({ queryKey: ["tasks", project.id], exact: true }) > 0;
@@ -279,8 +275,8 @@ function KanbanBoard({
     project,
     enabled: activeId === null,
     canMove: !disableDragDrop,
-    onMove: (activeId, overId) => queueMove({ activeId, overId }),
     canSelect: !readOnly,
+    onMove: (activeId, overId) => queueMove({ activeId, overId }),
   });
 
   if (!project?.columns) {
@@ -332,86 +328,84 @@ function KanbanBoard({
     : null;
 
   return (
-    <TaskViewReadOnlyContext.Provider value={readOnly}>
-      <DndContext
-        sensors={sensors}
-        accessibility={{
-          screenReaderInstructions: {
-            draggable: t("tasks:board.keyboardInstructions"),
-          },
-        }}
-        collisionDetection={boardCollisionDetection}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        onDragCancel={resetDrag}
+    <DndContext
+      sensors={sensors}
+      accessibility={{
+        screenReaderInstructions: {
+          draggable: t("tasks:board.keyboardInstructions"),
+        },
+      }}
+      collisionDetection={boardCollisionDetection}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={resetDrag}
+    >
+      <div
+        className={cn("flex h-full w-full flex-col", {
+          "bg-linear-to-b from-muted/20 to-background": !background,
+        })}
       >
         <div
-          className={cn("flex h-full w-full flex-col", {
-            "bg-linear-to-b from-muted/20 to-background": !background,
-          })}
+          className={cn(
+            "min-h-0 flex-1 scroll-px-4 overflow-x-auto [-webkit-overflow-scrolling:touch]",
+            // Snap whole columns into view on phones; off while dragging so it
+            // doesn't fight dnd-kit's auto-scroll.
+            activeId === null && "snap-x snap-mandatory sm:snap-none",
+          )}
         >
-          <div
-            className={cn(
-              "min-h-0 flex-1 scroll-px-4 overflow-x-auto [-webkit-overflow-scrolling:touch]",
-              // Snap whole columns into view on phones; off while dragging so it
-              // doesn't fight dnd-kit's auto-scroll.
-              activeId === null && "snap-x snap-mandatory sm:snap-none",
-            )}
-          >
-            <div className="flex h-full min-w-max gap-4 px-4 py-4 md:px-5">
-              {(dragPreview.preview ?? queuedProject).columns.map((column) => (
-                <div
-                  key={column.id}
-                  className="h-full max-w-96 min-w-[min(20rem,calc(100vw-4.5rem))] shrink-0 flex-1 snap-start"
-                >
-                  <Column
-                    column={column}
-                    activeTaskId={
-                      activeId !== null &&
-                      column.tasks.some((task) => task.id === activeId)
-                        ? activeId.toString()
-                        : null
-                    }
-                    sortHint={
-                      column.id === sortHintColumnId
-                        ? t("tasks:kanban.automaticallySortedHint", {
-                            sort: t(
-                              sortedByNumber
-                                ? "tasks:sort.fields.number"
-                                : "tasks:sort.fields.priority",
-                            ),
-                          })
-                        : undefined
-                    }
-                    disableDragDrop={disableDragDrop}
-                    disableSorting={isAutomaticallySorted}
-                    disableCollectionActions={disableCollectionActions}
-                    animateEntries={!isLoadingPages}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <DragOverlay dropAnimation={reduceMotion ? null : dropAnimation}>
-          {activeTask ? (
-            <div className="rotate-1 scale-[1.03] shadow-lg transition-[rotate,scale] duration-150 ease-out starting:rotate-0 starting:scale-100 motion-reduce:transition-none">
-              <div className="ring-2 ring-ring/35 rounded-lg">
-                <TaskCardContent
-                  task={activeTask}
-                  isFinalColumn={activeIsFinal}
-                  disableDragDrop
-                  isDragging
+          <div className="flex h-full min-w-max gap-4 px-4 py-4 md:px-5">
+            {(dragPreview.preview ?? queuedProject).columns.map((column) => (
+              <div
+                key={column.id}
+                className="h-full max-w-96 min-w-[min(20rem,calc(100vw-4.5rem))] shrink-0 flex-1 snap-start"
+              >
+                <Column
+                  column={column}
+                  activeTaskId={
+                    activeId !== null &&
+                    column.tasks.some((task) => task.id === activeId)
+                      ? activeId.toString()
+                      : null
+                  }
+                  sortHint={
+                    column.id === sortHintColumnId
+                      ? t("tasks:kanban.automaticallySortedHint", {
+                          sort: t(
+                            sortedByNumber
+                              ? "tasks:sort.fields.number"
+                              : "tasks:sort.fields.priority",
+                          ),
+                        })
+                      : undefined
+                  }
+                  disableDragDrop={disableDragDrop}
+                  disableSorting={isAutomaticallySorted}
+                  disableCollectionActions={disableCollectionActions}
+                  animateEntries={!isLoadingPages}
                 />
               </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <DragOverlay dropAnimation={reduceMotion ? null : dropAnimation}>
+        {activeTask ? (
+          <div className="rotate-1 scale-[1.03] shadow-lg transition-[rotate,scale] duration-150 ease-out starting:rotate-0 starting:scale-100 motion-reduce:transition-none">
+            <div className="ring-2 ring-ring/35 rounded-lg">
+              <TaskCardContent
+                task={activeTask}
+                isFinalColumn={activeIsFinal}
+                disableDragDrop
+                isDragging
+              />
             </div>
-          ) : null}
-        </DragOverlay>
+          </div>
+        ) : null}
+      </DragOverlay>
 
-        {!readOnly && <BulkToolbar />}
-      </DndContext>
-    </TaskViewReadOnlyContext.Provider>
+      {!readOnly && <BulkToolbar />}
+    </DndContext>
   );
 }
 

@@ -22,7 +22,7 @@ import { priorityColorsTaskCard } from "@/constants/priority-colors";
 import { useUpdateTask } from "@/hooks/mutations/task/use-update-task";
 import useGetProjectTaskRelations from "@/hooks/queries/task-relation/use-get-project-task-relations";
 import { useTaskViewShortcuts } from "@/components/project/task-view-keys/use-task-view-shortcuts";
-import { TaskViewReadOnlyContext } from "@/components/project/views/task-view-read-only";
+import { useTaskViewReadOnly } from "@/components/project/views/task-view-read-only";
 import { useCollapsedSections } from "@/hooks/use-collapsed-sections";
 import { cn } from "@/lib/cn";
 import {
@@ -47,30 +47,22 @@ type ListViewProps = {
   disableCollectionActions?: boolean;
   sort?: SortConfig;
   onSortChange?: (sort: SortConfig) => void;
-  /** No dragging, no multiple selection and no section actions. */
-  readOnly?: boolean;
-  /**
-   * Where the collapsed sections and expanded rows are kept; the project's id
-   * unless the view has its own (an initiative's tab).
-   */
+  /** Key of the collapsed sections and expanded rows, if not the project's. */
   viewKey?: string;
-  /** Sections collapsed until the viewer opens them. */
   defaultCollapsed?: string[];
 };
 
 function ListView({
   project,
-  disableDragDrop: dragDisabled = false,
-  disableCollectionActions: collectionActionsDisabled = false,
+  disableDragDrop = false,
+  disableCollectionActions = false,
   sort,
   onSortChange,
-  readOnly = false,
   viewKey = project.id,
   defaultCollapsed,
 }: ListViewProps) {
-  const disableDragDrop = readOnly || dragDisabled;
-  const disableCollectionActions = readOnly || collectionActionsDisabled;
   const { t } = useTranslation();
+  const readOnly = useTaskViewReadOnly();
   const reduceMotion = useReducedMotion();
   const { setProject } = useProjectStore();
   const setAvailableTasks = useBulkSelectionStore(
@@ -123,23 +115,24 @@ function ListView({
 
   // Per browser and per view, and only a convenience: a row that cannot be
   // restored simply starts collapsed.
+  const projectId = viewKey;
   const [expanded, setExpanded] = useState(() => ({
-    viewKey,
-    rows: readExpandedRows(viewKey),
+    projectId,
+    rows: readExpandedRows(projectId),
   }));
 
   // The board route swaps this component's project rather than remounting it,
   // so a lazy initializer would keep the previous project's map and then save
   // it under the new project's key.
-  if (expanded.viewKey !== viewKey) {
-    setExpanded({ viewKey, rows: readExpandedRows(viewKey) });
+  if (expanded.projectId !== projectId) {
+    setExpanded({ projectId, rows: readExpandedRows(projectId) });
   }
 
   const expandedTasks = expanded.rows;
 
   useEffect(() => {
-    writeExpandedRows(viewKey, expandedTasks);
-  }, [viewKey, expandedTasks]);
+    writeExpandedRows(projectId, expandedTasks);
+  }, [projectId, expandedTasks]);
 
   // Collapsing removes the row rather than recording false, so the stored map
   // holds only expanded rows and does not grow with every row ever touched.
@@ -408,117 +401,112 @@ function ListView({
     : null;
 
   return (
-    <TaskViewReadOnlyContext.Provider value={readOnly}>
-      <DndContext
-        sensors={disableDragDrop ? [] : sensors}
-        accessibility={{
-          screenReaderInstructions: {
-            draggable: t("tasks:board.keyboardInstructions"),
-          },
-        }}
-        collisionDetection={closestCorners}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-        modifiers={[snapCenterToCursor]}
-      >
-        <div className="w-full h-full overflow-auto bg-muted/20">
-          {relationsFailed && (
-            // Without relations every task renders as a top-level row, which
-            // reads exactly like a project with no subtasks; this says it isn't.
-            <div
-              role="alert"
-              className="flex items-center justify-between gap-3 border-b border-border/50 px-4 py-2 text-sm text-muted-foreground"
-            >
-              <span>{t("tasks:listView.subtasksLoadError")}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void refetchRelations()}
-              >
-                {t("common:error.tryAgain")}
-              </Button>
-            </div>
-          )}
+    <DndContext
+      sensors={disableDragDrop ? [] : sensors}
+      accessibility={{
+        screenReaderInstructions: {
+          draggable: t("tasks:board.keyboardInstructions"),
+        },
+      }}
+      collisionDetection={closestCorners}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+      modifiers={[snapCenterToCursor]}
+    >
+      <div className="w-full h-full overflow-auto bg-muted/20">
+        {relationsFailed && (
+          // Without relations every task renders as a top-level row, which
+          // reads exactly like a project with no subtasks; this says it isn't.
           <div
-            aria-busy={relationsLoading}
-            className="divide-y divide-border/50"
+            role="alert"
+            className="flex items-center justify-between gap-3 border-b border-border/50 px-4 py-2 text-sm text-muted-foreground"
           >
-            {project.columns.map((column) => (
-              <ListColumnSection
-                key={column.id}
-                column={column}
-                projectSlug={project.slug ?? ""}
-                isExpanded={isExpanded(column.id)}
-                showDropIndicator={
-                  Boolean(activeId) && overColumnId === column.id
-                }
-                disableCollectionActions={disableCollectionActions}
-                onToggle={toggleSection}
-                onAddTask={handleAddTask}
-                onArchive={handleArchiveClick}
-                rows={rowsByColumn.get(column.id) ?? []}
-                onToggleTaskExpanded={toggleTaskExpanded}
-                relationsLoading={relationsLoading}
-                draggingTaskId={activeId === null ? null : String(activeId)}
-                sort={sort}
-                onSortChange={onSortChange}
-              />
-            ))}
+            <span>{t("tasks:listView.subtasksLoadError")}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void refetchRelations()}
+            >
+              {t("common:error.tryAgain")}
+            </Button>
           </div>
+        )}
+        <div aria-busy={relationsLoading} className="divide-y divide-border/50">
+          {project.columns.map((column) => (
+            <ListColumnSection
+              key={column.id}
+              column={column}
+              projectSlug={project.slug ?? ""}
+              isExpanded={isExpanded(column.id)}
+              showDropIndicator={
+                Boolean(activeId) && overColumnId === column.id
+              }
+              disableCollectionActions={disableCollectionActions}
+              onToggle={toggleSection}
+              onAddTask={handleAddTask}
+              onArchive={handleArchiveClick}
+              rows={rowsByColumn.get(column.id) ?? []}
+              onToggleTaskExpanded={toggleTaskExpanded}
+              relationsLoading={relationsLoading}
+              draggingTaskId={activeId === null ? null : String(activeId)}
+              sort={sort}
+              onSortChange={onSortChange}
+            />
+          ))}
         </div>
+      </div>
 
-        <DragOverlay dropAnimation={reduceMotion ? null : undefined}>
-          {activeTask && (
-            <div className="bg-card border border-border rounded-lg shadow-lg p-2 max-w-[200px] cursor-grabbing">
-              <div className="flex items-center gap-2">
-                <div className="flex-shrink-0">
-                  <Flag
-                    className={cn(
-                      "w-3 h-3",
-                      priorityColorsTaskCard[
-                        activeTask.priority as keyof typeof priorityColorsTaskCard
-                      ],
-                    )}
-                  />
-                </div>
+      <DragOverlay dropAnimation={reduceMotion ? null : undefined}>
+        {activeTask && (
+          <div className="bg-card border border-border rounded-lg shadow-lg p-2 max-w-[200px] cursor-grabbing">
+            <div className="flex items-center gap-2">
+              <div className="flex-shrink-0">
+                <Flag
+                  className={cn(
+                    "w-3 h-3",
+                    priorityColorsTaskCard[
+                      activeTask.priority as keyof typeof priorityColorsTaskCard
+                    ],
+                  )}
+                />
+              </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-mono text-muted-foreground">
-                      {project?.slug}-{activeTask.number}
-                    </span>
-                    <span className="text-xs text-foreground truncate">
-                      {activeTask.title}
-                    </span>
-                  </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono text-muted-foreground">
+                    {project?.slug}-{activeTask.number}
+                  </span>
+                  <span className="text-xs text-foreground truncate">
+                    {activeTask.title}
+                  </span>
                 </div>
               </div>
             </div>
-          )}
-        </DragOverlay>
+          </div>
+        )}
+      </DragOverlay>
 
-        <CreateTaskModal
-          open={isTaskModalOpen}
-          projectId={project.id}
-          onClose={() => setIsTaskModalOpen(false)}
-          status={activeColumn ?? "done"}
-        />
-        <ArchiveTasksModal
-          open={isArchiveModalOpen}
-          onClose={() => {
-            setIsArchiveModalOpen(false);
-            setColumnToArchive(null);
-          }}
-          disabled={disableCollectionActions}
-          onConfirm={handleConfirmArchive}
-          taskCount={archiveColumn?.tasks.length ?? 0}
-        />
+      <CreateTaskModal
+        open={isTaskModalOpen}
+        projectId={project.id}
+        onClose={() => setIsTaskModalOpen(false)}
+        status={activeColumn ?? "done"}
+      />
+      <ArchiveTasksModal
+        open={isArchiveModalOpen}
+        onClose={() => {
+          setIsArchiveModalOpen(false);
+          setColumnToArchive(null);
+        }}
+        disabled={disableCollectionActions}
+        onConfirm={handleConfirmArchive}
+        taskCount={archiveColumn?.tasks.length ?? 0}
+      />
 
-        {!readOnly && <BulkToolbar />}
-      </DndContext>
-    </TaskViewReadOnlyContext.Provider>
+      {!readOnly && <BulkToolbar />}
+    </DndContext>
   );
 }
 

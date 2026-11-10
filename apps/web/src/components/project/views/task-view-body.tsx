@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { type SortConfig, sortTasks } from "@/lib/sort-tasks";
 import { useBackgroundStore } from "@/store/background";
 import { BoardSkeleton } from "./board-skeleton";
+import { TaskViewReadOnlyContext } from "./task-view-read-only";
 
 type TaskViewBodyProps = {
   view: Pick<ProjectTaskView, "descriptionSearch" | "filters">;
@@ -60,7 +61,7 @@ export function TaskViewBody({
   }, [filters.filteredProject, sort]);
 
   return (
-    <>
+    <TaskViewReadOnlyContext.Provider value={readOnly}>
       {descriptionSearch.isLoading && (
         <p role="status" className="px-4 py-2 text-sm text-muted-foreground">
           {t("tasks:descriptionSearchLoading")}
@@ -92,9 +93,9 @@ export function TaskViewBody({
             <KanbanBoard
               key={sortedProject.id}
               project={sortedProject}
-              readOnly={readOnly}
-              disableCollectionActions={isFetching || isError}
+              disableCollectionActions={readOnly || isFetching || isError}
               disableDragDrop={
+                readOnly ||
                 (isFetching && !isLoaded) ||
                 isError ||
                 (sort.field !== "position" &&
@@ -108,12 +109,11 @@ export function TaskViewBody({
             <ListView
               key={sortedProject.id}
               project={sortedProject}
-              readOnly={readOnly}
               viewKey={viewKey}
               defaultCollapsed={defaultCollapsed}
-              disableCollectionActions={isFetching || isError}
+              disableCollectionActions={readOnly || isFetching || isError}
               disableDragDrop={
-                isFetching || isError || sort.field !== "position"
+                readOnly || isFetching || isError || sort.field !== "position"
               }
               sort={sort}
               onSortChange={onSortChange}
@@ -125,6 +125,6 @@ export function TaskViewBody({
           <BoardSkeleton />
         )}
       </div>
-    </>
+    </TaskViewReadOnlyContext.Provider>
   );
 }
