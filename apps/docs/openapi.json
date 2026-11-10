@@ -238,52 +238,7 @@
             ]
           },
           "blockersSummary": {
-            "type": "object",
-            "properties": {
-              "pendingCount": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "hasCancelledBlocker": {
-                "type": "boolean"
-              },
-              "waitingRelease": {
-                "type": "boolean"
-              },
-              "blockers": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "ticket": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "ticket",
-                    "status"
-                  ]
-                }
-              },
-              "externalCount": {
-                "type": "integer",
-                "minimum": 0
-              }
-            },
-            "required": [
-              "pendingCount",
-              "hasCancelledBlocker",
-              "waitingRelease",
-              "blockers",
-              "externalCount"
-            ]
+            "$ref": "#/components/schemas/BlockersSummary"
           },
           "priority": {
             "type": "string",
@@ -412,6 +367,232 @@
           "labels",
           "externalLinks"
         ]
+      },
+      "BlockersSummary": {
+        "type": "object",
+        "properties": {
+          "pendingCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Blockers not in Done, including cancelled ones and those of projects the reader cannot see."
+          },
+          "hasCancelledBlocker": {
+            "type": "boolean"
+          },
+          "waitingRelease": {
+            "type": "boolean"
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "ticket": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "in_progress",
+                    "not_started",
+                    "blocked",
+                    "person",
+                    "cancelled"
+                  ],
+                  "description": "in_progress: In progress, In review or Ready to merge. not_started: Backlog, To do, Queued or another open column. blocked: Blocked by something other than a person. person: assigned to a person, labelled `decision`, or Blocked waiting for a person (`espera_a` of the board signals). cancelled: never fulfils the dependency."
+                },
+                "person": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Who it waits for when `state` is person: the assignee's name, or the `espera_a` of the board signals (`person:…`). Null otherwise, when unknown, and on public boards."
+                }
+              },
+              "required": [
+                "id",
+                "ticket",
+                "status",
+                "title",
+                "state",
+                "person"
+              ]
+            },
+            "description": "Visible pending blockers. Those of projects the reader cannot see only add to `externalCount`, without title or status."
+          },
+          "externalCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "byState": {
+            "type": "object",
+            "properties": {
+              "in_progress": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "not_started": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "blocked": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "person": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cancelled": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "in_progress",
+              "not_started",
+              "blocked",
+              "person",
+              "cancelled"
+            ],
+            "description": "Visible pending blockers by state; with `externalCount` they add up to `pendingCount`. in_progress: In progress, In review or Ready to merge. not_started: Backlog, To do, Queued or another open column. blocked: Blocked by something other than a person. person: assigned to a person, labelled `decision`, or Blocked waiting for a person (`espera_a` of the board signals). cancelled: never fulfils the dependency."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "cancelled",
+              "person",
+              "blocked",
+              "not_started",
+              "external",
+              "in_progress",
+              "ready"
+            ],
+            "description": "The worst reason, which sets the label's colour: cancelled and person red; blocked, not_started and external (pending in a project the reader cannot see) yellow; in_progress blue; ready (no pending blockers) green."
+          },
+          "notStartingReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "paused",
+              "automation_off",
+              "no_role",
+              "waiting_release",
+              null
+            ],
+            "description": "Only for a ready task in To do: why the dispatcher will not start it alone. paused: automation off with a pause reason; automation_off: automation off or never set; no_role: not assigned to a role's account; waiting_release: a validation whose `release` is not `desplegada`. Null otherwise. Informative: the dispatcher decides."
+          },
+          "pauseReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The pause reason when `notStartingReason` is paused; null otherwise and on public boards."
+          },
+          "root": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "task",
+                  "external",
+                  "cycle",
+                  "too_deep"
+                ],
+                "description": "task: the first task up the pending blockers that waits for no other pending task (several: the one in progress, then the highest priority, then the oldest). external: that task is in a project the reader cannot see. cycle: the pending blockers loop, so there is no root. too_deep: no root within 20 levels."
+              },
+              "task": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "ticket": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "in_progress",
+                      "not_started",
+                      "blocked",
+                      "person",
+                      "cancelled"
+                    ],
+                    "description": "in_progress: In progress, In review or Ready to merge. not_started: Backlog, To do, Queued or another open column. blocked: Blocked by something other than a person. person: assigned to a person, labelled `decision`, or Blocked waiting for a person (`espera_a` of the board signals). cancelled: never fulfils the dependency."
+                  },
+                  "person": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Who it waits for when `state` is person: the assignee's name, or the `espera_a` of the board signals (`person:…`). Null otherwise, when unknown, and on public boards."
+                  }
+                },
+                "required": [
+                  "id",
+                  "ticket",
+                  "status",
+                  "title",
+                  "state",
+                  "person"
+                ],
+                "description": "The root when `kind` is task; null otherwise."
+              },
+              "depth": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "exclusiveMinimum": 0,
+                "description": "Levels from the task to the root (1: a direct blocker); null for cycle and too_deep."
+              }
+            },
+            "required": [
+              "kind",
+              "task",
+              "depth"
+            ],
+            "description": "Only for a task in To do with pending blockers; null otherwise."
+          }
+        },
+        "required": [
+          "pendingCount",
+          "hasCancelledBlocker",
+          "waitingRelease",
+          "blockers",
+          "externalCount",
+          "byState",
+          "reason",
+          "notStartingReason",
+          "pauseReason",
+          "root"
+        ],
+        "description": "Why a task waits (Intelia fork, design 55 §3.1). Only Done fulfils a dependency. Informative: it does not authorize a start."
       },
       "TaskRecurrence": {
         "type": "object",
@@ -1562,6 +1743,16 @@
                     "total"
                   ]
                 }
+              },
+              "blockersSummary": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/BlockersSummary"
+                  },
+                  {
+                    "description": "Why the task waits (design 55 §3.1). Included by GET /task/{id}; omitted elsewhere."
+                  }
+                ]
               },
               "assigneeName": {
                 "type": [

@@ -1,4 +1,5 @@
 import { nullableResponseTimestamp, responseTimestamp, z } from "../openapi";
+import { blockersSummarySchema } from "./blockers-summary/schema";
 import { taskRecurrenceSchema } from "./recurrence/schema";
 
 const priorityDescription = "One of: no-priority, low, medium, high, urgent.";
@@ -74,6 +75,10 @@ export const taskWithAssigneeSchema = taskSchema
         }),
       )
       .optional(),
+    blockersSummary: blockersSummarySchema.optional().openapi({
+      description:
+        "Why the task waits (design 55 §3.1). Included by GET /task/{id}; omitted elsewhere.",
+    }),
     assigneeName: z.string().nullable(),
     assigneeId: z.string().nullable(),
   })
@@ -129,15 +134,7 @@ export const boardTaskSchema = z
     type: z
       .enum(["implementacion", "validacion", "operacion", "diseno"])
       .nullable(),
-    blockersSummary: z.object({
-      pendingCount: z.number().int().nonnegative(),
-      hasCancelledBlocker: z.boolean(),
-      waitingRelease: z.boolean(),
-      blockers: z.array(
-        z.object({ id: z.string(), ticket: z.string(), status: z.string() }),
-      ),
-      externalCount: z.number().int().nonnegative(),
-    }),
+    blockersSummary: blockersSummarySchema,
     priority: z.string().openapi({ description: priorityDescription }),
     startDate: nullableResponseTimestamp,
     dueDate: nullableResponseTimestamp,
