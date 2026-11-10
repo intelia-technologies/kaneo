@@ -145,6 +145,10 @@ export const boardTaskSchema = z
     recurrence: z.union([taskRecurrenceSchema, z.null()]),
     position: z.number().nullable(),
     createdAt: responseTimestamp,
+    statusSince: responseTimestamp.openapi({
+      description:
+        "When the task entered its current column (Intelia fork, design 23 §3): its last status change in the activity log, or its creation if it never changed. Reordering within a column does not count.",
+    }),
     userId: z.string().nullable(),
     assigneeName: z.string().nullable(),
     assigneeId: z.string().nullable(),

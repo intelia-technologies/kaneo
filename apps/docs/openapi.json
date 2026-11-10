@@ -329,6 +329,11 @@
             "type": "string",
             "format": "date-time"
           },
+          "statusSince": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the task entered its current column (Intelia fork, design 23 §3): its last status change in the activity log, or its creation if it never changed. Reordering within a column does not count."
+          },
           "userId": {
             "type": [
               "string",
@@ -403,6 +408,7 @@
           "recurrence",
           "position",
           "createdAt",
+          "statusSince",
           "userId",
           "assigneeName",
           "assigneeId",
