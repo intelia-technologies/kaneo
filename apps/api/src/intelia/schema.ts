@@ -779,7 +779,7 @@ export const taskArchiveTable = inteliaSchema.table("task_archive", {
   }),
 });
 
-// The report of migration 0015: tasks left in upstream's virtual `archived`
+// The report of migration 0016: tasks left in upstream's virtual `archived`
 // status because their history does not say which closed column they came
 // from. To be reviewed by hand.
 export const taskArchiveMigrationSkipTable = inteliaSchema.table(
@@ -801,7 +801,7 @@ export const taskArchiveMigrationSkipTable = inteliaSchema.table(
   },
 );
 
-// One row written by migration 0015: how many tasks went back to each closed
+// One row written by migration 0016: how many tasks went back to each closed
 // status (`{ "done": n, "cancelled": m }`) and how many were skipped.
 export const taskArchiveMigrationReportTable = inteliaSchema.table(
   "task_archive_migration_report",

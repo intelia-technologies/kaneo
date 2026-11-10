@@ -84,7 +84,7 @@ DO $$
 DECLARE r record;
 BEGIN
 	SELECT * INTO r FROM "intelia"."task_archive_migration_report" LIMIT 1;
-	RAISE NOTICE 'intelia 0015: restored %, skipped % (see intelia.task_archive_migration_skip)', r.restored, r.skipped;
+	RAISE NOTICE 'intelia 0016: restored %, skipped % (see intelia.task_archive_migration_skip)', r.restored, r.skipped;
 END;
 $$;--> statement-breakpoint
 DROP TABLE "task_archive_origin";

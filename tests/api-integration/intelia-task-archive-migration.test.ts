@@ -1,4 +1,4 @@
-// Migration 0015_task_archive (design 53 §3.2, KF-4): tasks archived with
+// Migration 0016_task_archive (design 53 §3.2, KF-4): tasks archived with
 // upstream's virtual `archived` status go back to the closed column they came
 // from, with the archive mark dated at their archive. Tasks whose history does
 // not say so stay as they are and are listed for review. Replays the API
@@ -30,7 +30,7 @@ const apiDir = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../apps/api",
 );
-const ARCHIVE_TAG = "0015_task_archive";
+const ARCHIVE_TAG = "0016_task_archive";
 
 let workDir: string;
 let inteliaFolder: string;
@@ -100,7 +100,7 @@ it("restores archived tasks to their closed column with the mark, and lists the 
   writeFileSync(journalPath, JSON.stringify(journal));
   await migrate(db, { migrationsFolder: join(apiDir, "drizzle") });
   // The deployed schema, without the startup check: today's code expects the
-  // foreign keys of task_archive, which only 0015 creates.
+  // foreign keys of task_archive, which only 0016 creates.
   await migrateInteliaJournal(db, inteliaFolder);
 
   await db.insert(schema.workspaceTable).values({

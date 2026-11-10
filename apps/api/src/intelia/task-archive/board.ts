@@ -6,7 +6,7 @@ import type { ArchivedScope } from "./schema";
 
 // Which tasks a board or listing returns (design 53 §3.2): tasks with the
 // archive mark only when asked. Upstream's virtual `archived` status (the few
-// tasks migration 0015 could not restore, left for review) keeps upstream's
+// tasks migration 0016 could not restore, left for review) keeps upstream's
 // behavior: in the default board's archived bucket. The archived section
 // (`only`) shows both.
 //
