@@ -10,6 +10,8 @@ import { getColumnIcon } from "@/lib/column";
 import { getPriorityLabel } from "@/lib/i18n/domain";
 import { getPriorityIcon } from "@/lib/priority";
 import { useAutomationFilterSubject } from "@/intelia/automation/filter-subject";
+import { originFilterSubject } from "@/intelia/initiatives/origin/filter-subject";
+import type { TaskOrigins } from "@/intelia/initiatives/origin/origin";
 import { reasonLabel } from "@/intelia/wait/labels";
 import { WAIT_REASONS, waitSummaryOf } from "@/intelia/wait/reasons";
 import { countValues } from "@/lib/task-filters/count-values";
@@ -41,6 +43,8 @@ type UseFilterSubjectsInput = {
   tasks: Task[];
   showStatus: boolean;
   projectId?: string;
+  /** The initiative's origins: adds the «Origen» subject (design 19 annex). */
+  origins?: TaskOrigins;
 };
 
 export function useFilterSubjects({
@@ -50,6 +54,7 @@ export function useFilterSubjects({
   tasks,
   showStatus,
   projectId,
+  origins,
 }: UseFilterSubjectsInput): FilterSubject[] {
   const { t } = useTranslation();
   const { filters, toggleFilter, updateFilter, setNegated } = controls;
@@ -190,6 +195,9 @@ export function useFilterSubjects({
       })),
     }),
     useAutomationFilterSubject({ projectId, controls, tasks, build: subject }),
+    ...(origins
+      ? [originFilterSubject({ origins, controls, tasks, build: subject, t })]
+      : []),
   ];
 
   const customFields = options.customFields.map((field) => {

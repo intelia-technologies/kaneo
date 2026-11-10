@@ -17,5 +17,8 @@ export function useGetTasks(
   return {
     ...query,
     data: query.data ?? (query.isFetching ? progress : undefined),
+    // While the first load is still fetching pages, `data` is only the pages
+    // that have arrived.
+    hasAllPages: query.data !== undefined,
   };
 }

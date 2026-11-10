@@ -10,6 +10,10 @@ import {
   DUE_DATE_FILTER_VALUES,
 } from "@/hooks/use-task-filters";
 import { matchesAutomationFilter } from "@/intelia/automation/filter";
+import {
+  matchesOriginFilter,
+  type TaskOrigins,
+} from "@/intelia/initiatives/origin/origin";
 import { waitSummaryOf } from "@/intelia/wait/reasons";
 import type Task from "@/types/task";
 import { customFieldSubjectId } from "./filter-subject-id";
@@ -22,6 +26,9 @@ export type TaskFilterContext = {
   today: Date;
   labelIds?: ReadonlySet<string>;
   automation?: ReadonlyMap<string, { level: string }>;
+  // Only the initiative's «Tareas» tab has origins; elsewhere the filter does
+  // not apply.
+  origins?: TaskOrigins;
   getCustomFieldValues: (
     taskId: string,
   ) => Array<{ fieldId: string; value: string | null }>;
@@ -132,6 +139,15 @@ export function taskMatchesFilters(
         matchesAutomationFilter(
           filters.automation ?? [],
           context.automation?.get(task.id),
+        ),
+    ],
+    [
+      "origin",
+      context.origins && filters.origin,
+      () =>
+        matchesOriginFilter(
+          filters.origin ?? [],
+          context.origins?.get(task.id),
         ),
     ],
   ];

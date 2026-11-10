@@ -213,3 +213,33 @@ describe("taskMatchesFilters", () => {
     ).toBe(true);
   });
 });
+
+describe("origin filter", () => {
+  const origins = new Map([["t1", "añadido" as const]]);
+
+  it("keeps the initiative's tasks of the chosen origin, or the others when negated", () => {
+    const filters = { ...noFilters, origin: ["añadido"] };
+    expect(taskMatchesFilters(task({}), filters, { ...context, origins })).toBe(
+      true,
+    );
+    expect(
+      taskMatchesFilters(
+        task({}),
+        { ...filters, origin: ["plan"] },
+        { ...context, origins },
+      ),
+    ).toBe(false);
+    expect(
+      taskMatchesFilters(
+        task({}),
+        { ...filters, negated: ["origin"] },
+        { ...context, origins },
+      ),
+    ).toBe(false);
+  });
+
+  it("does not apply where no initiative gives origins", () => {
+    const filters = { ...noFilters, origin: ["plan"] };
+    expect(taskMatchesFilters(task({}), filters, context)).toBe(true);
+  });
+});

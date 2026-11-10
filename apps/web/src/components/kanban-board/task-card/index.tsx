@@ -1,4 +1,5 @@
 import { useRestoreTaskFocus } from "@/components/project/task-view-keys/use-restore-task-focus";
+import { useTaskViewReadOnly } from "@/components/project/views/task-view-read-only";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -52,6 +53,9 @@ function TaskCard({
     [],
   );
   const { handleKeyDown } = useTaskCardClick(task);
+  // A read-only card is a plain button: dnd-kit's attributes would announce
+  // it as sortable, or as disabled.
+  const readOnly = useTaskViewReadOnly();
   const hoverPrefetch = useTaskHoverPrefetch(task.id);
   const setFocusedTask = useBulkSelectionStore((state) => state.setFocusedTask);
   useRestoreTaskFocus(task.id, useBulkSelectionStore);
@@ -71,8 +75,8 @@ function TaskCard({
       data-kaneo-sortable
       data-task-id={task.id}
       data-shortcut-surface
-      {...attributes}
-      {...dragListeners}
+      {...(readOnly ? {} : attributes)}
+      {...(readOnly ? {} : dragListeners)}
       {...hoverPrefetch}
       role="button"
       tabIndex={0}

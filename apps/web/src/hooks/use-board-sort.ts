@@ -50,12 +50,13 @@ function normalizeSort(value: unknown): SortConfig {
   return { field: candidate.field, direction: candidate.direction };
 }
 
+// `viewKey` is the project's id, or a view's own key (an initiative's tab).
 export function useBoardSort(
-  projectId: string | undefined,
+  viewKey: string | undefined,
   scope: "board" | "backlog" = "board",
 ) {
   const [sort, setSort] = useStoredState(
-    projectId ? `kaneo:${scope}-sort:${projectId}` : null,
+    viewKey ? `kaneo:${scope}-sort:${viewKey}` : null,
     normalizeSort,
     DEFAULT_SORT,
   );

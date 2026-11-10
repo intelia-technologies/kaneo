@@ -1,4 +1,5 @@
 import { useRestoreTaskFocus } from "@/components/project/task-view-keys/use-restore-task-focus";
+import { useTaskViewReadOnly } from "@/components/project/views/task-view-read-only";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useNavigate } from "@tanstack/react-router";
@@ -78,6 +79,7 @@ function TaskRow({
   // id with that row, so making it sortable would register the same id twice
   // and move the wrong row.
   const isNestedRepeat = depth > 0;
+  const readOnly = useTaskViewReadOnly();
   const {
     attributes,
     listeners,
@@ -87,7 +89,7 @@ function TaskRow({
     isDragging,
   } = useSortable({
     id: rowId ?? task.id,
-    disabled: isNestedRepeat,
+    disabled: isNestedRepeat || readOnly,
     transition: { duration: 200, easing: EASE_OUT_CSS },
   });
 
@@ -157,13 +159,13 @@ function TaskRow({
     if (!project || !task || !isOwnDomEvent(e)) return;
     if (e.defaultPrevented) return;
 
-    if (e.shiftKey) {
+    if (e.shiftKey && !readOnly) {
       e.preventDefault();
       selectRange(task.id);
       return;
     }
 
-    if (e.metaKey || e.ctrlKey) {
+    if ((e.metaKey || e.ctrlKey) && !readOnly) {
       e.preventDefault();
       toggleSelection(task.id);
       return;
@@ -176,7 +178,7 @@ function TaskRow({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.defaultPrevented || e.target !== e.currentTarget) return;
-    if (e.key === "Enter" && e.shiftKey) {
+    if (e.key === "Enter" && e.shiftKey && !readOnly) {
       e.preventDefault();
       selectRange(task.id);
       return;
@@ -278,11 +280,12 @@ function TaskRow({
             data-task-id={task.id}
             data-task-row-id={rowId}
             data-shortcut-surface
-            // A repeated row opens its task like any other, so it keeps the
-            // button semantics but takes none of dnd-kit's attributes: those
-            // carry aria-disabled for a disabled sortable, which would tell
-            // assistive technology the row cannot be used.
-            {...(isNestedRepeat
+            // A repeated row, or any row of a read-only view, opens its task
+            // like any other, so it keeps the button semantics but takes none
+            // of dnd-kit's attributes: those carry aria-disabled for a
+            // disabled sortable, which would tell assistive technology the
+            // row cannot be used.
+            {...(isNestedRepeat || readOnly
               ? { role: "button" as const, tabIndex: 0 }
               : { ...attributes, ...listeners })}
             {...hoverPrefetch}

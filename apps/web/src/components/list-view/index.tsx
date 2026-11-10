@@ -22,6 +22,7 @@ import { priorityColorsTaskCard } from "@/constants/priority-colors";
 import { useUpdateTask } from "@/hooks/mutations/task/use-update-task";
 import useGetProjectTaskRelations from "@/hooks/queries/task-relation/use-get-project-task-relations";
 import { useTaskViewShortcuts } from "@/components/project/task-view-keys/use-task-view-shortcuts";
+import { useTaskViewReadOnly } from "@/components/project/views/task-view-read-only";
 import { useCollapsedSections } from "@/hooks/use-collapsed-sections";
 import { cn } from "@/lib/cn";
 import {
@@ -46,6 +47,9 @@ type ListViewProps = {
   disableCollectionActions?: boolean;
   sort?: SortConfig;
   onSortChange?: (sort: SortConfig) => void;
+  /** Key of the collapsed sections and expanded rows, if not the project's. */
+  viewKey?: string;
+  defaultCollapsed?: string[];
 };
 
 function ListView({
@@ -54,8 +58,11 @@ function ListView({
   disableCollectionActions = false,
   sort,
   onSortChange,
+  viewKey = project.id,
+  defaultCollapsed,
 }: ListViewProps) {
   const { t } = useTranslation();
+  const readOnly = useTaskViewReadOnly();
   const reduceMotion = useReducedMotion();
   const { setProject } = useProjectStore();
   const setAvailableTasks = useBulkSelectionStore(
@@ -67,8 +74,9 @@ function ListView({
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
   const { isExpanded, toggleSection, toggleAllSections } = useCollapsedSections(
-    project.id,
+    viewKey,
     "list",
+    defaultCollapsed,
   );
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [activeColumn, setActiveColumn] = useState<string | null>(null);
@@ -105,9 +113,9 @@ function ListView({
     return index;
   }, [project?.columns]);
 
-  // Per browser and per project, and only a convenience: a row that cannot be
+  // Per browser and per view, and only a convenience: a row that cannot be
   // restored simply starts collapsed.
-  const projectId = project?.id ?? "";
+  const projectId = viewKey;
   const [expanded, setExpanded] = useState(() => ({
     projectId,
     rows: readExpandedRows(projectId),
@@ -326,6 +334,7 @@ function ListView({
     project,
     enabled: activeId === null,
     canMove: !disableDragDrop,
+    canSelect: !readOnly,
     onMove: moveTask,
     onToggleGroup: toggleSection,
     onToggleAllGroups: () =>
@@ -496,7 +505,7 @@ function ListView({
         taskCount={archiveColumn?.tasks.length ?? 0}
       />
 
-      <BulkToolbar />
+      {!readOnly && <BulkToolbar />}
     </DndContext>
   );
 }

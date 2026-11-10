@@ -28,6 +28,7 @@ import { useDragPreview } from "./drag-preview/use-drag-preview";
 import { useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useTaskViewShortcuts } from "@/components/project/task-view-keys/use-task-view-shortcuts";
+import { useTaskViewReadOnly } from "@/components/project/views/task-view-read-only";
 import { useProjectBackground } from "@/hooks/use-project-background";
 import { cn } from "@/lib/cn";
 import { EASE_OUT_CSS } from "@/lib/motion";
@@ -57,6 +58,7 @@ function KanbanBoard({
   sortedByPriority = false,
 }: KanbanBoardProps) {
   const isAutomaticallySorted = sortedByNumber || sortedByPriority;
+  const readOnly = useTaskViewReadOnly();
   const queryClient = useQueryClient();
   const isFetching =
     useIsFetching({ queryKey: ["tasks", project.id], exact: true }) > 0;
@@ -273,6 +275,7 @@ function KanbanBoard({
     project,
     enabled: activeId === null,
     canMove: !disableDragDrop,
+    canSelect: !readOnly,
     onMove: (activeId, overId) => queueMove({ activeId, overId }),
   });
 
@@ -401,7 +404,7 @@ function KanbanBoard({
         ) : null}
       </DragOverlay>
 
-      <BulkToolbar />
+      {!readOnly && <BulkToolbar />}
     </DndContext>
   );
 }

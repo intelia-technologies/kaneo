@@ -95,6 +95,7 @@ const en = {
         "No growth shown: some tasks predate the plan record (unrecorded)",
       none: "No tasks",
     },
+    originFilter: "Origin",
     origin: {
       plan: "Plan",
       añadido: "Added",
@@ -205,6 +206,7 @@ const es = {
         "Sin crecimiento: hay tareas anteriores al registro del plan (sin registro)",
       none: "Sin tareas",
     },
+    originFilter: "Origen",
     origin: {
       plan: "Plan",
       añadido: "Añadida",
