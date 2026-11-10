@@ -5,6 +5,7 @@ import {
   taskArchiveTable,
   taskClassificationTable,
 } from "../../intelia/schema";
+import { ApiError } from "../../errors/api-error";
 import { archiveColumn } from "../../intelia/task-archive/archive-column";
 import { ARCHIVED_STATUS } from "../../intelia/task-archive/archive-status";
 import { announceArchived } from "../../intelia/task-archive/service";
@@ -82,6 +83,22 @@ async function importTasks(
     orderBy: asc(columnTable.position),
   });
 
+  // Intelia (design 53 §3.2): archived tasks come in closed, with the mark.
+  // Without a final column to put them in, nothing is imported.
+  const archiveTarget = archiveColumn(columns);
+  if (
+    !archiveTarget &&
+    tasksToImport.some((taskData) => {
+      const resolved = resolveImportTaskStatus(taskData.status, columns);
+      return !("error" in resolved) && resolved.status === ARCHIVED_STATUS;
+    })
+  )
+    throw new ApiError(409, {
+      code: "NO_FINAL_COLUMN",
+      message:
+        "The project has no final column to archive the imported archived tasks into; nothing was imported",
+    });
+
   const results = [];
   let archivedAny = false;
 
@@ -108,17 +125,12 @@ async function importTasks(
       // Intelia (design 53 §3.2): an archived task comes in closed, with the
       // mark. Its closed column is unknown, so it goes to `done`.
       const archived = resolved.status === ARCHIVED_STATUS;
-      const resolvedStatus = archived
-        ? (archiveColumn(columns)?.slug ?? "planned")
-        : resolved.status;
+      const resolvedStatus =
+        archived && archiveTarget ? archiveTarget.slug : resolved.status;
       const { priority, warning: priorityWarning } = coercePriority(
         taskData.priority || "low",
       );
       const warnings = [statusWarning, priorityWarning].filter(Boolean);
-      if (archived && resolvedStatus === "planned")
-        warnings.push(
-          'The project has no final column to archive into. Mapped to "planned".',
-        );
 
       const createdTask = await db.transaction(async (tx) => {
         if (assigneeId) {
@@ -133,7 +145,7 @@ async function importTasks(
         const taskNumber = await claimTaskNumber(projectId, tx);
         // Recheck the snapshot's column and retain it until the insert commits.
         const [column] = await tx
-          .select({ id: columnTable.id })
+          .select({ id: columnTable.id, isFinal: columnTable.isFinal })
           .from(columnTable)
           .where(
             and(
@@ -143,6 +155,11 @@ async function importTasks(
           )
           .limit(1)
           .for("key share");
+        // The final column went away meanwhile: no open task, no old status.
+        if (archived && !column?.isFinal)
+          throw new Error(
+            `Column "${resolvedStatus}" is no longer final; the archived task was not imported`,
+          );
         const status =
           column ||
           VIRTUAL_STATUSES.some((virtual) => virtual === resolvedStatus)
@@ -208,7 +225,7 @@ async function importTasks(
       });
 
       if (createdTask) {
-        if (archived && createdTask.status !== "planned") archivedAny = true;
+        if (archived) archivedAny = true;
         await publishEvent("task.created", {
           ...createdTask,
           taskId: createdTask.id,

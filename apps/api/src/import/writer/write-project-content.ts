@@ -53,7 +53,12 @@ export async function writeProjectContent(
 
   const sourceColumns = withArchiveColumn(project.columns, project.tasks);
   const columnPlan = planImportColumns(sourceColumns.columns);
-  const board = await writeImportColumns(tx, projectId, columnPlan);
+  const board = await writeImportColumns(
+    tx,
+    projectId,
+    columnPlan,
+    project.tasks.some((task) => task.archived),
+  );
   const assignees = createAssigneeMatcher(
     await loadAssignableMembers(tx, workspaceId, projectId),
   );
@@ -104,9 +109,6 @@ export async function writeProjectContent(
   );
 
   const unmatched = assignees.warning();
-  const unarchived =
-    project.tasks.filter((task) => task.archived).length -
-    tasks.filter((task) => task.archived).length;
   return {
     counts: {
       columns: board.count,
@@ -119,13 +121,10 @@ export async function writeProjectContent(
     warnings: [
       ...project.warnings,
       ...columnPlan.warnings,
-      ...(sourceColumns.added ? [ARCHIVE_COLUMN_WARNING] : []),
-      ...(unmatched ? [unmatched] : []),
-      ...(unarchived > 0
-        ? [
-            `${unarchived === 1 ? "An archived task came" : `${unarchived} archived tasks came`} in open: the board has no final column to archive them into.`,
-          ]
+      ...(sourceColumns.added || board.archiveAdded
+        ? [ARCHIVE_COLUMN_WARNING]
         : []),
+      ...(unmatched ? [unmatched] : []),
     ],
   };
 }

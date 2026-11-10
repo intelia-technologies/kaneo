@@ -287,6 +287,30 @@ describe("other routes that would write archived", () => {
     expect((await response.json()).status).toBe("planned");
   });
 
+  it("POST /api/task/import/{projectId}: without a final column, archived tasks fail the whole import", async () => {
+    const { app, project, initiative } = await setup();
+    await db
+      .update(schema.columnTable)
+      .set({ isFinal: false })
+      .where(eq(schema.columnTable.projectId, project.id));
+    const response = await send(app, "POST", `/api/task/import/${project.id}`, {
+      tasks: [
+        { title: "Abierta", status: "to-do" },
+        { title: "Vieja", status: "archived" },
+      ],
+      automation: { level: "manual", verification: false },
+      initiativeId: initiative.id,
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "NO_FINAL_COLUMN" });
+    expect(
+      await db
+        .select({ id: schema.taskTable.id })
+        .from(schema.taskTable)
+        .where(eq(schema.taskTable.projectId, project.id)),
+    ).toEqual([]);
+  });
+
   it("POST /api/task/import/{projectId}: archived tasks come in done with the mark", async () => {
     const { app, project, initiative } = await setup();
     const response = await send(app, "POST", `/api/task/import/${project.id}`, {

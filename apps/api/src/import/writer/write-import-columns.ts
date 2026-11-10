@@ -19,6 +19,8 @@ export type ImportBoard = {
   fallback: BoardColumn | null;
   // Intelia (design 53 §3.2): where archived tasks without a closed column go.
   archive: BoardColumn | null;
+  // A final "Done" was added to the project's default columns for them.
+  archiveAdded: boolean;
   count: number;
 };
 
@@ -26,6 +28,7 @@ export async function writeImportColumns(
   tx: Transaction,
   projectId: string,
   plan: ImportColumnPlan,
+  needsArchiveColumn: boolean,
 ): Promise<ImportBoard> {
   if (plan.columns.length === 0) {
     const defaults = await tx
@@ -33,18 +36,43 @@ export async function writeImportColumns(
         id: columnTable.id,
         slug: columnTable.slug,
         isFinal: columnTable.isFinal,
+        position: columnTable.position,
       })
       .from(columnTable)
       .where(eq(columnTable.projectId, projectId))
       .orderBy(asc(columnTable.position));
+    const fallback =
+      defaults.find((column) => !isRequestedStatus(column.slug)) ??
+      defaults[0] ??
+      null;
+    const archive = archiveColumn(defaults);
+    if (archive || !needsArchiveColumn)
+      return {
+        byKey: new Map(),
+        fallback,
+        archive: archive ?? null,
+        archiveAdded: false,
+        count: defaults.length,
+      };
+    // The import creates this project, so the column is the import's own.
+    const slugs = new Set(defaults.map((column) => column.slug));
+    let slug = "done";
+    for (let suffix = 2; slugs.has(slug); suffix++) slug = `done-${suffix}`;
+    const added = {
+      id: createId(),
+      projectId,
+      name: "Done",
+      slug,
+      position: Math.max(-1, ...defaults.map((column) => column.position)) + 1,
+      isFinal: true,
+    };
+    await tx.insert(columnTable).values(added);
     return {
       byKey: new Map(),
-      fallback:
-        defaults.find((column) => !isRequestedStatus(column.slug)) ??
-        defaults[0] ??
-        null,
-      archive: archiveColumn(defaults) ?? null,
-      count: defaults.length,
+      fallback,
+      archive: { id: added.id, slug, isFinal: true },
+      archiveAdded: true,
+      count: defaults.length + 1,
     };
   }
 
@@ -89,6 +117,7 @@ export async function writeImportColumns(
     byKey,
     fallback: columns[0]?.column ?? null,
     archive: archiveColumn(columns.map(({ column }) => column)) ?? null,
+    archiveAdded: false,
     count: planned.length,
   };
 }

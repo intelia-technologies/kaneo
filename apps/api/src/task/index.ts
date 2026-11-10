@@ -503,7 +503,7 @@ const importTasksRoute = createRoute({
   tags: ["Tasks"],
   summary: "Import tasks",
   description:
-    "Import tasks into a project. Each task is reported individually, so a partial import still returns 200. In the Intelia fork, a task with status `archived` comes in closed, in the final column `done` (or the first final column), with the archive mark (design 53 §3.2).",
+    "Import tasks into a project. Each task is reported individually, so a partial import still returns 200. In the Intelia fork, a task with status `archived` comes in closed, in the final column `done` (or the first final column), with the archive mark (design 53 §3.2). If the project has no final column, an import with archived tasks fails with 409 `NO_FINAL_COLUMN` and creates nothing.",
   middleware: [
     workspaceAccess.fromProject("projectId"),
     requireWorkspacePermission({ task: ["create"] }),
@@ -527,6 +527,9 @@ const importTasksRoute = createRoute({
       "No access to the project, or missing task:create permission",
     ),
     404: errorResponse("Project not found"),
+    409: errorResponse(
+      "Archived tasks and no final column to put them in (`NO_FINAL_COLUMN`); nothing was imported",
+    ),
   },
 });
 

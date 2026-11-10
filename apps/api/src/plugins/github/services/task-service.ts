@@ -11,6 +11,7 @@ import { extractTaskLinks } from "../utils/task-references";
 
 import type { IntegrationDatabase } from "./integration-task-scope";
 import { activeIntegrationCondition } from "../../active-integration-condition";
+import { hasArchiveMark } from "../../sync/state-sync-paused";
 
 export type TaskRow = InferSelectModel<typeof taskTable>;
 
@@ -70,7 +71,9 @@ export async function updateTaskStatus(
     where: eq(taskTable.id, taskId),
   });
 
-  if (!task) {
+  // Intelia (design 53 §3.2): no integration transition (issue state, PR,
+  // push, status label) moves a task archived with the mark.
+  if (!task || (await hasArchiveMark(task.id, database))) {
     return { applied: false };
   }
 
