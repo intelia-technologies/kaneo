@@ -18,7 +18,9 @@ export type UpdateTaskStatusResult =
   | { applied: false }
   | { applied: true; before: TaskRow; after: TaskRow };
 
-const NON_COLUMN_STATUSES = new Set(["planned", "archived"]);
+// Intelia (design 53 §3.2): `archived` is a mark, never a status an
+// integration writes; a target without a column is skipped.
+const NON_COLUMN_STATUSES = new Set(["planned"]);
 
 export async function findTaskByNumber(
   projectId: string,

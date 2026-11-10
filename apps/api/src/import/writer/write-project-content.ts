@@ -104,6 +104,9 @@ export async function writeProjectContent(
   );
 
   const unmatched = assignees.warning();
+  const unarchived =
+    project.tasks.filter((task) => task.archived).length -
+    tasks.filter((task) => task.archived).length;
   return {
     counts: {
       columns: board.count,
@@ -118,6 +121,11 @@ export async function writeProjectContent(
       ...columnPlan.warnings,
       ...(sourceColumns.added ? [ARCHIVE_COLUMN_WARNING] : []),
       ...(unmatched ? [unmatched] : []),
+      ...(unarchived > 0
+        ? [
+            `${unarchived === 1 ? "An archived task came" : `${unarchived} archived tasks came`} in open: the board has no final column to archive them into.`,
+          ]
+        : []),
     ],
   };
 }
