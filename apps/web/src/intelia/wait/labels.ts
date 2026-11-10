@@ -82,11 +82,20 @@ export function externalLabel(t: TFunction, count: number): string {
 
 /** The chip's text: the worst reason and the blockers that cause it. */
 export function waitLabel(t: TFunction, summary: BlockersSummary): string {
-  const reason = reasonLabel(t, summary.reason);
   if (summary.reason === "ready") {
-    const notStarting = notStartingLabel(t, summary);
-    return notStarting ? `${reason} · ${notStarting}` : reason;
+    // A validation with no pending blocker still waits for its release.
+    const ready = summary.waitingRelease
+      ? t("tasks:readiness.waitingRelease", {
+          defaultValue: "Esperando release",
+        })
+      : reasonLabel(t, summary.reason);
+    const notStarting =
+      summary.waitingRelease && summary.notStartingReason === "waiting_release"
+        ? null
+        : notStartingLabel(t, summary);
+    return notStarting ? `${ready} · ${notStarting}` : ready;
   }
+  const reason = reasonLabel(t, summary.reason);
   const tickets = blockersByWorstState(summary.blockers)
     .map((blocker) => blocker.ticket)
     .join(", ");

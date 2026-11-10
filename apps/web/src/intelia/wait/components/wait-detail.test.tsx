@@ -4,6 +4,7 @@ import { I18nextProvider, initReactI18next } from "react-i18next";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
   readyButPaused,
+  readyWaitingRelease,
   summaryByReason,
   waitingOnPerson,
 } from "../sample.test-data";
@@ -56,5 +57,16 @@ describe("WaitDetail", () => {
       "Lista para empezar · pausada (movida_a_mano)",
       "No arrancará sola: pausada (movida_a_mano)",
     ]);
+  });
+
+  it("says a validation waits for its release", () => {
+    expect(lines(readyWaitingRelease)).toEqual([
+      "Esperando release",
+      "No arrancará sola: espera release",
+    ]);
+  });
+
+  it("shows a validation with its release deployed as ready", () => {
+    expect(lines(summaryByReason.ready)).toEqual(["Lista para empezar"]);
   });
 });
