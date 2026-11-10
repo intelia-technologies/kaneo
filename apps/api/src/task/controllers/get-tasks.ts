@@ -38,6 +38,7 @@ import {
   taskArchivedAt,
 } from "../../intelia/task-archive/board";
 import type { ArchivedScope } from "../../intelia/task-archive/schema";
+import { statusSince } from "../../intelia/status-since";
 
 export type GetTasksOptions = {
   publicOnly?: boolean;
@@ -219,6 +220,7 @@ async function getTasksPage(
     recurrence: taskTable.recurrence,
     position: taskTable.position,
     createdAt: taskTable.createdAt,
+    statusSince,
     userId: taskTable.userId,
     assigneeName: userTable.name,
     assigneeId: userTable.id,
