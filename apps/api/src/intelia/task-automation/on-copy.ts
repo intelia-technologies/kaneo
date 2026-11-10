@@ -59,14 +59,21 @@ function missingLevel() {
   });
 }
 
-// The level of a manual copy, or null when there is none to give it.
+// The level of a manual copy, or null when there is none to give it. A level
+// in the request replaces the source's, but the copy keeps its responsible
+// unless the request names one: the web dialog asks only for automatica,
+// verification and delivery.
 async function resolveCopyValue(
   executor: typeof db | Transaction,
   sourceTaskId: string,
   { explicit }: CopyAutomation,
 ): Promise<AutomationPatch | null> {
-  if (explicit) return explicit;
   const source = await readAutomation(executor, sourceTaskId);
+  if (explicit) {
+    return explicit.responsable === undefined && source
+      ? { ...explicit, responsable: source.responsable }
+      : explicit;
+  }
   if (source) return inherited(source);
   // The test exception of task creation covers the copy of a level-less task.
   return process.env[AUTOMATION_OPTIONAL_ENV] === "true"

@@ -283,7 +283,7 @@ export const duplicateTaskBody = z.object({
   // Intelia fork: README-INTELIA.md, «Nivel de automatización de las tareas».
   automation: automationInput.optional().openapi({
     description:
-      "The copy's automation level and verification. Omit to copy the source's; a source without a level then needs this field.",
+      "The copy's automation level and verification. Omit to copy the source's; a source without a level then needs this field. Without `responsable`, the copy keeps the source's.",
   }),
   // Intelia fork: README-INTELIA.md, «Iniciativas».
   initiativeId: z.string().min(1).optional().openapi({
