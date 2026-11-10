@@ -58,6 +58,8 @@ jobs:
           node-version: 24.22.1
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: The fork's workflows run on GitHub ubuntu-24.04 with SHA-pinned actions
+        run: node scripts/ci/intelia-workflow-policy.mjs
       - name: Test release security controls
         run: |
           docker pull nginx:1.30.6-alpine

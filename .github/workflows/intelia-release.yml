@@ -5,14 +5,16 @@ name: Intelia release
 # fork's CI and the integration tests on it. Green publishes
 # ghcr.io/<owner>/kaneo:X.Y.Z-intelia.N, tags the commit vX.Y.Z-intelia.N and marks it
 # success; red publishes nothing and marks it failure, so it is not retried until a
-# new commit lands. Always on GitHub-hosted runners: the fork is public.
+# new commit lands. A rehearsal (publicar = no) tests the dispatched commit instead and
+# records it as `intelia-release-ensayo`, never tagging or publishing. Always on
+# GitHub-hosted runners: the fork is public.
 on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       publicar:
-        description: "Publicar imagen, tag y estado si pasa (no: solo prueba la punta de main)"
+        description: "Publicar la punta de main si pasa (no: ensayo del commit lanzado, estado intelia-release-ensayo, sin tag ni imagen)"
         type: boolean
         default: true
 
@@ -33,21 +35,28 @@ jobs:
       contents: read
       statuses: write
     outputs:
-      sha: ${{ steps.tip.outputs.sha }}
+      sha: ${{ steps.target.outputs.sha }}
       run: ${{ steps.decide.outputs.run }}
-      publish: ${{ steps.decide.outputs.publish }}
+      publish: ${{ steps.mode.outputs.publish }}
+      mode: ${{ steps.mode.outputs.mode }}
     steps:
-      # Publishing only from main's workflow; a dry run may come from a branch (it
-      # still tests main's tip), to try a change to this workflow before merging it.
-      - name: Publish only from main
+      # Publishing only from main's workflow; a rehearsal may come from any branch.
+      - name: Mode
+        id: mode
         env:
           REF: ${{ github.ref }}
           PUBLISH: ${{ github.event_name == 'schedule' || inputs.publicar }}
         run: |
-          if [ "$REF" != refs/heads/main ] && [ "$PUBLISH" = true ]; then
-            echo "Publish from main, not $REF (or run with publicar = no)" >&2
-            exit 1
+          if [ "$PUBLISH" = true ]; then
+            if [ "$REF" != refs/heads/main ]; then
+              echo "Publish from main, not $REF (or run with publicar = no)" >&2
+              exit 1
+            fi
+            echo "mode=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=ensayo" >> "$GITHUB_OUTPUT"
           fi
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -55,21 +64,25 @@ jobs:
         with:
           node-version: 24.22.1
           package-manager-cache: false
-      - name: Take main's tip
-        id: tip
+      - name: Take main's tip (release) or the dispatched commit (ensayo)
+        id: target
+        env:
+          MODE: ${{ steps.mode.outputs.mode }}
         run: |
-          sha="$(git ls-remote origin refs/heads/main | cut -f1)"
-          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "Could not read main's tip" >&2; exit 1; }
+          if [ "$MODE" = release ]; then
+            sha="$(git ls-remote origin refs/heads/main | cut -f1)"
+          else
+            sha="$(git rev-parse HEAD)"
+          fi
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "Could not resolve the commit to test" >&2; exit 1; }
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-      - name: Skip a commit that already has its release status
+      - name: Skip a commit that already has its final status
         id: decide
         env:
           GH_TOKEN: ${{ github.token }}
-          SHA: ${{ steps.tip.outputs.sha }}
-          PUBLISH: ${{ github.event_name == 'schedule' || inputs.publicar }}
-        run: |
-          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
-          node scripts/ci/intelia-release.mjs decide "$SHA" "$PUBLISH"
+          SHA: ${{ steps.target.outputs.sha }}
+          MODE: ${{ steps.mode.outputs.mode }}
+        run: node scripts/ci/intelia-release.mjs decide "$SHA" "$MODE"
 
   ci:
     needs: decide
@@ -163,7 +176,7 @@ jobs:
     name: Report
     needs: [decide, ci, integration, publish]
     # Not on cancellation: the commit stays pending and the next run retries it.
-    if: ${{ !cancelled() && needs.decide.outputs.run == 'true' && needs.decide.outputs.publish == 'true' }}
+    if: ${{ !cancelled() && needs.decide.outputs.run == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -172,19 +185,25 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.decide.outputs.sha }}
           persist-credentials: false
           sparse-checkout: scripts/ci
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 24.22.1
           package-manager-cache: false
-      - name: Mark the commit with intelia-release
+      - name: Mark the commit with its final status
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ needs.decide.outputs.sha }}
+          MODE: ${{ needs.decide.outputs.mode }}
           TAG: ${{ needs.publish.outputs.tag }}
           CI_RESULT: ${{ needs.ci.result }}
           INTEGRATION_RESULT: ${{ needs.integration.result }}
           PUBLISH_RESULT: ${{ needs.publish.result }}
-        run: node scripts/ci/intelia-release.mjs report "$SHA" "$TAG" "$CI_RESULT" "$INTEGRATION_RESULT" "$PUBLISH_RESULT"
+        run: |
+          # A rehearsal never publishes: only CI and integration decide it.
+          if [ "$MODE" = release ]; then
+            node scripts/ci/intelia-release.mjs report "$SHA" "$MODE" "$TAG" "$CI_RESULT" "$INTEGRATION_RESULT" "$PUBLISH_RESULT"
+          else
+            node scripts/ci/intelia-release.mjs report "$SHA" "$MODE" "" "$CI_RESULT" "$INTEGRATION_RESULT"
+          fi

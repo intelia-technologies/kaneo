@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  MODES,
   needsRelease,
   nextTag,
   outcome,
@@ -8,6 +9,20 @@ import {
 } from "./intelia-release.mjs";
 
 const status = (context, state) => ({ statuses: [{ context, state }] });
+
+test("a rehearsal and a release are recorded apart: one never stops the other", () => {
+  const ensayo = MODES.ensayo.context;
+  assert.equal(ensayo, "intelia-release-ensayo");
+  // A green rehearsal must not mark the commit as released...
+  assert.equal(needsRelease(status(ensayo, "success")), true);
+  // ...and a second rehearsal of the same commit respects its final status.
+  assert.equal(needsRelease(status(ensayo, "success"), ensayo), false);
+  assert.equal(needsRelease(status(ensayo, "failure"), ensayo), false);
+  assert.equal(
+    needsRelease(status("intelia-release", "success"), ensayo),
+    true,
+  );
+});
 
 test("a commit with a green or red intelia-release status is not tested again", () => {
   assert.equal(needsRelease(status("intelia-release", "success")), false);

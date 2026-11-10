@@ -1,24 +1,41 @@
 // Intelia fork (README-INTELIA.md, «Versión»): decisions of intelia-release.yml.
-// The commit status `intelia-release` on main's tip records the outcome, so each
-// commit is tested once: a green or red one is never retried, a pending one (a run
-// that was cancelled before reporting) is.
+// A commit status records the outcome, so each commit is tested once: a green or red
+// one is never retried, a pending one (a run cancelled before reporting) is.
+// - release: main's tip, status `intelia-release`; green publishes and tags.
+// - ensayo (publicar = no): the dispatched commit, status `intelia-release-ensayo`;
+//   never tags nor publishes. Its own context, so a rehearsal never marks a commit as
+//   released (a branch fast-forwarded into main would skip its real release).
 //
-// Usage (GITHUB_REPOSITORY and GH_TOKEN set):
-//   intelia-release.mjs decide <sha> <publish>   writes run=true|false to GITHUB_OUTPUT
+// Usage (GITHUB_REPOSITORY and GH_TOKEN set; <mode> is release or ensayo):
+//   intelia-release.mjs decide <sha> <mode>      writes run=true|false to GITHUB_OUTPUT
 //   intelia-release.mjs tag <sha>                writes tag= and version= to GITHUB_OUTPUT
 //   intelia-release.mjs push-tag <sha> <tag>
-//   intelia-release.mjs report <sha> <tag> <job result>...   success or failure status
+//   intelia-release.mjs report <sha> <mode> <tag> <job result>...   final status
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-export const CONTEXT = "intelia-release";
+export const MODES = {
+  release: {
+    context: "intelia-release",
+    pending: "Probando CI e integración",
+    success: (tag) => `Publicada ${tag}`,
+    failure: "En rojo (CI, integración o publicación); ver la ejecución",
+  },
+  ensayo: {
+    context: "intelia-release-ensayo",
+    pending: "Ensayo: probando CI e integración, sin publicar",
+    success: () => "Ensayo en verde: CI e integración; sin tag ni imagen",
+    failure: "Ensayo en rojo (CI o integración); ver la ejecución",
+  },
+};
+export const CONTEXT = MODES.release.context;
 const SHA = /^[a-f0-9]{40}$/;
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
-/** True when the commit still needs a release run: no final `intelia-release` status yet. */
-export function needsRelease(combinedStatus) {
-  const status = combinedStatus.statuses?.find((s) => s.context === CONTEXT);
+/** True when the commit still needs a run: no final status in that context yet. */
+export function needsRelease(combinedStatus, context = CONTEXT) {
+  const status = combinedStatus.statuses?.find((s) => s.context === context);
   return !["success", "failure"].includes(status?.state);
 }
 
@@ -85,7 +102,7 @@ function runUrl() {
   return `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`;
 }
 
-function setStatus(repo, sha, state, description) {
+function setStatus(repo, sha, context, state, description) {
   gh([
     "-X",
     "POST",
@@ -93,7 +110,7 @@ function setStatus(repo, sha, state, description) {
     "-f",
     `state=${state}`,
     "-f",
-    `context=${CONTEXT}`,
+    `context=${context}`,
     "-f",
     `target_url=${runUrl()}`,
     "-f",
@@ -106,33 +123,34 @@ async function main([command, sha, ...rest]) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo ?? "") || !SHA.test(sha ?? ""))
     throw new Error("Expected GITHUB_REPOSITORY and a full commit SHA");
 
+  const mode = MODES[rest[0]];
   if (command === "decide") {
-    const publish = rest[0] === "true";
-    // A dry run (publicar = no) always tests and never touches the status.
-    if (!publish) return output({ run: true });
+    if (!mode) throw new Error(`Unknown mode ${rest[0]}`);
     const combined = JSON.parse(
       gh([`repos/${repo}/commits/${sha}/status?per_page=100`]),
     );
-    if (!needsRelease(combined)) {
+    if (!needsRelease(combined, mode.context)) {
       console.log(
-        `${sha} already has a final ${CONTEXT} status; nothing to do`,
+        `${sha} already has a final ${mode.context} status; nothing to do`,
       );
       return output({ run: false });
     }
-    const tag = releasedTag(
-      execFileSync(
-        "git",
-        ["ls-remote", "--tags", "origin", "refs/tags/v*-intelia.*"],
-        { encoding: "utf8", timeout: 30_000 },
-      ),
-      sha,
-    );
+    const tag =
+      mode === MODES.release &&
+      releasedTag(
+        execFileSync(
+          "git",
+          ["ls-remote", "--tags", "origin", "refs/tags/v*-intelia.*"],
+          { encoding: "utf8", timeout: 30_000 },
+        ),
+        sha,
+      );
     if (tag) {
       console.log(`${sha} is already released as ${tag}; marking it`);
-      setStatus(repo, sha, "success", `Publicada ${tag}`);
+      setStatus(repo, sha, mode.context, "success", mode.success(tag));
       return output({ run: false });
     }
-    setStatus(repo, sha, "pending", "Probando CI e integración");
+    setStatus(repo, sha, mode.context, "pending", mode.pending);
     return output({ run: true });
   }
 
@@ -183,8 +201,9 @@ async function main([command, sha, ...rest]) {
   }
 
   if (command === "report") {
-    // report <sha> <tag> <job result>...: success needs every job green.
-    const [tag, ...results] = rest;
+    // report <sha> <mode> <tag> <job result>...: success needs every job green.
+    if (!mode) throw new Error(`Unknown mode ${rest[0]}`);
+    const [, tag, ...results] = rest;
     const state = outcome(results);
     if (!state) {
       console.log(`Results ${results.join(", ")}: ${sha} stays pending`);
@@ -193,10 +212,9 @@ async function main([command, sha, ...rest]) {
     return setStatus(
       repo,
       sha,
+      mode.context,
       state,
-      state === "success"
-        ? `Publicada ${tag}`
-        : "En rojo (CI, integración o publicación); ver la ejecución",
+      state === "success" ? mode.success(tag) : mode.failure,
     );
   }
 
