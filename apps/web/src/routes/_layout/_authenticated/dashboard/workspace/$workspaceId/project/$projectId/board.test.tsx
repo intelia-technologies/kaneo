@@ -72,6 +72,9 @@ vi.mock("@/components/shared/modals/create-task-modal", () => ({
 vi.mock("@/components/task/task-details-sheet", () => ({
   default: () => null,
 }));
+vi.mock("@/intelia/priorities/components/project-priorities-panel", () => ({
+  ProjectPrioritiesPanel: () => null,
+}));
 afterEach(cleanup);
 it("keeps cached tasks readable and disables reordering when a refresh fails", () => {
   const Component = (Route as unknown as { component: ComponentType })

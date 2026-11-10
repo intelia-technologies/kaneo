@@ -17,6 +17,7 @@ import { LayoutSwitch } from "@/components/project/views/layout-switch";
 import CreateTaskModal from "@/components/shared/modals/create-task-modal";
 import TaskDetailsSheet from "@/components/task/task-details-sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProjectPrioritiesPanel } from "@/intelia/priorities/components/project-priorities-panel";
 import { useGetTasks } from "@/hooks/queries/task/use-get-tasks";
 import { useBoardSort } from "@/hooks/use-board-sort";
 import { cn } from "@/lib/cn";
@@ -187,6 +188,10 @@ function RouteComponent() {
         }
       />
       <div className="relative flex flex-col h-full min-h-0 overflow-hidden">
+        <ProjectPrioritiesPanel
+          projectId={projectId}
+          workspaceId={workspaceId}
+        />
         {descriptionSearch.isLoading && (
           <p role="status" className="px-4 py-2 text-sm text-muted-foreground">
             {t("tasks:descriptionSearchLoading")}

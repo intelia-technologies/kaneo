@@ -8806,6 +8806,301 @@
           "projectName"
         ]
       },
+      "WorkspacePriorities": {
+        "type": "object",
+        "properties": {
+          "priorities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Priority"
+            },
+            "description": "Depth first: each priority right after its parent, siblings by position."
+          }
+        },
+        "required": [
+          "priorities"
+        ]
+      },
+      "Priority": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "closed"
+            ]
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriorityProject"
+            },
+            "description": "Linked projects the caller can read, by name. Links to the others are left out."
+          },
+          "createdByUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it last changed (creation included)."
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "parentId",
+          "title",
+          "body",
+          "position",
+          "status",
+          "projects",
+          "createdByUserId",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "PriorityProject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ]
+      },
+      "ProjectPriorities": {
+        "type": "object",
+        "properties": {
+          "priorities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriorityWithChain"
+            },
+            "description": "The active priorities linked with the project, in tree order, each with its chain to the root."
+          }
+        },
+        "required": [
+          "priorities"
+        ]
+      },
+      "PriorityWithChain": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Priority"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "chain": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PriorityAncestor"
+                },
+                "description": "Its ancestors, from the root down to its parent."
+              }
+            },
+            "required": [
+              "chain"
+            ]
+          }
+        ]
+      },
+      "PriorityAncestor": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "closed"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "updatedAt"
+        ]
+      },
+      "PriorityChangeList": {
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriorityChange"
+            }
+          }
+        },
+        "required": [
+          "changes"
+        ]
+      },
+      "PriorityChange": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "priorityId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "created",
+              "updated"
+            ]
+          },
+          "previous": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "description": "The changed fields before; null on creation."
+          },
+          "value": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "The changed fields after: title, body, status, parentId, position, projectIds."
+          },
+          "changedByUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "changedByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "session",
+              "api_key"
+            ]
+          },
+          "changedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "priorityId",
+          "kind",
+          "previous",
+          "value",
+          "changedByUserId",
+          "changedByName",
+          "source",
+          "changedAt"
+        ]
+      },
+      "PriorityWebhookList": {
+        "type": "object",
+        "properties": {
+          "webhooks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriorityWebhook"
+            }
+          }
+        },
+        "required": [
+          "webhooks"
+        ]
+      },
+      "PriorityWebhook": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "hasSecret": {
+            "type": "boolean"
+          },
+          "createdByUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "url",
+          "hasSecret",
+          "createdByUserId",
+          "createdAt"
+        ]
+      },
       "WorkspaceRoutine": {
         "allOf": [
           {
@@ -35133,6 +35428,796 @@
           },
           "404": {
             "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/workspace/{workspaceId}/priorities": {
+      "get": {
+        "operationId": "listWorkspacePriorities",
+        "tags": [
+          "Priorities"
+        ],
+        "summary": "List the workspace's priorities",
+        "description": "The whole tree, flat and depth first, with their linked projects. Any member of the workspace (workspace:read).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "workspaceId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "all"
+              ],
+              "description": "active, or all (default) with the closed ones."
+            },
+            "required": false,
+            "description": "active, or all (default) with the closed ones.",
+            "name": "status",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace's priorities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspacePriorities"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPriority",
+        "tags": [
+          "Priorities"
+        ],
+        "summary": "Create a priority",
+        "description": "A root, or a child of another priority of the workspace, linked with zero or more of its projects. Workspace administrators only (workspace:update and workspace:manage_settings, also in an API key's scope). Each real change is one row of the change log and one `intelia.priority_changed` webhook event (README-INTELIA.md, «Prioridades»).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "workspaceId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 10000,
+                    "description": "Free text (Markdown) with what the priority means."
+                  },
+                  "parentId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "description": "The parent priority, of the same workspace; null for a root. A priority cannot hang from itself or from one of its descendants (409 PRIORITY_CYCLE)."
+                  },
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Place among its siblings, from 0; last if omitted."
+                  },
+                  "projectIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxItems": 100,
+                    "description": "Projects of the workspace the priority is linked with; repeated ids count once. The caller must be able to read each one. On edit it replaces the links the caller can read; links to projects it cannot read stay."
+                  }
+                },
+                "required": [
+                  "title"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new priority",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityWithChain"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, a parent of another workspace (PRIORITY_PARENT_NOT_FOUND) or a project that is not of the workspace or not readable (PRIORITY_PROJECT_NOT_FOUND)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/project/{projectId}/priorities": {
+      "get": {
+        "operationId": "listProjectPriorities",
+        "tags": [
+          "Priorities"
+        ],
+        "summary": "List the priorities of a project's board",
+        "description": "The active priorities linked with the project, each with its chain up to the root. A priority without links never appears here. Any member of the workspace (workspace:read). Needs access to the project.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project's priorities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectPriorities"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/priority/{priorityId}": {
+      "get": {
+        "operationId": "getPriority",
+        "tags": [
+          "Priorities"
+        ],
+        "summary": "Get a priority",
+        "description": "The priority with its chain up to the root. Any member of the workspace (workspace:read).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "priorityId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The priority",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityWithChain"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Priority not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updatePriority",
+        "tags": [
+          "Priorities"
+        ],
+        "summary": "Edit, reorder, move, link or close a priority",
+        "description": "Changes any of title, text, status (close or reopen), parent, place among its siblings and linked projects, in one change. Fields equal to the current ones change nothing; a request that changes nothing writes no log row and sends no event. Workspace administrators only (workspace:update and workspace:manage_settings, also in an API key's scope). Each real change is one row of the change log and one `intelia.priority_changed` webhook event (README-INTELIA.md, «Prioridades»).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "priorityId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 10000,
+                    "description": "Free text (Markdown) with what the priority means."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "closed"
+                    ],
+                    "description": "active or closed. Closing hides it from the boards; its children keep their own status."
+                  },
+                  "parentId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "minLength": 1,
+                    "description": "The parent priority, of the same workspace; null for a root. A priority cannot hang from itself or from one of its descendants (409 PRIORITY_CYCLE)."
+                  },
+                  "position": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Place among its siblings, from 0. Beyond the last, it goes last. The siblings after it move one place."
+                  },
+                  "projectIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "maxItems": 100,
+                    "description": "Projects of the workspace the priority is linked with; repeated ids count once. The caller must be able to read each one. On edit it replaces the links the caller can read; links to projects it cannot read stay."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The priority",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityWithChain"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or empty body, a parent of another workspace (PRIORITY_PARENT_NOT_FOUND) or a project that is not of the workspace or not readable (PRIORITY_PROJECT_NOT_FOUND)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Priority not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The new parent is the priority itself or one of its descendants (PRIORITY_CYCLE)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/priority/{priorityId}/history": {
+      "get": {
+        "operationId": "listPriorityChanges",
+        "tags": [
+          "Priorities"
+        ],
+        "summary": "Get a priority's change log",
+        "description": "Its creation and every edit, newest first, with who made it and when. Any member of the workspace (workspace:read).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "priorityId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "description": "At most this many changes, newest first (1-200, 50)."
+            },
+            "required": false,
+            "description": "At most this many changes, newest first (1-200, 50).",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Changes of the priority",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityChangeList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Priority not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/workspace/{workspaceId}/priority-webhooks": {
+      "get": {
+        "operationId": "listPriorityWebhooks",
+        "tags": [
+          "Priorities"
+        ],
+        "summary": "List the destinations of priority events",
+        "description": "Without their secrets. Workspace administrators only (workspace:update and workspace:manage_settings, also in an API key's scope). These are the only destinations of `intelia.priority_changed`: the projects' webhooks never receive it.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "workspaceId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The destinations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityWebhookList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPriorityWebhook",
+        "tags": [
+          "Priorities"
+        ],
+        "summary": "Send priority events to a destination",
+        "description": "Every change of the workspace's priorities is POSTed there from now on. Workspace administrators only (workspace:update and workspace:manage_settings, also in an API key's scope). These are the only destinations of `intelia.priority_changed`: the projects' webhooks never receive it.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "workspaceId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "format": "uri",
+                    "description": "Where to POST each `intelia.priority_changed` event; http or https, never a private address."
+                  },
+                  "secret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "description": "Signs each body: X-Kaneo-Signature is its HMAC-SHA256 in hex. Never returned."
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityWebhook"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, or a private destination (PRIORITY_WEBHOOK_DESTINATION)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The workspace already sends priorities to that URL (PRIORITY_WEBHOOK_TAKEN)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/workspace/{workspaceId}/priority-webhooks/{priorityWebhookId}": {
+      "delete": {
+        "operationId": "deletePriorityWebhook",
+        "tags": [
+          "Priorities"
+        ],
+        "summary": "Stop sending priority events to a destination",
+        "description": "Workspace administrators only (workspace:update and workspace:manage_settings, also in an API key's scope). These are the only destinations of `intelia.priority_changed`: the projects' webhooks never receive it.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "workspaceId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "priorityWebhookId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The removed destination",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityWebhook"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not an administrator of the workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace or destination not found",
             "content": {
               "application/json": {
                 "schema": {

@@ -1,0 +1,49 @@
+{
+	"event": "intelia.priority_changed",
+	"timestamp": "2026-11-09T23:46:59.039Z",
+	"integration": {
+		"type": "priority-webhook"
+	},
+	"workspace": {
+		"id": "workspace-7cfdf1cf-2f61-455e-b496-e36b18e74fdc",
+		"name": "Galaxia"
+	},
+	"priority": {
+		"id": "m7mhof09pdvx992372uzc0r4",
+		"parentId": "s8j32xsit4kzvsm5bity5umt",
+		"title": "Software Factory",
+		"body": "Archivar las tareas cerradas a las 24 h y prioridades en Kaneo.",
+		"position": 0,
+		"status": "active",
+		"projectIds": ["enov8lsdds5o5um3xfmf0qhv", "mud211wq1mxk2h3tai1fumwq"],
+		"chain": [
+			{
+				"id": "s8j32xsit4kzvsm5bity5umt",
+				"title": "Factory versión 1: no nos bloqueamos",
+				"status": "active",
+				"updatedAt": "2026-11-09T23:46:58.998Z"
+			}
+		],
+		"updatedAt": "2026-11-09T23:46:59.037Z"
+	},
+	"actor": {
+		"id": "user-2075b6d5-998e-4871-8183-1f43124149e7",
+		"name": "Jaime"
+	},
+	"data": {
+		"changeId": "uzigrbsg2k4429mas56lbmpb",
+		"kind": "updated",
+		"previous": {
+			"body": "Archivar las tareas cerradas a las 24 h."
+		},
+		"value": {
+			"body": "Archivar las tareas cerradas a las 24 h y prioridades en Kaneo."
+		},
+		"source": "session",
+		"changedAt": "2026-11-09T23:46:59.037Z",
+		"affectedProjectIds": [
+			"enov8lsdds5o5um3xfmf0qhv",
+			"mud211wq1mxk2h3tai1fumwq"
+		]
+	}
+}

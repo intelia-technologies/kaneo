@@ -1,12 +1,14 @@
 import { createId } from "@paralleldrive/cuid2";
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   check,
   index,
   integer,
   jsonb,
   pgSchema,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -16,6 +18,7 @@ import {
   projectTable,
   taskTable,
   userTable,
+  workspaceTable,
 } from "../database/schema";
 
 // Intelia fork: our tables live in their own PostgreSQL schema, never in
@@ -603,6 +606,155 @@ export const taskRequestTable = inteliaSchema.table(
     index("task_request_requester_idx").on(
       table.requesterUserId,
       table.requestedAt,
+    ),
+  ],
+);
+
+// Priorities of a workspace (README-INTELIA.md, «Prioridades»; design 53
+// §3.5): a tree of short texts, ordered among siblings, linked with zero or
+// more projects. Kaneo knows nothing of what they mean.
+export const PRIORITY_STATUSES = ["active", "closed"] as const;
+export type PriorityStatus = (typeof PRIORITY_STATUSES)[number];
+export const PRIORITY_CHANGE_KINDS = ["created", "updated"] as const;
+export type PriorityChangeKind = (typeof PRIORITY_CHANGE_KINDS)[number];
+export const PRIORITY_CHANGE_SOURCES = ["session", "api_key"] as const;
+export type PriorityChangeSource = (typeof PRIORITY_CHANGE_SOURCES)[number];
+
+export const priorityTable = inteliaSchema.table(
+  "priority",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaceTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    // Null for a root. Cascade only so a workspace's deletion can remove the
+    // whole tree: the API never deletes a priority, it closes it.
+    parentId: text("parent_id").references(
+      (): AnyPgColumn => priorityTable.id,
+      { onDelete: "cascade", onUpdate: "cascade" },
+    ),
+    title: text("title").notNull(),
+    body: text("body").notNull().default(""),
+    // 0..n-1 among the priorities with the same parent.
+    position: integer("position").notNull(),
+    status: text("status").$type<PriorityStatus>().notNull().default("active"),
+    createdByUserId: text("created_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    createdAt: timestamp("created_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+  },
+  (table) => [
+    index("priority_workspace_parent_idx").on(
+      table.workspaceId,
+      table.parentId,
+      table.position,
+    ),
+    check("priority_status_check", inCheck("status", PRIORITY_STATUSES)),
+  ],
+);
+
+export const priorityProjectTable = inteliaSchema.table(
+  "priority_project",
+  {
+    priorityId: text("priority_id")
+      .notNull()
+      .references(() => priorityTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projectTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.priorityId, table.projectId] }),
+    index("priority_project_project_id_idx").on(table.projectId),
+  ],
+);
+
+// Change log of a priority: its creation and every edit, with the changed
+// fields before (null on creation) and after.
+export const priorityChangeTable = inteliaSchema.table(
+  "priority_change",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    priorityId: text("priority_id")
+      .notNull()
+      .references(() => priorityTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    kind: text("kind").$type<PriorityChangeKind>().notNull(),
+    previous: jsonb("previous").$type<Record<string, unknown>>(),
+    value: jsonb("value").$type<Record<string, unknown>>().notNull(),
+    changedByUserId: text("changed_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    source: text("source").$type<PriorityChangeSource>().notNull(),
+    changedAt: timestamp("changed_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+  },
+  (table) => [
+    index("priority_change_priority_id_idx").on(
+      table.priorityId,
+      table.changedAt,
+    ),
+    check("priority_change_kind_check", inCheck("kind", PRIORITY_CHANGE_KINDS)),
+    check(
+      "priority_change_source_check",
+      inCheck("source", PRIORITY_CHANGE_SOURCES),
+    ),
+  ],
+);
+
+// Where a workspace's administrators send `intelia.priority_changed`: only
+// destinations registered for it, never the projects' webhooks, so no
+// existing integration receives priorities it was not set up for.
+export const priorityWebhookTable = inteliaSchema.table(
+  "priority_webhook",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaceTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    url: text("url").notNull(),
+    // Signs each body (X-Kaneo-Signature); never returned by the API.
+    secret: text("secret"),
+    createdByUserId: text("created_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    createdAt: timestamp("created_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("priority_webhook_workspace_url_idx").on(
+      table.workspaceId,
+      table.url,
     ),
   ],
 );

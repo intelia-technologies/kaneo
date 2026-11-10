@@ -2,7 +2,7 @@
 
 Este repositorio es el fork de [Kaneo](https://github.com/usekaneo/kaneo) que mantiene Intelia (`intelia-technologies/kaneo`). Desplegamos Kaneo desde nuestras imágenes, no desde las públicas. Diseño de referencia: [diseño 11: fork de Kaneo](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/11-fork-kaneo.md) en `intelia-technologies/software-factory`.
 
-Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas», «Relaciones por proyecto», «Foto de perfil con API key», «Rutinas programadas», «Nivel de automatización de las tareas» y «Mover una tarea de proyecto con alias»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
+Además de este fichero, el fork añade sus funciones propias (ver «Reacciones en comentarios y tarjetas», «Relaciones por proyecto», «Foto de perfil con API key», «Rutinas programadas», «Nivel de automatización de las tareas», «Mover una tarea de proyecto con alias» y «Prioridades»), sus workflows `intelia-*.yml` y sus scripts `scripts/ci/intelia-*` (ver «CI y versiones» y «Puesta al día con upstream»). El `README.md` original y el `ci.yml` de upstream se conservan intactos.
 
 **Este repositorio es público.** Aquí no va nada interno de Intelia: ni secretos, ni hostnames o IPs, ni configuración de despliegue, ni datos de clientes o de la factory. Todo eso vive en `software-factory`, que es privado. Código propietario dentro de Kaneo, solo tras hablarlo antes. Secret scanning y push protection están activados.
 
@@ -70,7 +70,8 @@ Las transiciones a `queued`, `in-progress`, `in-review` y `ready-to-merge` recha
   - `apps/api/src/scheduler/index.ts`: el job de las rutinas programadas. `apps/api/src/plugins/generic-webhook/events.ts`: `export` de `sendEvent`, para mandar `intelia.routine_skipped` con el sobre y la firma de upstream.
   - `Dockerfile.kaneo` y `apps/api/Dockerfile`: `COPY` de `drizzle-intelia`. `vite.config.ts`: ignora `drizzle-intelia/meta/**`.
   - `apps/web/src/components/activity/comment-card.tsx` e `index.tsx`, y `apps/web/src/components/task/task-details-content.tsx`: las fichas de reacciones, el panel «Programación» de las rutinas y el bloque «Automation» del nivel.
-  - `apps/web/src/components/nav-main.tsx`: los enlaces a las pantallas «Rutinas» y «Lo que he pedido».
+  - `apps/web/src/components/nav-main.tsx`: los enlaces a las pantallas «Rutinas», «Lo que he pedido» y «Prioridades».
+  - `apps/web/src/routes/_layout/_authenticated/dashboard/workspace/$workspaceId/project/$projectId/board.tsx` (y su `board.test.tsx`, que la sustituye por un doble): el panel de prioridades del tablero (ver «Prioridades»).
   - `apps/web/src/components/project/views/project-views.ts`, `project-scope-toggle.tsx`, `store/user-preferences.ts` y `hooks/use-project-websocket.ts`: el registro, los enlaces de la barra del proyecto y el tiempo real de las vistas «Dependencias» e «Iniciativas».
   - `apps/web/src/components/list-view/task-row-body.tsx`, `components/kanban-board/task-card/task-card-content.tsx`, `components/project/display/card-field-toggles.tsx` y `store/user-preferences.ts`: el chip de tiempo en estado en la fila y la tarjeta, y su preferencia `showStatusAge` en «Display». `task-card-content.tsx` pinta además el worker y la alarma de las señales del tablero.
   - `apps/web/src/hooks/mutations/custom-field/use-set-custom-field-value.ts`: al guardar un campo personalizado (por ejemplo `motivo_bloqueo`) relee las iniciativas en pantalla.
@@ -585,3 +586,62 @@ Vista del proyecto con las iniciativas y su avance ([diseño 19](https://github.
 - **Enlace al diseño:** solo se enlaza si es http o https (`getExternalWebUrl`, componente `DesignLink`); el diálogo de edición rechaza otros esquemas (`javascript:`, `data:`, `file:`), y uno ya guardado se muestra como texto, sin enlace.
 - **Registro en ficheros de upstream:** el de la vista Dependencias (arriba), el tiempo real y la reconexión en `hooks/use-project-websocket.ts`, y una línea en `use-set-custom-field-value.ts`. Traducciones (en y es) en `intelia/initiatives/**/i18n.ts`.
 - **Tests:** `progress.test.ts`, `realtime.test.ts`, `refresh.test.tsx` (con las opciones reales del `QueryClient`: volver al listado tras editar y guardar solo el motivo), `list/initiatives-page.test.tsx`, `detail/initiative-detail-page.test.tsx` y, para la reconexión y el desmontaje, `hooks/use-project-websocket-lifecycle.test.tsx`.
+
+## Prioridades
+
+Las prioridades de un espacio de trabajo ([diseño 53](https://github.com/intelia-technologies/software-factory/blob/main/docs/design/53-organizacion-de-galaxia.md) §3.5, OG-05): un árbol de textos cortos, ordenados entre hermanas, cada uno enlazado con cero, uno o varios proyectos. Kaneo no sabe qué significan (ni de sistemas ni de organización): reorganizar es cambiar enlaces y árbol. Código en `apps/api/src/intelia/priorities/` y `apps/web/src/intelia/priorities/`.
+
+- **Tablas** (migración `drizzle-intelia/0015_priority.sql`, solo tablas nuevas):
+  - `intelia.priority`: `workspace_id`, `parent_id` (nulo en una raíz), `title`, `body`, `position` (0..n-1 entre las de un mismo padre), `status` (`active` o `closed`), `created_by_user_id`, `created_at` y `updated_at`. La API no borra prioridades: las cierra. Borrar el espacio de trabajo borra su árbol.
+  - `intelia.priority_project`: los enlaces con proyectos (borrar un proyecto borra sus enlaces).
+  - `intelia.priority_change`: el historial, una fila por cambio real: `kind` (`created` o `updated`), los campos cambiados antes (`previous`, nulo al crear) y después (`value`), quién (`changed_by_user_id`), por dónde (`source`: `session` o `api_key`) y cuándo (`changed_at`, estrictamente creciente por prioridad).
+  - `intelia.priority_webhook`: los destinos del evento de prioridades de cada espacio (`url`, `secret` opcional, quién y cuándo), únicos por espacio y URL.
+- **API** (OpenAPI, etiqueta `Priorities`). Leen todos los miembros del espacio (`workspace:read`); escriben solo sus administradores, la capacidad `manageWorkspace` (`workspace:update` y `workspace:manage_settings`: `admin` y `owner` en los roles de serie), también en el alcance de una API key. Un miembro recibe 403 al escribir; una cuenta de otro espacio, 404.
+  - `GET /api/intelia/workspace/{workspaceId}/priorities?status=active|all`: el árbol entero, plano y en profundidad (cada una tras su padre, hermanas por posición), con sus proyectos. Por defecto, también las cerradas. Con `status=active` se filtra la lista tal cual: una hija activa de un padre cerrado sale sin su padre.
+  - `GET /api/intelia/project/{projectId}/priorities`: las prioridades **activas enlazadas** con el proyecto, cada una con `chain`, sus antepasados desde la raíz hasta el padre (`id`, `title`, `status`, `updatedAt`). Una prioridad sin enlaces nunca sale aquí, solo en la del espacio. Pide además acceso al proyecto.
+  - `GET /api/intelia/priority/{priorityId}` (con `chain`) y `GET …/history?limit=50` (lo más reciente primero, con `changedByName`). El historial guarda los `projectIds` completos, pero la respuesta, como los enlaces, solo enseña los de proyectos que quien lee puede ver.
+  - `POST /api/intelia/workspace/{workspaceId}/priorities`: `{ title, body?, parentId?, position?, projectIds? }`; sin `position`, la última entre sus hermanas.
+  - `PATCH /api/intelia/priority/{priorityId}`: cualquiera de `title`, `body`, `status` (cerrar o reabrir), `parentId` (mover), `position` (ordenar) y `projectIds` (enlazar), en un solo cambio. Los campos iguales a los actuales no cuentan: una petición sin cambios no escribe historial ni manda evento. Mover cierra el hueco que deja entre sus antiguas hermanas.
+  - **Ciclos:** colgar una prioridad de sí misma o de una de sus descendientes da 409 `PRIORITY_CYCLE`. Todas las escrituras de un espacio se serializan con un cerrojo consultivo por espacio (`pg_advisory_xact_lock`), así que dos movimientos a la vez tampoco forman un ciclo y las posiciones siguen contiguas.
+  - **Proyectos:** solo del espacio y legibles por quien escribe (si no, 400 `PRIORITY_PROJECT_NOT_FOUND`; un padre de otro espacio, 400 `PRIORITY_PARENT_NOT_FOUND`). Las respuestas enseñan solo los proyectos enlazados que quien lee puede ver. `projectIds` en un `PATCH` sustituye los enlaces que quien escribe ve; los que no ve se conservan.
+- **Destinos del evento** (solo administradores, la misma capacidad que para editar): `GET|POST /api/intelia/workspace/{workspaceId}/priority-webhooks` y `DELETE …/priority-webhooks/{priorityWebhookId}`. `POST` recibe `{ url, secret? }`: http o https y nunca una dirección privada (400 `PRIORITY_WEBHOOK_DESTINATION`; la misma comprobación que los webhooks genéricos de upstream); repetir una URL da 409 `PRIORITY_WEBHOOK_TAKEN`. Las respuestas no devuelven nunca el secreto, solo `hasSecret`. Un destino de otro espacio da 404.
+  - **Cómo se suscribe el despachador (OG-07):** una vez por espacio, con la API key de una cuenta administradora del espacio (alcance `workspace:update` y `workspace:manage_settings`): `POST /api/intelia/workspace/{workspaceId}/priority-webhooks` con `{ "url": "<su receptor de webhooks>", "secret": "<el secreto con el que comprueba la firma>" }`. Para dejar de recibirlos, `DELETE` del destino. El receptor puede ser el mismo que el de los webhooks de proyecto: distingue el evento por `event` (`intelia.priority_changed`) e `integration.type` (`priority-webhook`).
+- **Evento `intelia.priority_changed`:** uno por cambio real (crear, editar, ordenar, mover, enlazar, cerrar), después del commit y sin hacer esperar a la petición. Va **solo a los destinos suscritos expresamente** en el espacio (arriba), con el cliente y la firma `X-Kaneo-Signature` de upstream (HMAC-SHA256 en hexadecimal del cuerpo con el `secret`). **Nunca a los webhooks de los proyectos:** una integración configurada para las tareas de un proyecto no recibe las prioridades del espacio. Sin destinos suscritos no sale nada; tampoco con el espacio archivado o con el proveedor `generic-webhook` apagado por el administrador de la instancia. Un fallo de entrega se registra sin la URL y no se reintenta. Solo ids de proyecto, nunca nombres. Cuerpo (muestra real en `tests/api-integration/contract-samples/intelia-priority-changed.json`):
+
+  ```json
+  {
+    "event": "intelia.priority_changed",
+    "timestamp": "2026-11-09T22:54:17.703Z",
+    "integration": { "type": "priority-webhook" },
+    "workspace": { "id": "…", "name": "Galaxia" },
+    "priority": {
+      "id": "…",
+      "parentId": "…",
+      "title": "Software Factory",
+      "body": "…",
+      "position": 0,
+      "status": "active",
+      "projectIds": ["…", "…"],
+      "chain": [{ "id": "…", "title": "…", "status": "active", "updatedAt": "…" }],
+      "updatedAt": "2026-11-09T22:54:17.700Z"
+    },
+    "actor": { "id": "…", "name": "Jaime" },
+    "data": {
+      "changeId": "…",
+      "kind": "updated",
+      "previous": { "body": "…" },
+      "value": { "body": "…" },
+      "source": "session",
+      "changedAt": "2026-11-09T22:54:17.700Z",
+      "affectedProjectIds": ["…", "…"]
+    }
+  }
+  ```
+
+  `priority` es el estado que dejó ese cambio; `data.changeId` es su fila del historial (sirve para no avisar dos veces) y `data.affectedProjectIds`, los proyectos enlazados con la prioridad **o con cualquiera de sus descendientes**, más los que el cambio desenlazó: los tableros que la enseñan, sola o en una cadena, o que dejan de enseñarla. La respuesta real del tablero está en `tests/api-integration/contract-samples/intelia-project-priorities.json`; el test de integración comprueba que las dos muestras tienen la forma (todas las claves, anidadas) de la API real.
+- **Límites aceptados:** sin reintento ni bandeja de salida, un receptor caído o un reinicio entre el commit y el envío pierde el evento (el historial lo conserva, con su `changeId`). Borrar un proyecto borra sus enlaces sin fila de historial ni evento: es un borrado de upstream y no pasa por esta API.
+- **Web:**
+  - **Panel del tablero** (`components/project-priorities-panel.tsx`): sobre las columnas, una línea por prioridad enlazada con su cadena («Raíz › Sistema › **Prioridad**»), su texto plegable y el enlace a la vista del espacio. Sin prioridades no pinta nada. Sin WebSocket propio: se relee al volver a la ventana o al tablero, y al instante tras una edición propia.
+  - **Pantalla «Prioridades»** del espacio (menú lateral tras «Rutinas», ruta `routes/.../$workspaceId/priorities.tsx`): el árbol entero con estado, proyectos y texto, e historial de cada una. Solo con `manageWorkspace` ofrece crear, añadir debajo, editar (título, texto, padre y proyectos; el selector de padre ya excluye la propia y sus descendientes), subir, bajar, cerrar y reabrir; al resto le dice que solo leen.
+  - Traducciones (en y es) en `intelia/priorities/i18n.ts`.
+- **Tests:** `tests/api-integration/intelia-priorities.test.ts` (receptor HTTP real con firma: administrador crea raíz e hija con dos proyectos, la reordena y edita, historial y un evento por cambio al destino suscrito y ninguno a los webhooks de proyecto, aviso a los proyectos de las descendientes, miembro que lee y no escribe, API key sin alcance, tablero con la cadena, prioridad sin enlaces solo en el espacio, cierre, ciclos directos y concurrentes, mover cerrando el hueco, proyectos ajenos u ocultos, también en el historial, 404 de otro espacio y suscripción: sin destino no sale nada, sin secreto en las respuestas, URL repetida o no http, miembro sin acceso, borrado desde otro espacio y nada tras quitarlo) y, en la web, `tree.test.ts`, `components/project-priorities-panel.test.tsx` y `components/priorities-page.test.tsx`.
