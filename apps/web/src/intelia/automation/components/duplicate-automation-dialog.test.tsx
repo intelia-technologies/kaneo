@@ -132,21 +132,22 @@ describe("DuplicateAutomationDialog", () => {
     expect(useDuplicateAutomationStore.getState().request).toBeNull();
   });
 
-  it("asks for an initiative when only the initiative is missing and sends initiativeId", () => {
+  it("asks for the initiative too when the source has none, and sends both", () => {
     render(<DuplicateAutomationDialog />);
     act(() =>
       useDuplicateAutomationStore.getState().ask({
         taskId: "task-1",
         projectId: "proj-1",
         title: "Copy of task",
-        missingAutomation: false,
         missingInitiative: true,
       }),
     );
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.getAllByRole("radiogroup")).toHaveLength(3);
     expect(screen.getByTestId("mock-initiative-picker")).toBeInTheDocument();
+
+    chooseAutomation("yes", "yes", "pr");
     expect(confirmButton()).toBeDisabled();
 
     fireEvent.click(screen.getByTestId("mock-initiative-picker"));
@@ -154,11 +155,12 @@ describe("DuplicateAutomationDialog", () => {
     fireEvent.click(confirmButton());
 
     expect(mocks.mutate).toHaveBeenCalledWith(
-      expect.objectContaining({
+      {
         taskId: "task-1",
         title: "Copy of task",
+        automation: { automatica: true, verification: true, entrega: "pr" },
         initiativeId: "init-copy",
-      }),
+      },
       expect.anything(),
     );
   });

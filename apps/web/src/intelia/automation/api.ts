@@ -2,6 +2,7 @@ import { client } from "@kaneo/libs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { InferRequestType, InferResponseType } from "hono/client";
 import { HttpError } from "@/lib/http-error";
+import { HISTORY_LIMIT } from "./history-values";
 
 type TaskAutomationRoute =
   (typeof client)["intelia"]["task"][":taskId"]["automation"];
@@ -24,8 +25,6 @@ export type AutomationChangeInput = InferRequestType<
   TaskAutomationRoute["$put"]
 >["json"];
 
-export const HISTORY_LIMIT = 50;
-
 // A task without automation answers 404: that is "none", not an error.
 export async function getTaskAutomation(
   taskId: string,
@@ -44,7 +43,8 @@ export async function getTaskAutomationHistory(
   const response = await client.intelia.task[":taskId"].automation.history.$get(
     {
       param: { taskId },
-      query: { limit: String(HISTORY_LIMIT) },
+      // One more than is shown: the oldest shown takes its before from it.
+      query: { limit: String(HISTORY_LIMIT + 1) },
     },
   );
   if (response.status === 404) return [];

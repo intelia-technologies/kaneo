@@ -74,7 +74,7 @@ function normalizeFilters(raw: unknown): BoardFilters {
     }
     const value = candidate[key];
     if (Array.isArray(value)) {
-      // Intelia: the former level values (arranque, completa) are gone.
+      // Intelia: values of the former automation level are no longer offered.
       const values = value.filter((v): v is string =>
         key === "automation"
           ? isAutomationFilterValue(v)

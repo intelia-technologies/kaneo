@@ -431,6 +431,36 @@ describe("TaskAutomationPanel", () => {
     );
   });
 
+  it("shows 50 changes and takes the oldest one's before from the 51st row", () => {
+    const rows = Array.from({ length: 51 }, (_, index) =>
+      change({
+        id: `c${51 - index}`,
+        // Only the 50th shown row changes the delivery: PR → Sin PR.
+        entrega: index < 50 ? "sin_pr" : "pr",
+        changedAt: `2026-10-30T09:${String(59 - index).padStart(2, "0")}:00.000Z`,
+      }),
+    );
+    mocks.history.mockReturnValue({ data: rows });
+    render(<TaskAutomationPanel taskId="task-1" />);
+
+    const describe = (entrega: string) =>
+      `intelia:automation.card.automatica · intelia:automation.verified · ${entrega}`;
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(50);
+    expect(items[49].textContent).toContain(
+      `intelia:automation.change ${JSON.stringify({
+        from: describe(pr),
+        to: describe(sinPr),
+      })}`,
+    );
+    expect(items[48].textContent).toContain(
+      `intelia:automation.change ${JSON.stringify({
+        from: describe(sinPr),
+        to: describe(sinPr),
+      })}`,
+    );
+  });
+
   it("says so when nothing has changed yet", () => {
     render(<TaskAutomationPanel taskId="task-1" />);
 

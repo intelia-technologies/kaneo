@@ -29,22 +29,18 @@ function DuplicateAutomationForm({ request }: { request: DuplicateRequest }) {
   const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const { mutate, isPending } = useDuplicateTask();
 
-  const needsAutomation = request.missingAutomation ?? true;
   const needsInitiative = request.missingInitiative ?? false;
 
   const canConfirm =
-    (!needsAutomation || automation.isValid) &&
-    (!needsInitiative || Boolean(initiativeId));
+    automation.isValid && (!needsInitiative || Boolean(initiativeId));
 
   const confirm = () => {
-    if (!canConfirm || isPending) return;
+    if (!canConfirm || isPending || !automation.input) return;
     mutate(
       {
         taskId: request.taskId,
         title: request.title,
-        ...(needsAutomation && automation.input
-          ? { automation: automation.input }
-          : {}),
+        automation: automation.input,
         ...(needsInitiative && initiativeId ? { initiativeId } : {}),
       },
       { onSuccess: close },
@@ -54,21 +50,13 @@ function DuplicateAutomationForm({ request }: { request: DuplicateRequest }) {
     <Dialog open onOpenChange={(open) => !open && close()}>
       <DialogPopup className="max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            {needsInitiative && !needsAutomation
-              ? t("intelia:initiative.duplicateTitle")
-              : t("intelia:automation.duplicate.title")}
-          </DialogTitle>
+          <DialogTitle>{t("intelia:automation.duplicate.title")}</DialogTitle>
           <DialogDescription>
-            {needsInitiative && !needsAutomation
-              ? t("intelia:initiative.required")
-              : t("intelia:automation.duplicate.description")}
+            {t("intelia:automation.duplicate.description")}
           </DialogDescription>
         </DialogHeader>
         <DialogPanel className="space-y-4">
-          {needsAutomation && (
-            <AutomationCreateFields control={automation} disabled={isPending} />
-          )}
+          <AutomationCreateFields control={automation} disabled={isPending} />
           {needsInitiative && (
             <div className="flex flex-col gap-1.5">
               <label
@@ -107,8 +95,8 @@ function DuplicateAutomationForm({ request }: { request: DuplicateRequest }) {
   );
 }
 
-// Mounted once in the authenticated layout. A task without automation cannot
-// be duplicated until it is chosen for the copy.
+// Mounted once in the authenticated layout. Every duplicate asks for the
+// copy's automation, like creating a task.
 export function DuplicateAutomationDialog() {
   const request = useDuplicateAutomationStore((state) => state.request);
   if (!request) return null;

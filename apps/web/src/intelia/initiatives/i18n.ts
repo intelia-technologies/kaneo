@@ -10,7 +10,6 @@ const en = {
     parentWithout:
       "The parent task has no initiative: assign one in its Initiative block first.",
     loadError: "Could not load the initiative.",
-    duplicateTitle: "Choose the copy's initiative",
     importHint: "Every imported task goes to this initiative.",
     starterName: "Getting started",
     noInitiative: "No initiative",
@@ -121,7 +120,6 @@ const es = {
     parentWithout:
       "La tarea padre no tiene iniciativa: asígnale una en su bloque Iniciativa.",
     loadError: "No se pudo cargar la iniciativa.",
-    duplicateTitle: "Elige la iniciativa de la copia",
     importHint: "Todas las tareas importadas van a esta iniciativa.",
     starterName: "Primeros pasos",
     noInitiative: "Sin iniciativa",

@@ -37,8 +37,7 @@ const en = {
     loadError: "Failed to load the automation",
     duplicate: {
       title: "Choose the automation",
-      description:
-        "The task you are duplicating has no automation. Choose it for the copy.",
+      description: "Choose automatic, verification and delivery for the copy.",
       confirm: "Duplicate",
     },
     importAppliesToAll: "Applied to every imported task.",
@@ -94,8 +93,7 @@ const es = {
     loadError: "No se pudo cargar la automatización",
     duplicate: {
       title: "Elige la automatización",
-      description:
-        "La tarea que vas a duplicar no tiene automatización. Elígela para la copia.",
+      description: "Elige automática, verificación y entrega para la copia.",
       confirm: "Duplicar",
     },
     importAppliesToAll: "Se aplica a todas las tareas importadas.",

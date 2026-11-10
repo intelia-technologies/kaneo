@@ -4,11 +4,11 @@ export type DuplicateRequest = {
   taskId: string;
   projectId?: string;
   title: string;
-  missingAutomation?: boolean;
   missingInitiative?: boolean;
 };
 
-// The duplicate that waits for its automation or initiative to be chosen. The dialog lives in a
+// The duplicate that waits for its automation (and, if the source has none,
+// its initiative) to be chosen. The dialog lives in a
 // host mounted once in the authenticated layout: the context menu that asks
 // for it unmounts as soon as the menu closes.
 export const useDuplicateAutomationStore = create<{
