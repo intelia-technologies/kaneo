@@ -102,10 +102,31 @@ describe("board blocker summaries", () => {
       targetTaskId: target.id,
       relationType: "blocks",
     });
+    const [paused] = await db
+      .insert(schema.taskTable)
+      .values({
+        projectId: project.id,
+        title: "Paused",
+        status: "to-do",
+        number: 2,
+      })
+      .returning();
+    await db.execute(sql`insert into intelia.task_automation
+      (task_id, level, verification, source, automatica, pausa_motivo)
+      values (${paused.id}, 'manual', true, 'migration', false, 'internal note')`);
     const { data } = await getTasks(project.id, { publicOnly: true });
-    const summary = data.columns
-      .flatMap((column) => column.tasks)
-      .find((task) => task.id === target.id)?.blockersSummary;
+    const tasks = data.columns.flatMap((column) => column.tasks);
+    const summary = tasks.find(
+      (task) => task.id === target.id,
+    )?.blockersSummary;
+    // Automation settings are internal: a public board does not show them.
+    expect(
+      tasks.find((task) => task.id === paused.id)?.blockersSummary,
+    ).toMatchObject({
+      reason: "ready",
+      notStartingReason: null,
+      pauseReason: null,
+    });
     expect(summary).toEqual({
       pendingCount: 1,
       hasCancelledBlocker: false,

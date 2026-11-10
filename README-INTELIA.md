@@ -449,7 +449,7 @@ En `POST /api/task/import/{projectId}`, las entradas con `type` ausente o nulo s
 - **`reason`**: el peor motivo, que fija el color: `cancelled` y `person` en rojo; `blocked`, `not_started` y `external` (pendiente en un proyecto sin acceso) en amarillo; `in_progress` en azul; `ready` en verde.
 - **`notStartingReason`**, solo en To do sin pendientes: `paused` (con `pauseReason`), `automation_off` (también sin fila de automatización), `no_role` (sin asignar o asignada a una cuenta que no es `role-…@`) o `waiting_release`. Informativo: decide el despachador.
 - **`root`**, solo en To do con pendientes: subiendo por los bloqueantes pendientes, la primera tarea que no espera a otra pendiente (con varias, la que está en curso, luego la de más prioridad y luego la más antigua), con su profundidad. `cycle` si los pendientes forman un ciclo, `external` si es de un proyecto sin acceso (no se recorre lo que hay detrás) y `too_deep` pasados 20 niveles. Una cancelada corta la rama: es raíz.
-- **Coste:** una consulta recursiva y acotada por página, que también trae los bloqueantes directos, y otra con la automatización de las tareas de la página. `espera_a` solo se lee de los bloqueantes en Blocked y puede ir hasta 2 minutos por detrás. En un tablero público no salen `person` ni `pauseReason`.
+- **Coste:** una consulta recursiva y acotada por página, que también trae los bloqueantes directos, y otra con la automatización de las tareas de la página. `espera_a` solo se lee de los bloqueantes en Blocked y puede ir hasta 2 minutos por detrás. En un tablero público no salen `person`, `notStartingReason` ni `pauseReason`.
 
 ## Estado «Pedida» y solicitante
 

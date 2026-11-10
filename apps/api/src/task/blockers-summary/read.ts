@@ -236,8 +236,9 @@ export async function readBlockersSummaries(
     const waitingRelease =
       seed.type === "validacion" && pendingCount === 0 && !seed.releaseDeployed;
     const isTodo = seed.status === "to-do";
+    // Automation settings are internal: a public board does not show them.
     const reason =
-      isTodo && pendingCount === 0
+      isTodo && pendingCount === 0 && !reader.publicOnly
         ? notStartingReason({
             automatica: seed.automatica,
             pausaMotivo: seed.pausaMotivo,
@@ -259,8 +260,7 @@ export async function readBlockersSummaries(
         externalCount,
       ),
       notStartingReason: reason,
-      pauseReason:
-        reason === "paused" && !reader.publicOnly ? seed.pausaMotivo : null,
+      pauseReason: reason === "paused" ? seed.pausaMotivo : null,
       root: root && {
         kind: root.kind,
         task:

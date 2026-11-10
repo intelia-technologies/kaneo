@@ -78,7 +78,7 @@ export const blockersSummarySchema = z
     }),
     notStartingReason: z.enum(NOT_STARTING_REASONS).nullable().openapi({
       description:
-        "Only for a ready task in To do: why the dispatcher will not start it alone. paused: automation off with a pause reason; automation_off: automation off or never set; no_role: not assigned to a role's account; waiting_release: a validation whose `release` is not `desplegada`. Null otherwise. Informative: the dispatcher decides.",
+        "Only for a ready task in To do: why the dispatcher will not start it alone. paused: automation off with a pause reason; automation_off: automation off or never set; no_role: not assigned to a role's account; waiting_release: a validation whose `release` is not `desplegada`. Null otherwise and on public boards. Informative: the dispatcher decides.",
     }),
     pauseReason: z.string().nullable().openapi({
       description:
