@@ -1,80 +1,133 @@
 name: Intelia release
 
-# Intelia fork (README-INTELIA.md): a vX.Y.Z-intelia.N tag on reviewed main
-# publishes the bundled image as ghcr.io/<owner>/kaneo:X.Y.Z-intelia.N once the
-# fork's CI and the integration tests pass on that commit.
+# Intelia fork (README-INTELIA.md, «Versión»; design 58 in software-factory): every
+# 15 minutes, if main's tip has no final `intelia-release` commit status yet, run the
+# fork's CI and the integration tests on it. Green publishes
+# ghcr.io/<owner>/kaneo:X.Y.Z-intelia.N, tags the commit vX.Y.Z-intelia.N and marks it
+# success; red publishes nothing and marks it failure, so it is not retried until a
+# new commit lands. A rehearsal (publicar = no) tests the dispatched commit instead and
+# records it as `intelia-release-ensayo`, never tagging or publishing. Always on
+# GitHub-hosted runners: the fork is public.
 on:
-  push:
-    tags:
-      - "v*-intelia.*"
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      publicar:
+        description: "Publicar la punta de main si pasa (no: ensayo del commit lanzado, estado intelia-release-ensayo, sin tag ni imagen)"
+        type: boolean
+        default: true
 
 permissions: {}
 
+# Queued, never cancelled: a release takes ~25 min and a queued run finds the
+# commit already marked by the previous one.
 concurrency:
-  group: intelia-release-${{ github.ref }}
+  group: intelia-release
   cancel-in-progress: false
 
 jobs:
-  verify:
-    name: Verify release source
+  decide:
+    name: Decide
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
+      statuses: write
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.target.outputs.sha }}
+      run: ${{ steps.decide.outputs.run }}
+      publish: ${{ steps.mode.outputs.publish }}
+      mode: ${{ steps.mode.outputs.mode }}
     steps:
+      # Publishing only from main's workflow; a rehearsal may come from any branch.
+      - name: Mode
+        id: mode
+        env:
+          REF: ${{ github.ref }}
+          PUBLISH: ${{ github.event_name == 'schedule' || inputs.publicar }}
+        run: |
+          if [ "$PUBLISH" = true ]; then
+            if [ "$REF" != refs/heads/main ]; then
+              echo "Publish from main, not $REF (or run with publicar = no)" >&2
+              exit 1
+            fi
+            echo "mode=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=ensayo" >> "$GITHUB_OUTPUT"
+          fi
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: 0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 24.22.1
           package-manager-cache: false
-      - name: Check the tag against package.json and main
-        id: version
+      - name: Take main's tip (release) or the dispatched commit (ensayo)
+        id: target
         env:
-          TAG: ${{ github.ref_name }}
+          MODE: ${{ steps.mode.outputs.mode }}
         run: |
-          set -euo pipefail
-          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-intelia\.[1-9][0-9]*$ ]]; then
-            echo "Expected a vX.Y.Z-intelia.N tag, got $TAG" >&2
-            exit 1
+          if [ "$MODE" = release ]; then
+            sha="$(git ls-remote origin refs/heads/main | cut -f1)"
+          else
+            sha="$(git rev-parse HEAD)"
           fi
-          upstream="${BASH_REMATCH[1]}"
-          package="$(node -p 'require("./package.json").version')"
-          if [[ "$upstream" != "$package" ]]; then
-            echo "$TAG does not carry the upstream version in package.json ($package)" >&2
-            exit 1
-          fi
-          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
-          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "Could not resolve the commit to test" >&2; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Skip a commit that already has its final status
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.target.outputs.sha }}
+          MODE: ${{ steps.mode.outputs.mode }}
+        run: node scripts/ci/intelia-release.mjs decide "$SHA" "$MODE"
 
   ci:
-    needs: verify
+    needs: decide
+    if: needs.decide.outputs.run == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/intelia-ci.yml # zizmor: ignore[self-repository] $/-syntax not parsed by pinned actionlint v1.7.12; revisit when supported
+    with:
+      sha: ${{ needs.decide.outputs.sha }}
 
   integration:
-    needs: verify
+    needs: decide
+    if: needs.decide.outputs.run == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/intelia-integration.yml # zizmor: ignore[self-repository] $/-syntax not parsed by pinned actionlint v1.7.12; revisit when supported
+    with:
+      sha: ${{ needs.decide.outputs.sha }}
 
-  image:
-    name: Image
-    needs: [verify, ci, integration]
+  publish:
+    name: Publish
+    needs: [decide, ci, integration]
+    if: needs.decide.outputs.run == 'true' && needs.decide.outputs.publish == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
-      contents: read
+      contents: write
       packages: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.decide.outputs.sha }}
           persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.22.1
+          package-manager-cache: false
+      - name: Next vX.Y.Z-intelia.N for package.json's version
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.decide.outputs.sha }}
+        run: node scripts/ci/intelia-release.mjs tag "$SHA"
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
       - name: Set up Docker Buildx
@@ -94,19 +147,63 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
-            GIT_COMMIT=${{ github.sha }}
-            KANEO_IMAGE_VERSION=${{ needs.verify.outputs.version }}
+            GIT_COMMIT=${{ needs.decide.outputs.sha }}
+            KANEO_IMAGE_VERSION=${{ steps.tag.outputs.version }}
           # Repo público: por defecto sería mode=max, que publica el payload del evento de GitHub.
           provenance: mode=min
-          tags: ghcr.io/${{ github.repository_owner }}/kaneo:${{ needs.verify.outputs.version }}
+          tags: ghcr.io/${{ github.repository_owner }}/kaneo:${{ steps.tag.outputs.version }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ needs.verify.outputs.version }}
+            org.opencontainers.image.revision=${{ needs.decide.outputs.sha }}
+            org.opencontainers.image.version=${{ steps.tag.outputs.version }}
             org.opencontainers.image.licenses=MIT
+      # With GITHUB_TOKEN, so the tag triggers nothing: publishing already happened here.
+      - name: Tag the commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.decide.outputs.sha }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: node scripts/ci/intelia-release.mjs push-tag "$SHA" "$TAG"
       - name: Summarise the image
         env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/kaneo:${{ needs.verify.outputs.version }}
+          IMAGE: ghcr.io/${{ github.repository_owner }}/kaneo:${{ steps.tag.outputs.version }}
           DIGEST: ${{ steps.build.outputs.digest }}
+          SHA: ${{ needs.decide.outputs.sha }}
         run: |
-          echo "Published $IMAGE@$DIGEST" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Published $IMAGE@$DIGEST from $SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  report:
+    name: Report
+    needs: [decide, ci, integration, publish]
+    # Not on cancellation: the commit stays pending and the next run retries it.
+    if: ${{ !cancelled() && needs.decide.outputs.run == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.22.1
+          package-manager-cache: false
+      - name: Mark the commit with its final status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.decide.outputs.sha }}
+          MODE: ${{ needs.decide.outputs.mode }}
+          TAG: ${{ needs.publish.outputs.tag }}
+          CI_RESULT: ${{ needs.ci.result }}
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        run: |
+          # A rehearsal never publishes: only CI and integration decide it.
+          if [ "$MODE" = release ]; then
+            node scripts/ci/intelia-release.mjs report "$SHA" "$MODE" "$TAG" "$CI_RESULT" "$INTEGRATION_RESULT" "$PUBLISH_RESULT"
+          else
+            node scripts/ci/intelia-release.mjs report "$SHA" "$MODE" "" "$CI_RESULT" "$INTEGRATION_RESULT"
+          fi
