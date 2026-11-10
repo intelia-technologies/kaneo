@@ -176,7 +176,7 @@ gh workflow list -R intelia-technologies/kaneo --all --json path,state \
   4. **Rojo:** si falla la CI, la integración o la publicación, o un job agota su tiempo, marca el commit `failure`; con la CI o la integración en rojo no se publica nada.
   - **Cancelada** a mano: el commit se queda en `pending` y la siguiente ejecución lo vuelve a probar.
   - **Reintentar un rojo pasajero** (por ejemplo, el registro caído al publicar): «Re-run failed jobs» en la ejecución, solo si el commit sigue siendo la punta de `main` (si no, saldría con una N mayor que la de un commit más nuevo); el estado nuevo sustituye al anterior. `workflow_dispatch` no basta: ve el estado final y no hace nada.
-  - **`publicar` = no:** prueba la punta de `main` siempre, sin publicar, sin tag y sin tocar el estado de commit.
+  - **`publicar` = no:** prueba la punta de `main` siempre, sin publicar, sin tag y sin tocar el estado de commit. Es la única ejecución que se admite desde otra rama (`gh workflow run intelia-release.yml --ref <rama> -f publicar=false`), para probar un cambio de este workflow antes de mergearlo; publicar exige `main`.
   - El fork no guarda credenciales de Intelia ni avisa a nadie: el despliegue se lanza desde `software-factory`, que lee el estado de commit.
 - **Contrato del estado de commit:** contexto `intelia-release` sobre el commit probado (la punta de `main`), escrito por `github-actions[bot]`; se lee con `GET /repos/intelia-technologies/kaneo/commits/<sha>/status` (el último estado por contexto) o `…/statuses` (todos, el más reciente primero).
   - `state`: `pending` (probando o cancelada), `success` (publicada) o `failure` (en rojo, no se vuelve a probar).
