@@ -1102,6 +1102,67 @@ describe("API integration: Intelia task automation level", () => {
         columnaPrevia: null,
       });
     });
+
+    it("a copy with the web dialog's automation keeps the source's responsible", async () => {
+      const { app, project } = await setup();
+      const created = await createTask(app, project.id, {
+        automation: {
+          automatica: false,
+          verification: false,
+          entrega: "sin_pr",
+          responsable: "agent:forja",
+        },
+      });
+      const sourceId = ((await created.json()) as { id: string }).id;
+      const copy = async (body: Record<string, unknown>) => {
+        const res = await app.request(`/api/task/duplicate/${sourceId}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        expect(res.status).toBe(200);
+        return read(app, ((await res.json()) as { id: string }).id);
+      };
+
+      // What `DuplicateAutomationDialog` sends: automatica, verification and
+      // delivery, never the responsible.
+      expect(
+        await copy({
+          automation: { automatica: true, verification: true, entrega: "pr" },
+        }),
+      ).toMatchObject({
+        level: "arranque",
+        automatica: true,
+        verification: true,
+        entrega: "pr",
+        responsable: "agent:forja",
+      });
+      expect(await copy({})).toMatchObject({
+        automatica: false,
+        verification: false,
+        entrega: "sin_pr",
+        responsable: "agent:forja",
+      });
+      // A responsible in the body still wins, null included.
+      expect(
+        await copy({
+          automation: {
+            automatica: false,
+            verification: true,
+            responsable: "person:jaime",
+          },
+        }),
+      ).toMatchObject({ responsable: "person:jaime" });
+      expect(
+        await copy({
+          automation: {
+            automatica: false,
+            verification: true,
+            responsable: null,
+          },
+        }),
+      ).toMatchObject({ responsable: null });
+    });
   });
 
   describe("the task.automation_changed webhook", () => {

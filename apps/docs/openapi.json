@@ -16681,7 +16681,7 @@
                     "required": [
                       "verification"
                     ],
-                    "description": "The copy's automation level and verification. Omit to copy the source's; a source without a level then needs this field."
+                    "description": "The copy's automation level and verification. Omit to copy the source's; a source without a level then needs this field. Without `responsable`, the copy keeps the source's."
                   },
                   "initiativeId": {
                     "type": "string",
