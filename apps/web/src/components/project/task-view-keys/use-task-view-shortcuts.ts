@@ -28,6 +28,7 @@ type TaskViewShortcutsOptions = {
   project: { id: string; workspaceId: string } | null | undefined;
   enabled?: boolean;
   canMove?: boolean;
+  canSelect?: boolean;
   onMove?: (taskId: string, overId: string) => void;
   onToggleGroup?: (groupId: string) => void;
   onToggleAllGroups?: () => void;
@@ -44,6 +45,7 @@ export function useTaskViewShortcuts({
   project,
   enabled = true,
   canMove = false,
+  canSelect = true,
   onMove,
   onToggleGroup,
   onToggleAllGroups,
@@ -143,6 +145,7 @@ export function useTaskViewShortcuts({
   const movable = { enabled: enabled && canMove && Boolean(onMove) };
   const boardMovable = { enabled: movable.enabled && layout === "board" };
   const grouped = { enabled: enabled && Boolean(onToggleGroup) };
+  const selectable = { enabled: enabled && canSelect };
 
   useShortcut("nextTask", () => step("down"), active);
   useShortcut("previousTask", () => step("up"), active);
@@ -180,7 +183,7 @@ export function useTaskViewShortcuts({
       const taskId = focused();
       if (taskId) selection.getState().toggleSelection(taskId);
     },
-    active,
+    selectable,
   );
   useShortcut(
     "selectGroup",
@@ -188,7 +191,7 @@ export function useTaskViewShortcuts({
       withFocusedGroup((group) =>
         selection.getState().selectTasks(group.taskIds),
       ),
-    active,
+    selectable,
   );
 
   useShortcut(

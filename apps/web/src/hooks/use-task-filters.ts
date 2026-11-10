@@ -14,6 +14,9 @@ export type BoardFilters = {
   automation?: string[] | null;
   // Intelia (design 55 §3.2): the wait reason of To do tasks.
   waitReason?: string[] | null;
+  // Intelia (design 19 annex §2): the task's origin in an initiative. Only
+  // the initiative's «Tareas» tab knows it (see intelia/initiatives/origin).
+  origin?: string[] | null;
   customFields: Record<string, string[]> | null;
   negated?: string[] | null;
 };

@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import { countActiveFilters } from "@/lib/task-filters/count-active-filters";
 import { filterProjectTasks } from "@/lib/task-filters/filter-project-tasks";
 import { useProjectAutomation } from "@/intelia/automation/api";
+import type { TaskOrigins } from "@/intelia/initiatives/origin/origin";
 import {
   expandLabelFilter,
   type FilterLabel,
@@ -38,6 +39,7 @@ const FILTER_KEYS: Array<keyof BoardFilters> = [
   "labels",
   "automation",
   "waitReason",
+  "origin",
   "customFields",
   "negated",
 ];
@@ -79,16 +81,29 @@ function normalizeFilters(raw: unknown): BoardFilters {
   return normalized;
 }
 
+export type TaskFilterScope = {
+  /**
+   * Where the filters are kept: the project's id, or a view's own key so its
+   * filters do not mix with the project's (an initiative's tab).
+   */
+  filterKey?: string;
+  /** The initiative's origins, for the «Origen» filter. */
+  origins?: TaskOrigins;
+};
+
+const NO_SCOPE: TaskFilterScope = {};
+
 export function useTaskFiltersWithLabelsSupport(
   project: ProjectWithTasks | null | undefined,
   projectId?: string,
   textQuery?: string,
   descriptionMatches?: ReadonlySet<string>,
   ignore: ReadonlyArray<keyof BoardFilters> = NO_IGNORED_FILTERS,
+  { filterKey = projectId, origins }: TaskFilterScope = NO_SCOPE,
 ) {
   const weekStartsOn = useUserPreferencesStore((state) => state.weekStartsOn);
   const [filters, setFilters] = useStoredState(
-    projectId ? `kaneo:board-filters:${projectId}` : null,
+    filterKey ? `kaneo:board-filters:${filterKey}` : null,
     normalizeFilters,
     DEFAULT_FILTERS,
   );
@@ -145,6 +160,7 @@ export function useTaskFiltersWithLabelsSupport(
       getCustomFieldValues: getValuesForTask,
       labelIds: matchingLabelIds,
       automation,
+      origins,
     };
     // Missing query data is unknown, rather than an empty value on every task.
     const readyFilters = !hasData
@@ -161,6 +177,7 @@ export function useTaskFiltersWithLabelsSupport(
     descriptionMatches,
     matchingLabelIds,
     automation,
+    origins,
   ]);
 
   const filterTasks = useCallback(

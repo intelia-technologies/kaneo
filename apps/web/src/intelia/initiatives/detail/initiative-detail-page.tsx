@@ -1,5 +1,4 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import ProjectLayout from "@/components/common/project-layout";
 import PageTitle from "@/components/page-title";
@@ -7,14 +6,13 @@ import TaskDetailsSheet from "@/components/task/task-details-sheet";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { useGetColumns } from "@/hooks/queries/column/use-get-columns";
-import { useGetTasks } from "@/hooks/queries/task/use-get-tasks";
 import { useInitiative, useInitiativePlan } from "../api";
 import type { InitiativeDetailSearch, InitiativeTab } from "../search";
 import { DetailHeader } from "./detail-header";
 import "./i18n";
 import { InitiativeHistoryCollapsible } from "./initiative-history-collapsible";
 import { PlanTab } from "./plan-tab";
-import { TasksTab } from "./tasks-tab";
+import { TasksTab } from "./tasks-tab/tasks-tab";
 import { TreeTab } from "./tree-tab";
 
 type InitiativeDetailPageProps = {
@@ -32,7 +30,6 @@ export function InitiativeDetailPage({
 }: InitiativeDetailPageProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const lastFocusedTaskIdRef = useRef<string | null>(null);
 
   const {
     data: initiative,
@@ -41,19 +38,7 @@ export function InitiativeDetailPage({
     refetch: refetchInitiative,
   } = useInitiative(projectId, initiativeId);
 
-  const { data: liveProjectTasks } = useGetTasks(projectId);
   const { data: columns } = useGetColumns(projectId);
-
-  const projectColumnsMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    if (liveProjectTasks?.columns) {
-      for (const col of liveProjectTasks.columns) {
-        if (col.slug) map[col.slug] = col.name;
-        map[col.id] = col.name;
-      }
-    }
-    return map;
-  }, [liveProjectTasks?.columns]);
 
   const activeTab: InitiativeTab = search.tab ?? "tasks";
   const {
@@ -66,10 +51,6 @@ export function InitiativeDetailPage({
   const updateSearch = (next: Partial<InitiativeDetailSearch>) => {
     const merged: Record<string, unknown> = { ...search, ...next };
     if (merged.tab === "tasks") delete merged.tab;
-    if (merged.q === "") delete merged.q;
-    if (merged.origin === "all") delete merged.origin;
-    if (merged.status === "all") delete merged.status;
-    if (merged.assignee === "all") delete merged.assignee;
     if (!merged.cancelled) delete merged.cancelled;
     if (!merged.taskId) delete merged.taskId;
 
@@ -85,17 +66,11 @@ export function InitiativeDetailPage({
     updateSearch({ tab: nextTab });
   };
 
-  const handleFilterChange = (filters: Partial<InitiativeDetailSearch>) => {
-    updateSearch(filters);
-  };
-
   const handleOpenTask = (taskId: string) => {
-    lastFocusedTaskIdRef.current = taskId;
     updateSearch({ taskId });
   };
 
   const handleCloseTaskSheet = () => {
-    const targetId = lastFocusedTaskIdRef.current;
     const nextSearch: Record<string, unknown> = { ...search };
     delete nextSearch.taskId;
     navigate({
@@ -103,15 +78,9 @@ export function InitiativeDetailPage({
       search: nextSearch,
       replace: true,
     });
-    // The sheet may have changed what the table shows (status, assignee,
-    // block reason) without a socket event reaching here yet.
+    // The sheet may have changed what the tabs show (status, assignee, block
+    // reason) without a socket event reaching here yet.
     void refetchInitiative();
-    if (targetId) {
-      requestAnimationFrame(() => {
-        const btn = document.getElementById(`task-btn-${targetId}`);
-        btn?.focus();
-      });
-    }
   };
 
   const handleShowCancelledChange = (cancelled: boolean) => {
@@ -183,10 +152,8 @@ export function InitiativeDetailPage({
               <TabsPanel value="tasks">
                 <TasksTab
                   initiative={initiative}
-                  projectColumnsMap={projectColumnsMap}
-                  search={search}
-                  onFilterChange={handleFilterChange}
-                  onOpenTask={handleOpenTask}
+                  projectId={projectId}
+                  workspaceId={workspaceId}
                 />
               </TabsPanel>
 

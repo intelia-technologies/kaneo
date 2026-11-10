@@ -1,4 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
+import { useTaskViewReadOnly } from "@/components/project/views/task-view-read-only";
 import useActiveWorkspace from "@/hooks/queries/workspace/use-active-workspace";
 import { isOwnDomEvent } from "@/lib/is-own-dom-event";
 import useBulkSelectionStore from "@/store/bulk-selection";
@@ -8,6 +9,7 @@ import type Task from "@/types/task";
 export function useTaskCardClick(task: Task) {
   const { data: workspace } = useActiveWorkspace();
   const navigate = useNavigate();
+  const readOnly = useTaskViewReadOnly();
   const toggleSelection = useBulkSelectionStore(
     (state) => state.toggleSelection,
   );
@@ -25,13 +27,13 @@ export function useTaskCardClick(task: Task) {
     )
       return;
 
-    if (e.shiftKey) {
+    if (e.shiftKey && !readOnly) {
       e.preventDefault();
       selectRange(task.id);
       return;
     }
 
-    if (e.metaKey || e.ctrlKey) {
+    if ((e.metaKey || e.ctrlKey) && !readOnly) {
       e.preventDefault();
       toggleSelection(task.id);
       return;
@@ -56,7 +58,7 @@ export function useTaskCardClick(task: Task) {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.defaultPrevented || e.target !== e.currentTarget) return;
-    if (e.key === "Enter" && e.shiftKey) {
+    if (e.key === "Enter" && e.shiftKey && !readOnly) {
       e.preventDefault();
       selectRange(task.id);
     }

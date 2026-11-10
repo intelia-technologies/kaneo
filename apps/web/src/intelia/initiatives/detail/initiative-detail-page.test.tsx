@@ -100,6 +100,11 @@ vi.mock("@/intelia/dependencies/components/initiative-tree", () => ({
   ),
 }));
 
+// The tab has its own suite (tasks-tab/tasks-tab.test.tsx).
+vi.mock("./tasks-tab/tasks-tab", () => ({
+  TasksTab: () => <div data-testid="tasks-tab" />,
+}));
+
 vi.mock("../api", () => ({
   useInitiative: (...args: unknown[]) => mocks.useInitiative(...args),
   useInitiativePlan: () => ({
@@ -334,7 +339,6 @@ describe("InitiativeDetailPage", () => {
       "data-project-id",
       "proj-infra",
     );
-    expect(screen.getByText("INFRA-102")).toBeInTheDocument();
   });
 
   it("renders header with name, state tag, progress figures, design link, approval and plan state", () => {
@@ -394,163 +398,6 @@ describe("InitiativeDetailPage", () => {
         selected: "init-1",
         taskId: undefined,
       },
-    });
-  });
-
-  describe("Task filtering («N de M tareas · resumen global sin filtrar»)", () => {
-    it("renders all tasks without filtered count message when no filter is active", () => {
-      render(
-        <InitiativeDetailPage
-          workspaceId="ws-1"
-          projectId="proj-1"
-          initiativeId="init-1"
-          search={{}}
-        />,
-      );
-
-      expect(screen.getByText("Validar contratos")).toBeInTheDocument();
-      expect(
-        screen.getByText("Verificar reintentos idempotentes"),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Adaptador antiguo")).toBeInTheDocument();
-      expect(
-        screen.queryByText(/resumen global sin filtrar/),
-      ).not.toBeInTheDocument();
-    });
-
-    it("filters by origin and shows «N de M tareas · resumen global sin filtrar»", () => {
-      render(
-        <InitiativeDetailPage
-          workspaceId="ws-1"
-          projectId="proj-1"
-          initiativeId="init-1"
-          search={{ origin: "añadido" }}
-        />,
-      );
-
-      expect(
-        screen.getByText("1 de 3 tareas · resumen global sin filtrar"),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Adaptador antiguo")).toBeInTheDocument();
-      expect(screen.queryByText("Validar contratos")).not.toBeInTheDocument();
-      expect(
-        screen.queryByText("Verificar reintentos idempotentes"),
-      ).not.toBeInTheDocument();
-    });
-
-    it("filters by status and shows matching tasks with «N de M»", () => {
-      render(
-        <InitiativeDetailPage
-          workspaceId="ws-1"
-          projectId="proj-1"
-          initiativeId="init-1"
-          search={{ status: "blocked" }}
-        />,
-      );
-
-      expect(
-        screen.getByText("1 de 3 tareas · resumen global sin filtrar"),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText("Verificar reintentos idempotentes"),
-      ).toBeInTheDocument();
-      expect(screen.queryByText("Validar contratos")).not.toBeInTheDocument();
-    });
-
-    it("filters by assignee and shows matching tasks with «N de M»", () => {
-      render(
-        <InitiativeDetailPage
-          workspaceId="ws-1"
-          projectId="proj-1"
-          initiativeId="init-1"
-          search={{ assignee: "user-1" }}
-        />,
-      );
-
-      expect(
-        screen.getByText("1 de 3 tareas · resumen global sin filtrar"),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Validar contratos")).toBeInTheDocument();
-      expect(
-        screen.queryByText("Verificar reintentos idempotentes"),
-      ).not.toBeInTheDocument();
-    });
-
-    it("filters by search query q and shows matching tasks", () => {
-      render(
-        <InitiativeDetailPage
-          workspaceId="ws-1"
-          projectId="proj-1"
-          initiativeId="init-1"
-          search={{ q: "reintentos" }}
-        />,
-      );
-
-      expect(
-        screen.getByText("1 de 3 tareas · resumen global sin filtrar"),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText("Verificar reintentos idempotentes"),
-      ).toBeInTheDocument();
-      expect(screen.queryByText("Validar contratos")).not.toBeInTheDocument();
-    });
-
-    it("shows «Sin resultados» when filter matches no tasks", () => {
-      render(
-        <InitiativeDetailPage
-          workspaceId="ws-1"
-          projectId="proj-1"
-          initiativeId="init-1"
-          search={{ q: "inexistente" }}
-        />,
-      );
-
-      expect(
-        screen.getByText("0 de 3 tareas · resumen global sin filtrar"),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText("Sin resultados. Cambia los filtros."),
-      ).toBeInTheDocument();
-    });
-
-    it("displays blocked task reason and external dependencies correctly in table", () => {
-      render(
-        <InitiativeDetailPage
-          workspaceId="ws-1"
-          projectId="proj-1"
-          initiativeId="init-1"
-          search={{}}
-        />,
-      );
-
-      // Blocked task has reason + detail
-      expect(
-        screen.getByText(/Falta contrato: Esperando respuesta del gateway/),
-      ).toBeInTheDocument();
-
-      // Dependencies resolve external tasks as SLUG-NUM (Project Name)
-      expect(screen.getByText("← GW-50 (Gateway)")).toBeInTheDocument();
-    });
-
-    it("opens task sheet when task button is clicked and navigates with taskId", () => {
-      render(
-        <InitiativeDetailPage
-          workspaceId="ws-1"
-          projectId="proj-1"
-          initiativeId="init-1"
-          search={{}}
-        />,
-      );
-
-      fireEvent.click(
-        screen.getByRole("button", { name: "Validar contratos" }),
-      );
-
-      expect(mocks.navigate).toHaveBeenCalledWith({
-        to: ".",
-        search: { taskId: "task-1" },
-        replace: true,
-      });
     });
   });
 
@@ -843,9 +690,6 @@ describe("InitiativeDetailPage", () => {
 
       expect(screen.getAllByText("Sin tareas").length).toBeGreaterThan(0);
       expect(screen.queryByText("0 %")).not.toBeInTheDocument();
-      expect(
-        screen.getByText("Sin tareas en esta iniciativa"),
-      ).toBeInTheDocument();
     });
 
     it("handles all_cancelled state without showing 100 %", () => {
@@ -898,7 +742,6 @@ describe("InitiativeDetailPage", () => {
       expect(screen.getByText("Todas canceladas")).toBeInTheDocument();
       expect(screen.queryByText("100 %")).not.toBeInTheDocument();
       expect(screen.getByText("2 canceladas")).toBeInTheDocument();
-      expect(screen.getByText("Cancelada 1")).toBeInTheDocument();
     });
   });
 

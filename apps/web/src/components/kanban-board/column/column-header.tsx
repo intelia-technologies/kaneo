@@ -3,6 +3,7 @@ import { Archive, Plus, ArchiveIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import CreateTaskModal from "@/components/shared/modals/create-task-modal";
+import { useTaskViewReadOnly } from "@/components/project/views/task-view-read-only";
 import { useWorkspacePermission } from "@/hooks/use-workspace-permission";
 import { getColumnIcon } from "@/lib/column";
 import { toast } from "@/lib/toast";
@@ -25,8 +26,11 @@ export function ColumnHeader({
   const { project, setProject } = useProjectStore();
   const { mutate: archiveTasks } = useArchiveTasks();
   const { canUpdateTasks, canCreateTasks } = useWorkspacePermission();
-  const canTask = canUpdateTasks();
-  const canCreate = canCreateTasks();
+  // A read-only view has no column actions: archiving or adding there would
+  // act on tasks it does not show.
+  const readOnly = useTaskViewReadOnly();
+  const canTask = !readOnly && canUpdateTasks();
+  const canCreate = !readOnly && canCreateTasks();
 
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);

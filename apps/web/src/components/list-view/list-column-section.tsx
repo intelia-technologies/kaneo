@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Archive, ChevronRight, Plus } from "lucide-react";
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useTaskViewReadOnly } from "@/components/project/views/task-view-read-only";
 import { WaitColumnsHeader } from "@/intelia/wait/components/wait-columns-header";
 import { isRequestedStatus } from "@/intelia/requests/status";
 import { cn } from "@/lib/cn";
@@ -59,6 +60,7 @@ const ListColumnSection = memo(function ListColumnSection({
 }: ListColumnSectionProps) {
   const { t } = useTranslation();
   const [animateExpand, setAnimateExpand] = useState(false);
+  const readOnly = useTaskViewReadOnly();
   const { setNodeRef } = useDroppable({
     id: column.id,
     data: { type: "column", column },
@@ -105,33 +107,37 @@ const ListColumnSection = memo(function ListColumnSection({
           </div>
         </button>
 
-        <div className="flex items-center gap-1 pointer-coarse:gap-6">
-          {/* Intelia: requests reach «Pedida» by API, never by hand. */}
-          {!isRequestedStatus(column.id) && (
-            <button
-              type="button"
-              onClick={() => onAddTask(column.id)}
-              className="touch-hitbox relative p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
-              title={t("tasks:listView.addTask")}
-              aria-label={t("tasks:listView.addTask")}
-            >
-              <Plus className="w-3 h-3" />
-            </button>
-          )}
+        {/* A read-only view has no section actions: archiving or adding there
+            would act on tasks it does not show. */}
+        {!readOnly && (
+          <div className="flex items-center gap-1 pointer-coarse:gap-6">
+            {/* Intelia: requests reach «Pedida» by API, never by hand. */}
+            {!isRequestedStatus(column.id) && (
+              <button
+                type="button"
+                onClick={() => onAddTask(column.id)}
+                className="touch-hitbox relative p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
+                title={t("tasks:listView.addTask")}
+                aria-label={t("tasks:listView.addTask")}
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            )}
 
-          {column.isFinal && column.tasks.length > 0 && (
-            <button
-              type="button"
-              disabled={disableCollectionActions}
-              onClick={() => onArchive(column)}
-              className="touch-hitbox relative p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
-              title={t("tasks:listView.archiveAllTooltip")}
-              aria-label={t("tasks:listView.archiveAllTooltip")}
-            >
-              <Archive className="w-3 h-3" />
-            </button>
-          )}
-        </div>
+            {column.isFinal && column.tasks.length > 0 && (
+              <button
+                type="button"
+                disabled={disableCollectionActions}
+                onClick={() => onArchive(column)}
+                className="touch-hitbox relative p-1 hover:bg-accent rounded text-muted-foreground hover:text-foreground transition-colors"
+                title={t("tasks:listView.archiveAllTooltip")}
+                aria-label={t("tasks:listView.archiveAllTooltip")}
+              >
+                <Archive className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {isExpanded && (

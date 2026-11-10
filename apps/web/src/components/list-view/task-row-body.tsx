@@ -15,6 +15,7 @@ import { getPriorityLabel } from "@/lib/i18n/domain";
 import { getPriorityIcon } from "@/lib/priority";
 import { useUserPreferencesStore } from "@/store/user-preferences";
 import type Task from "@/types/task";
+import { TaskOriginChip } from "@/intelia/initiatives/origin/task-origin-chip";
 import { StatusAgeChip } from "@/intelia/status-age/components/status-age-chip";
 import { WAIT_COLUMN_CLASS } from "@/intelia/wait/columns";
 import { WaitChip } from "@/intelia/wait/components/wait-chip";
@@ -105,6 +106,7 @@ export function TaskRowBody({
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-1">
+        <TaskOriginChip taskId={task.id} className="h-5" />
         <CardFieldList fields={cardFields} max={3} />
         {showLabels && (
           <LabelChips task={task} workspaceId={workspaceId} max={2} />

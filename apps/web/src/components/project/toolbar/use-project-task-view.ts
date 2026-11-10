@@ -3,7 +3,10 @@ import { useFilterSubjects } from "@/components/project/task-filters/use-filter-
 import { useTaskFilterOptions } from "@/components/project/task-filters/use-task-filter-options";
 import { useDescriptionMatches } from "@/hooks/queries/task/use-description-matches";
 import type { BoardFilters } from "@/hooks/use-task-filters";
-import { useTaskFiltersWithLabelsSupport } from "@/hooks/use-task-filters-with-labels-support";
+import {
+  type TaskFilterScope,
+  useTaskFiltersWithLabelsSupport,
+} from "@/hooks/use-task-filters-with-labels-support";
 import type { ProjectWithTasks } from "@/types/project";
 import { scopeTasks } from "./scope-tasks";
 
@@ -19,22 +22,29 @@ export function useProjectTaskView({
   projectId,
   workspaceId,
   scope,
+  filterKey,
+  origins,
 }: {
   project: ProjectWithTasks | null | undefined;
   projectId: string;
   workspaceId: string;
   scope: TaskViewScope;
-}) {
+} & TaskFilterScope) {
   const ignore =
     scope === "backlog" ? BACKLOG_IGNORED_FILTERS : NO_IGNORED_FILTERS;
   const [search, setSearch] = useState("");
   const descriptionSearch = useDescriptionMatches(projectId, project, search);
+  const filterScope = useMemo(
+    () => ({ filterKey, origins }),
+    [filterKey, origins],
+  );
   const filters = useTaskFiltersWithLabelsSupport(
     project,
     projectId,
     search,
     descriptionSearch.ids,
     ignore,
+    filterScope,
   );
   const options = useTaskFilterOptions(projectId, workspaceId);
   const tasks = useMemo(() => scopeTasks(project, scope), [project, scope]);
@@ -45,6 +55,7 @@ export function useProjectTaskView({
     tasks,
     showStatus: scope !== "backlog",
     projectId,
+    origins,
   });
 
   return { search, setSearch, descriptionSearch, filters, subjects };

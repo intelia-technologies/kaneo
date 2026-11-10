@@ -27,11 +27,6 @@ export type InitiativeDetailSearch = {
   tab?: InitiativeTab;
   /** Task open in Kaneo's task sheet. */
   taskId?: string;
-  /** Tasks tab filters. */
-  origin?: string;
-  status?: string;
-  assignee?: string;
-  q?: string;
   /** Tree tab: draw the Cancelled tasks too. */
   cancelled?: boolean;
 };
@@ -76,10 +71,6 @@ export function validateInitiativeDetailSearch(
   return {
     tab: oneOf(search.tab, TABS),
     taskId: text(search.taskId),
-    origin: text(search.origin),
-    status: text(search.status),
-    assignee: text(search.assignee),
-    q: text(search.q),
     cancelled:
       search.cancelled === true || search.cancelled === "true"
         ? true

@@ -33,27 +33,13 @@ const en = {
         tree: "Tree",
         plan: "Plan",
       },
-      filters: {
-        searchPlaceholder: "ID, key or title…",
-        searchAria: "Search tasks",
-        allOrigins: "All origins",
-        originAria: "Origin",
-        allStatuses: "All statuses",
-        statusAria: "Status",
-        allAssignees: "All assignees",
-        assigneeAria: "Assignee",
+      tasksTab: {
+        loading: "Loading the project's tasks…",
+        notOnBoard_one:
+          "{{count}} task of the initiative is not on this project's board (another project, backlog or archived)",
+        notOnBoard_other:
+          "{{count}} tasks of the initiative are not on this project's board (another project, backlog or archived)",
       },
-      table: {
-        origin: "Origin",
-        task: "Task",
-        status: "Status",
-        assignee: "Assignee",
-        statusSince: "No status change since",
-        dependenciesOrReason: "Dependencies / reason",
-        noPredecessors: "No predecessors",
-        noResults: "No results. Change the filters.",
-      },
-      filteredCount: "{{count}} of {{total}} tasks · unfiltered global summary",
       noTasksTitle: "No tasks in this initiative",
       noTasksDescription: "There are no tasks assigned to this initiative yet.",
       chainPartial: "Partial chain: some dependency is not readable",
@@ -163,28 +149,13 @@ const es = {
         tree: "Árbol",
         plan: "Plan",
       },
-      filters: {
-        searchPlaceholder: "ID, clave o título…",
-        searchAria: "Buscar tareas",
-        allOrigins: "Todos los orígenes",
-        originAria: "Origen",
-        allStatuses: "Todos los estados",
-        statusAria: "Estado",
-        allAssignees: "Todos los asignados",
-        assigneeAria: "Asignado",
+      tasksTab: {
+        loading: "Cargando las tareas del proyecto…",
+        notOnBoard_one:
+          "{{count}} tarea de la iniciativa no está en el tablero de este proyecto (otro proyecto, backlog o archivada)",
+        notOnBoard_other:
+          "{{count}} tareas de la iniciativa no están en el tablero de este proyecto (otro proyecto, backlog o archivadas)",
       },
-      table: {
-        origin: "Origen",
-        task: "Tarea",
-        status: "Estado",
-        assignee: "Asignado",
-        statusSince: "Sin cambios de estado desde",
-        dependenciesOrReason: "Dependencias / motivo",
-        noPredecessors: "Sin predecesoras",
-        noResults: "Sin resultados. Cambia los filtros.",
-      },
-      filteredCount:
-        "{{count}} de {{total}} tareas · resumen global sin filtrar",
       noTasksTitle: "Sin tareas en esta iniciativa",
       noTasksDescription: "Aún no hay tareas asignadas a esta iniciativa.",
       chainPartial: "Cadena parcial: alguna dependencia no es legible",

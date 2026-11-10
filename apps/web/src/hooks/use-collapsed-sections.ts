@@ -7,15 +7,17 @@ import {
 import { useStoredState } from "./use-stored-state";
 
 // Stores collapsed ids rather than expanded ones so sections the user has
-// never touched, such as a newly added column, start expanded.
+// never touched, such as a newly added column, start expanded, except those
+// the view collapses by default until the user first opens or closes one.
 export function useCollapsedSections(
-  projectId: string | undefined,
+  viewKey: string | undefined,
   scope: "list" | "backlog",
+  defaultCollapsed: string[] = NONE_COLLAPSED,
 ) {
   const [collapsed, setCollapsed] = useStoredState(
-    projectId ? collapsedSectionsKey(projectId, scope) : null,
+    viewKey ? collapsedSectionsKey(viewKey, scope) : null,
     normalizeCollapsed,
-    NONE_COLLAPSED,
+    defaultCollapsed,
   );
 
   const isExpanded = useCallback(
