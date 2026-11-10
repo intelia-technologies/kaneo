@@ -1,5 +1,6 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { setTimeout as sleep } from "node:timers/promises";
 import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client } from "pg";
@@ -101,6 +102,8 @@ async function listPublicTableNames(): Promise<string[]> {
   return result.rows.map((row) => row.table_name);
 }
 
+const TRUNCATE_ATTEMPTS = 5;
+
 export async function resetTestDatabase() {
   await ensureTestDatabaseMigrated();
 
@@ -113,8 +116,26 @@ export async function resetTestDatabase() {
   }
 
   const formattedTableNames = tableNames.map(quoteIdentifier).join(", ");
-
-  await db.execute(
-    sql.raw(`TRUNCATE TABLE ${formattedTableNames} RESTART IDENTITY CASCADE`),
+  const truncate = sql.raw(
+    `TRUNCATE TABLE ${formattedTableNames} RESTART IDENTITY CASCADE`,
   );
+
+  // Event handlers run fire-and-forget (publishEvent without waitForHandlers),
+  // so a previous test's write can still be in flight and lock tables in the
+  // opposite order. Postgres aborts one side with a deadlock; the TRUNCATE is
+  // rolled back whole, so retrying once the other side finishes is safe.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await db.execute(truncate);
+      return;
+    } catch (error) {
+      if (attempt >= TRUNCATE_ATTEMPTS || !isDeadlock(error)) throw error;
+      await sleep(50 * attempt);
+    }
+  }
+}
+
+function isDeadlock(error: unknown) {
+  const cause = (error as { cause?: unknown } | null)?.cause ?? error;
+  return (cause as { code?: unknown } | null)?.code === "40P01";
 }
