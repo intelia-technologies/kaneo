@@ -9,9 +9,6 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       const messages: Record<string, string> = {
-        "intelia:automation.levels.manual": "Manual",
-        "intelia:automation.levels.arranque": "Arranque",
-        "intelia:automation.levels.completa": "Completa",
         "intelia:automation.verified": "Verification",
         "intelia:automation.notVerified": "No verification",
         "intelia:automation.card.automatica": "Automatic",
@@ -79,20 +76,19 @@ function renderCard(fields: Partial<TaskAutomation> = {}) {
 
 describe("TaskCardAutomation", () => {
   it.each([
-    ["completa", true, "Completa", "Verification"],
-    ["manual", false, "Manual", "No verification"],
+    [true, "Verification"],
+    [false, "No verification"],
   ] as const)(
-    "reads %s with verification %s in words",
-    (level, verification, levelText, verificationText) => {
-      const { container } = renderCard({
-        level,
-        verification,
-        automatica: level !== "manual",
-      });
+    "reads verification %s in words, with no level badge",
+    (verification, verificationText) => {
+      const { container } = renderCard({ verification, level: "completa" });
 
-      const badge = container.querySelector("[data-automation-level]");
-      expect(badge).toHaveTextContent(levelText);
-      expect(screen.getByText(verificationText)).toBeInTheDocument();
+      const badge = container.querySelector(
+        `[data-automation-verification="${verification}"]`,
+      );
+      expect(badge).toHaveTextContent(verificationText);
+      expect(container.querySelector("[data-automation-level]")).toBeNull();
+      expect(container).not.toHaveTextContent(/completa|arranque/i);
       expect(mocks.project).toHaveBeenCalledWith("p1");
     },
   );

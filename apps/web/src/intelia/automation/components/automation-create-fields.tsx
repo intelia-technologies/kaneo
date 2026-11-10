@@ -4,8 +4,8 @@ import { AutomationFields } from "./automation-fields";
 import { AutomationRequiredReason } from "./automation-required-reason";
 import "../i18n";
 
-// The required level + verification choice of the task-creation forms.
-// `showReason={false}` leaves the "choose a level" message to the caller, for
+// The required automation choice of the task-creation forms.
+// `showReason={false}` leaves the "choose the automation" message to the caller, for
 // forms that render it next to their own footer buttons.
 export function AutomationCreateFields({
   control,

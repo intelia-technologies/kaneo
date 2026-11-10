@@ -69,11 +69,12 @@ afterEach(() => {
 });
 
 describe("useDuplicateWithAutomation", () => {
-  it("duplicates right away, without asking, when the task has a level and initiative", async () => {
+  it("duplicates right away, without asking, when the task has automation and initiative", async () => {
     mocks.getTaskAutomation.mockResolvedValue({
       taskId: "task-1",
-      level: "arranque",
+      automatica: true,
       verification: false,
+      entrega: "pr",
     });
 
     await duplicate();
@@ -82,7 +83,7 @@ describe("useDuplicateWithAutomation", () => {
     expect(useDuplicateAutomationStore.getState().request).toBeNull();
   });
 
-  it("asks for a level instead of duplicating when the task has no level", async () => {
+  it("asks for the automation instead of duplicating when the task has none", async () => {
     mocks.getTaskAutomation.mockResolvedValue(null);
 
     await duplicate();
@@ -99,8 +100,9 @@ describe("useDuplicateWithAutomation", () => {
   it("asks for an initiative instead of duplicating when the task has no initiative", async () => {
     mocks.getTaskAutomation.mockResolvedValue({
       taskId: "task-1",
-      level: "arranque",
+      automatica: true,
       verification: false,
+      entrega: "pr",
     });
     mocks.getTaskInitiative.mockResolvedValue(null);
 
@@ -115,7 +117,7 @@ describe("useDuplicateWithAutomation", () => {
     );
   });
 
-  it("neither duplicates nor asks when the level cannot be read", async () => {
+  it("neither duplicates nor asks when the automation cannot be read", async () => {
     mocks.getTaskAutomation.mockRejectedValue(new Error("offline"));
 
     await duplicate();

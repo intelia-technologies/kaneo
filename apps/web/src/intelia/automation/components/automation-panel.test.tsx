@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import {
   afterEach,
   beforeEach,
@@ -36,6 +42,9 @@ const saved = {
   taskId: "task-1",
   level: "arranque",
   verification: true,
+  automatica: true,
+  pausaMotivo: null,
+  entrega: "pr",
   source: "session",
   setByUserId: "user-1",
   setByName: "Ana",
@@ -43,7 +52,40 @@ const saved = {
   setAt: "2026-10-30T09:00:00.000Z",
 };
 
-const radio = (name: string) => screen.getByRole("radio", { name });
+const GROUPS = {
+  automatica: "intelia:automation.automatica",
+  verification: "intelia:automation.verification",
+  entrega: "intelia:automation.entrega",
+};
+
+const option = (group: keyof typeof GROUPS, name: string) =>
+  within(screen.getByRole("radiogroup", { name: GROUPS[group] })).getByRole(
+    "radio",
+    { name },
+  );
+const yes = "intelia:automation.yes";
+const no = "intelia:automation.no";
+const pr = "intelia:automation.card.entrega.pr";
+const sinPr = "intelia:automation.card.entrega.sin_pr";
+
+const change = (overrides: Record<string, unknown>) => ({
+  id: "c",
+  taskId: "task-1",
+  previousLevel: "arranque",
+  previousVerification: true,
+  previousAutomatica: true,
+  level: "arranque",
+  verification: true,
+  automatica: true,
+  pausaMotivo: null,
+  entrega: "pr",
+  source: "session",
+  changedByUserId: "user-1",
+  changedByName: "Ana",
+  changedByActor: null,
+  changedAt: "2026-10-30T09:00:00.000Z",
+  ...overrides,
+});
 
 beforeEach(() => {
   mocks.automation.mockReturnValue({ data: saved, isError: false });
@@ -56,14 +98,16 @@ afterEach(() => {
 });
 
 describe("TaskAutomationPanel", () => {
-  it("shows the level, verification, who set it and when", () => {
+  it("shows automática, verification, delivery, who set it and when, and no level", () => {
     render(<TaskAutomationPanel taskId="task-1" />);
 
-    const badge = document.querySelector("[data-automation-level]");
-    expect(badge?.getAttribute("data-automation-level")).toBe("arranque");
+    const badge = document.querySelector("[data-automation-automatica]");
+    expect(badge?.getAttribute("data-automation-automatica")).toBe("true");
     expect(badge?.getAttribute("data-automation-verification")).toBe("true");
-    expect(badge?.textContent).toContain("intelia:automation.levels.arranque");
+    expect(badge?.getAttribute("data-automation-entrega")).toBe("pr");
+    expect(badge?.textContent).toContain("intelia:automation.card.automatica");
     expect(badge?.textContent).toContain("intelia:automation.verified");
+    expect(badge?.textContent).toContain(pr);
     expect(
       screen.getByText(
         `intelia:automation.setBy ${JSON.stringify({
@@ -72,9 +116,28 @@ describe("TaskAutomationPanel", () => {
         })}`,
       ),
     ).toBeTruthy();
+    expect(screen.getAllByRole("radiogroup")).toHaveLength(3);
+    expect(document.body.textContent).not.toMatch(/levels?\b|arranque/i);
   });
 
-  it("falls back to the gateway actor when no person set the level", () => {
+  it("shows a paused task with its reason", () => {
+    mocks.automation.mockReturnValue({
+      data: { ...saved, automatica: false, pausaMotivo: "movida_a_mano" },
+      isError: false,
+    });
+    render(<TaskAutomationPanel taskId="task-1" />);
+
+    const badge = document.querySelector("[data-automation-automatica]");
+    expect(badge?.hasAttribute("data-automation-paused")).toBe(true);
+    expect(badge?.textContent).toContain(
+      `intelia:automation.card.paused ${JSON.stringify({ motivo: "movida_a_mano" })}`,
+    );
+    expect(
+      screen.getByRole("textbox", { name: "intelia:automation.pauseReason" }),
+    ).toHaveValue("movida_a_mano");
+  });
+
+  it("falls back to the gateway actor when no person set it", () => {
     mocks.automation.mockReturnValue({
       data: {
         ...saved,
@@ -97,40 +160,175 @@ describe("TaskAutomationPanel", () => {
     ).toBeTruthy();
   });
 
-  it("says there is no level and leaves the selector empty and usable", () => {
+  it("says there is no automation and saves once automática and verification are chosen", () => {
     mocks.automation.mockReturnValue({ data: null, isError: false });
     render(<TaskAutomationPanel taskId="task-1" />);
 
-    expect(screen.getByText("intelia:automation.noLevel")).toBeTruthy();
-    expect(
-      radio("intelia:automation.levels.manual").getAttribute("aria-checked"),
-    ).toBe("false");
+    expect(screen.getByText("intelia:automation.none")).toBeTruthy();
+    expect(option("automatica", yes)).toHaveAttribute("aria-checked", "false");
 
-    fireEvent.click(radio("intelia:automation.levels.manual"));
+    fireEvent.click(option("automatica", yes));
+    fireEvent.click(option("entrega", sinPr));
     expect(mocks.mutate).not.toHaveBeenCalled();
 
-    fireEvent.click(radio("intelia:automation.yes"));
+    fireEvent.click(option("verification", no));
     expect(mocks.mutate).toHaveBeenCalledWith(
-      { taskId: "task-1", input: { level: "manual", verification: true } },
+      {
+        taskId: "task-1",
+        input: {
+          automatica: true,
+          verification: false,
+          entrega: "sin_pr",
+          pausaMotivo: null,
+        },
+      },
       expect.anything(),
     );
   });
 
-  it("always shows the selector with the saved value and saves a new level", () => {
+  it("shows the saved value and saves a change of delivery alone", () => {
     render(<TaskAutomationPanel taskId="task-1" />);
 
-    expect(
-      radio("intelia:automation.levels.arranque").getAttribute("aria-checked"),
-    ).toBe("true");
-    expect(radio("intelia:automation.yes").getAttribute("aria-checked")).toBe(
-      "true",
-    );
+    expect(option("automatica", yes)).toHaveAttribute("aria-checked", "true");
+    expect(option("verification", yes)).toHaveAttribute("aria-checked", "true");
+    expect(option("entrega", pr)).toHaveAttribute("aria-checked", "true");
 
-    fireEvent.click(radio("intelia:automation.levels.completa"));
+    fireEvent.click(option("entrega", pr));
+    expect(mocks.mutate).not.toHaveBeenCalled();
 
+    fireEvent.click(option("entrega", sinPr));
     expect(mocks.mutate).toHaveBeenCalledTimes(1);
     expect(mocks.mutate).toHaveBeenCalledWith(
-      { taskId: "task-1", input: { level: "completa", verification: true } },
+      {
+        taskId: "task-1",
+        input: {
+          automatica: true,
+          verification: true,
+          entrega: "sin_pr",
+          pausaMotivo: null,
+        },
+      },
+      expect.anything(),
+    );
+  });
+
+  it("turns automática off without a reason, then saves the optional reason", () => {
+    const { rerender } = render(<TaskAutomationPanel taskId="task-1" />);
+    expect(
+      screen.queryByRole("textbox", { name: "intelia:automation.pauseReason" }),
+    ).toBeNull();
+
+    fireEvent.click(option("automatica", no));
+    expect(mocks.mutate).toHaveBeenLastCalledWith(
+      {
+        taskId: "task-1",
+        input: {
+          automatica: false,
+          verification: true,
+          entrega: "pr",
+          pausaMotivo: null,
+        },
+      },
+      expect.anything(),
+    );
+
+    mocks.automation.mockReturnValue({
+      data: {
+        ...saved,
+        automatica: false,
+        setAt: "2026-10-30T10:00:00.000Z",
+      },
+      isError: false,
+    });
+    rerender(<TaskAutomationPanel taskId="task-1" />);
+
+    const reason = screen.getByRole("textbox", {
+      name: "intelia:automation.pauseReason",
+    });
+    const saveReason = screen.getByRole("button", {
+      name: "intelia:automation.savePauseReason",
+    });
+    expect(saveReason).toBeDisabled();
+    fireEvent.change(reason, { target: { value: "  esperando a Jaime  " } });
+    fireEvent.click(saveReason);
+
+    expect(mocks.mutate).toHaveBeenLastCalledWith(
+      {
+        taskId: "task-1",
+        input: {
+          automatica: false,
+          verification: true,
+          entrega: "pr",
+          pausaMotivo: "esperando a Jaime",
+        },
+      },
+      expect.anything(),
+    );
+  });
+
+  it("keeps the pause while automática stays off and drops it when turned on", () => {
+    mocks.automation.mockReturnValue({
+      data: { ...saved, automatica: false, pausaMotivo: "movida_a_mano" },
+      isError: false,
+    });
+    render(<TaskAutomationPanel taskId="task-1" />);
+
+    fireEvent.click(option("verification", no));
+    expect(mocks.mutate).toHaveBeenLastCalledWith(
+      {
+        taskId: "task-1",
+        input: {
+          automatica: false,
+          verification: false,
+          entrega: "pr",
+          pausaMotivo: "movida_a_mano",
+        },
+      },
+      expect.anything(),
+    );
+
+    fireEvent.click(option("automatica", yes));
+    expect(mocks.mutate).toHaveBeenLastCalledWith(
+      {
+        taskId: "task-1",
+        input: {
+          automatica: true,
+          verification: false,
+          entrega: "pr",
+          pausaMotivo: null,
+        },
+      },
+      expect.anything(),
+    );
+  });
+
+  it("clears the reason when saved empty", () => {
+    mocks.automation.mockReturnValue({
+      data: { ...saved, automatica: false, pausaMotivo: "movida_a_mano" },
+      isError: false,
+    });
+    render(<TaskAutomationPanel taskId="task-1" />);
+
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "intelia:automation.pauseReason" }),
+      { target: { value: "   " } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "intelia:automation.savePauseReason",
+      }),
+    );
+
+    expect(mocks.mutate).toHaveBeenCalledWith(
+      {
+        taskId: "task-1",
+        input: {
+          automatica: false,
+          verification: true,
+          entrega: "pr",
+          pausaMotivo: null,
+        },
+      },
       expect.anything(),
     );
   });
@@ -142,60 +340,95 @@ describe("TaskAutomationPanel", () => {
     );
     render(<TaskAutomationPanel taskId="task-1" />);
 
-    fireEvent.click(radio("intelia:automation.levels.manual"));
+    fireEvent.click(option("automatica", no));
 
     expect(toast.error).toHaveBeenCalledWith("Forbidden");
-    expect(
-      radio("intelia:automation.levels.arranque").getAttribute("aria-checked"),
-    ).toBe("true");
-    expect(
-      radio("intelia:automation.levels.manual").getAttribute("aria-checked"),
-    ).toBe("false");
+    expect(option("automatica", yes)).toHaveAttribute("aria-checked", "true");
+    expect(option("automatica", no)).toHaveAttribute("aria-checked", "false");
   });
 
-  it("lists the diary newest first with person, time and change", () => {
+  it("lists the diary newest first with the before and after of each change", () => {
     mocks.history.mockReturnValue({
       data: [
-        {
+        // Delivery alone: the before comes from the row before it.
+        change({
+          id: "c3",
+          entrega: "sin_pr",
+          changedAt: "2026-10-31T09:00:00.000Z",
+        }),
+        // Automática alone.
+        change({
           id: "c2",
-          taskId: "task-1",
-          previousLevel: "manual",
-          previousVerification: false,
-          level: "arranque",
-          verification: true,
-          source: "session",
-          changedByUserId: "user-1",
-          changedByName: "Ana",
-          changedByActor: null,
+          previousAutomatica: false,
           changedAt: "2026-10-30T09:00:00.000Z",
-        },
-        {
+        }),
+        change({
           id: "c1",
-          taskId: "task-1",
           previousLevel: null,
           previousVerification: null,
+          previousAutomatica: null,
+          automatica: false,
           level: "manual",
-          verification: false,
           source: "gateway",
           changedByUserId: null,
           changedByName: null,
           changedByActor: "agent:orq-pablo",
           changedAt: "2026-10-29T08:00:00.000Z",
-        },
+        }),
       ],
     });
     render(<TaskAutomationPanel taskId="task-1" />);
 
+    const describe = (automatica: string, entrega: string) =>
+      `${automatica} · intelia:automation.verified · ${entrega}`;
+    const automatic = "intelia:automation.card.automatica";
+    const manual = "intelia:automation.card.manual";
     const rows = screen.getAllByRole("listitem");
-    expect(rows).toHaveLength(2);
-    expect(rows[0].textContent).toContain("2026-10-30T09:00:00.000Z");
-    expect(rows[0].textContent).toContain("Ana");
-    expect(rows[0].textContent).toContain("intelia:automation.change");
-    expect(rows[0].textContent).toContain("intelia:automation.levels.manual");
-    expect(rows[1].textContent).toContain("2026-10-29T08:00:00.000Z");
-    expect(rows[1].textContent).toContain("agent:orq-pablo");
-    expect(rows[1].textContent).toContain("intelia:automation.source.gateway");
-    expect(rows[1].textContent).toContain("intelia:automation.firstSet");
+    expect(rows).toHaveLength(3);
+    expect(rows[0].textContent).toContain("2026-10-31T09:00:00.000Z");
+    expect(rows[0].textContent).toContain(
+      `intelia:automation.change ${JSON.stringify({
+        from: describe(automatic, pr),
+        to: describe(automatic, sinPr),
+      })}`,
+    );
+    expect(rows[1].textContent).toContain("Ana");
+    expect(rows[1].textContent).toContain(
+      `intelia:automation.change ${JSON.stringify({
+        from: describe(manual, pr),
+        to: describe(automatic, pr),
+      })}`,
+    );
+    expect(rows[2].textContent).toContain("2026-10-29T08:00:00.000Z");
+    expect(rows[2].textContent).toContain("agent:orq-pablo");
+    expect(rows[2].textContent).toContain("intelia:automation.source.gateway");
+    expect(rows[2].textContent).toContain(
+      `intelia:automation.firstSet ${JSON.stringify({ to: describe(manual, pr) })}`,
+    );
+  });
+
+  it("shows a change of pause reason with the reason before and after", () => {
+    mocks.history.mockReturnValue({
+      data: [
+        change({
+          id: "c2",
+          previousAutomatica: false,
+          automatica: false,
+          pausaMotivo: "b",
+        }),
+        change({ id: "c1", automatica: false, pausaMotivo: "a" }),
+      ],
+    });
+    render(<TaskAutomationPanel taskId="task-1" />);
+
+    const describe = (motivo: string) =>
+      `intelia:automation.card.paused ${JSON.stringify({ motivo })} · intelia:automation.verified · ${pr}`;
+    expect(screen.getAllByRole("listitem")[0].textContent).toContain(
+      `intelia:automation.change ${JSON.stringify({
+        from: describe("a"),
+        to: describe("b"),
+      })}`,
+    );
   });
 
   it("says so when nothing has changed yet", () => {

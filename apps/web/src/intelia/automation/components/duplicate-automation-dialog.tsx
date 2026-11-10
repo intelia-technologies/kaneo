@@ -107,8 +107,8 @@ function DuplicateAutomationForm({ request }: { request: DuplicateRequest }) {
   );
 }
 
-// Mounted once in the authenticated layout. A task without a level cannot be
-// duplicated until one is chosen for the copy.
+// Mounted once in the authenticated layout. A task without automation cannot
+// be duplicated until it is chosen for the copy.
 export function DuplicateAutomationDialog() {
   const request = useDuplicateAutomationStore((state) => state.request);
   if (!request) return null;

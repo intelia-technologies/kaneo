@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 import type { AutomationDraftControl } from "../use-automation-draft";
 import "../i18n";
 
-// Why a task-creation form is blocked: the level is still to be chosen.
+// Why a task-creation form is blocked: the automation is still to be chosen.
 // Forms with a footer render it there, next to the buttons, so it stays
 // visible without scrolling on small screens. The footer stacks reversed on
 // mobile, so `order-last` puts the message right above the buttons there and

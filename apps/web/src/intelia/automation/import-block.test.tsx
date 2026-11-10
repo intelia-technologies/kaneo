@@ -24,7 +24,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("imports that do not ask for an automation level", () => {
+describe("imports that do not ask for the automation", () => {
   it("disables the code-host issue import and says why", () => {
     const onImport = vi.fn();
     render(

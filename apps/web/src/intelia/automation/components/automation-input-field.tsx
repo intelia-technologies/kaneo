@@ -5,10 +5,10 @@ import { useAutomationDraft } from "../use-automation-draft";
 import { AutomationCreateFields } from "./automation-create-fields";
 import { AutomationRequiredReason } from "./automation-required-reason";
 
-// Level + verification for an inline "add" row. The draft lives here, so it
+// Automática, verification and delivery for an inline "add" row. The draft lives here, so it
 // starts empty each time the row opens and is discarded when it closes; the
 // row learns the value to send (null while incomplete) through `onChange`.
-// The "choose a level" reason comes first, right under the row's Add button,
+// The "choose the automation" reason comes first, right under the row's Add button,
 // and the radio groups follow.
 export function AutomationInputField({
   onChange,

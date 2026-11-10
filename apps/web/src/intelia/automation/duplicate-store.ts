@@ -8,7 +8,7 @@ export type DuplicateRequest = {
   missingInitiative?: boolean;
 };
 
-// The duplicate that waits for a level or initiative to be chosen. The dialog lives in a
+// The duplicate that waits for its automation or initiative to be chosen. The dialog lives in a
 // host mounted once in the authenticated layout: the context menu that asks
 // for it unmounts as soon as the menu closes.
 export const useDuplicateAutomationStore = create<{

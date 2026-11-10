@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import {
@@ -223,9 +224,15 @@ function chooseAutomation() {
   fireEvent.change(screen.getByLabelText("Tipo de tarea"), {
     target: { value: "validacion" },
   });
-  for (const name of ["levels.manual", "yes"]) {
+  for (const [group, name] of [
+    ["automatica", "no"],
+    ["verification", "yes"],
+    ["entrega", "card.entrega.pr"],
+  ]) {
     fireEvent.click(
-      screen.getByRole("radio", { name: `intelia:automation.${name}` }),
+      within(
+        screen.getByRole("radiogroup", { name: `intelia:automation.${group}` }),
+      ).getByRole("radio", { name: `intelia:automation.${name}` }),
     );
   }
 }

@@ -4,7 +4,7 @@ import {
   type AutomationDraft,
   EMPTY_AUTOMATION_DRAFT,
   toAutomationInput,
-} from "./levels";
+} from "./draft";
 
 export interface AutomationDraftControl {
   draft: AutomationDraft;
@@ -18,9 +18,9 @@ export interface AutomationDraftControl {
   reset: () => void;
 }
 
-// State of the level/verification choice in a task-creation form: nothing is
+// State of the automation choice in a task-creation form: nothing is
 // preselected, so the draft starts invalid and the form stays blocked until
-// both are chosen.
+// automática, verification and delivery are chosen.
 export function useAutomationDraft(): AutomationDraftControl {
   const [draft, setDraft] = useState<AutomationDraft>(EMPTY_AUTOMATION_DRAFT);
   const input = useMemo(() => toAutomationInput(draft), [draft]);
@@ -30,7 +30,7 @@ export function useAutomationDraft(): AutomationDraftControl {
     setDraft,
     input,
     isValid: input !== null,
-    isDirty: draft.level !== null || draft.verification !== null,
+    isDirty: Object.values(draft).some((value) => value !== null),
     reset: () => setDraft(EMPTY_AUTOMATION_DRAFT),
   };
 }

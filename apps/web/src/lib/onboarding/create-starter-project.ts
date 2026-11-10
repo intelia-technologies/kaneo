@@ -33,7 +33,7 @@ export async function createStarterProject({
       project.id,
       tasks,
       {
-        level: "manual",
+        automatica: false,
         verification: true,
       },
       initiative.id,

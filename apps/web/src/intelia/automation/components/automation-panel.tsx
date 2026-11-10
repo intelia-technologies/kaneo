@@ -4,29 +4,24 @@ import { SectionHeader } from "@/components/task/sections/section-header";
 import { formatDateTime } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import {
-  type AutomationLevel,
-  type TaskAutomationChange,
+  type AutomationChangeInput,
   useSetTaskAutomation,
   useTaskAutomation,
   useTaskAutomationHistory,
 } from "../api";
+import { type AutomationDraft, EMPTY_AUTOMATION_DRAFT } from "../draft";
 import "../i18n";
-import {
-  type AutomationDraft,
-  EMPTY_AUTOMATION_DRAFT,
-  toAutomationInput,
-} from "../levels";
 import { AutomationBadge } from "./automation-badge";
 import { AutomationFields } from "./automation-fields";
-
-type Source = TaskAutomationChange["source"];
+import { AutomationHistory } from "./automation-history";
+import { PauseReasonForm } from "./pause-reason-form";
 
 // The selector is always shown (design decision 9): the API answers 403 to
-// whoever may not change the level and that is surfaced as a toast. A change
-// is saved the moment the draft is complete and valid: with two radio groups
-// and no preselection that is one click, and it needs no extra "Save" state.
-// To go from manual + no verification to completa the person first picks
-// "Yes" (saved as manual + yes) and then "Completa".
+// whoever may not change the automation and that is surfaced as a toast. A
+// change is saved the moment Automática and verification are known, so each
+// click is one `PUT` with the whole value (design 48 §3.2); a task without
+// delivery (older tasks) keeps it empty until one is chosen. With Automática
+// off, the pause reason is optional and saved on its own.
 export function TaskAutomationPanel({ taskId }: { taskId: string }) {
   const { t } = useTranslation();
   const { data: saved, isError } = useTaskAutomation(taskId);
@@ -36,39 +31,20 @@ export function TaskAutomationPanel({ taskId }: { taskId: string }) {
   const [pending, setPending] = useState<AutomationDraft | null>(null);
 
   const savedDraft: AutomationDraft = saved
-    ? { level: saved.level, verification: saved.verification }
+    ? {
+        automatica: saved.automatica,
+        verification: saved.verification,
+        entrega: saved.entrega,
+      }
     : EMPTY_AUTOMATION_DRAFT;
   const draft = pending ?? savedDraft;
 
   // A refetched value (own change or someone else's) replaces the draft.
   useEffect(() => {
     setPending(null);
-  }, [saved?.level, saved?.verification, saved?.setAt]);
+  }, [saved?.setAt]);
 
-  const sourceLabel = (source: Source) =>
-    t(`intelia:automation.source.${source}`);
-  const who = (
-    name: string | null,
-    actor: string | null,
-    source: Source,
-  ): string => name ?? actor ?? sourceLabel(source);
-  const describe = (level: AutomationLevel, verification: boolean) =>
-    `${t(`intelia:automation.levels.${level}`)} · ${
-      verification
-        ? t("intelia:automation.verified")
-        : t("intelia:automation.notVerified")
-    }`;
-
-  const change = (next: AutomationDraft) => {
-    setPending(next);
-    const input = toAutomationInput(next);
-    if (
-      !input ||
-      (input.level === savedDraft.level &&
-        input.verification === savedDraft.verification)
-    ) {
-      return;
-    }
+  const save = (input: AutomationChangeInput) =>
     setAutomation.mutate(
       { taskId, input },
       {
@@ -82,6 +58,27 @@ export function TaskAutomationPanel({ taskId }: { taskId: string }) {
         },
       },
     );
+
+  const change = (next: AutomationDraft) => {
+    setPending(next);
+    const { automatica, verification, entrega } = next;
+    if (
+      automatica === null ||
+      verification === null ||
+      (automatica === savedDraft.automatica &&
+        verification === savedDraft.verification &&
+        entrega === savedDraft.entrega)
+    ) {
+      return;
+    }
+    // The reason only survives while Automática stays off.
+    const keepsPause = !automatica && saved?.automatica === false;
+    save({
+      automatica,
+      verification,
+      entrega,
+      pausaMotivo: keepsPause ? saved.pausaMotivo : null,
+    });
   };
 
   return (
@@ -95,13 +92,13 @@ export function TaskAutomationPanel({ taskId }: { taskId: string }) {
         )}
         {saved ? (
           <div className="flex flex-wrap items-center gap-2">
-            <AutomationBadge
-              level={saved.level}
-              verification={saved.verification}
-            />
+            <AutomationBadge automation={saved} />
             <span className="text-muted-foreground text-xs">
               {t("intelia:automation.setBy", {
-                name: who(saved.setByName, saved.setByActor, saved.source),
+                name:
+                  saved.setByName ??
+                  saved.setByActor ??
+                  t(`intelia:automation.source.${saved.source}`),
                 date: formatDateTime(saved.setAt),
               })}
             </span>
@@ -109,7 +106,7 @@ export function TaskAutomationPanel({ taskId }: { taskId: string }) {
         ) : (
           !isError && (
             <p className="text-muted-foreground text-xs">
-              {t("intelia:automation.noLevel")}
+              {t("intelia:automation.none")}
             </p>
           )
         )}
@@ -120,52 +117,23 @@ export function TaskAutomationPanel({ taskId }: { taskId: string }) {
           disabled={setAutomation.isPending}
         />
 
-        <div className="flex flex-col gap-1">
-          <span className="text-muted-foreground text-xs">
-            {t("intelia:automation.history")}
-          </span>
-          {history.length === 0 ? (
-            <span className="text-muted-foreground/70 text-xs">
-              {t("intelia:automation.noHistory")}
-            </span>
-          ) : (
-            <ul className="flex flex-col gap-0.5">
-              {history.map((entry) => (
-                <li
-                  key={entry.id}
-                  className="flex flex-wrap items-baseline gap-x-2 text-xs"
-                >
-                  <span className="shrink-0 text-muted-foreground tabular-nums">
-                    {formatDateTime(entry.changedAt)}
-                  </span>
-                  <span className="text-foreground/85">
-                    {entry.previousLevel === null ||
-                    entry.previousVerification === null
-                      ? t("intelia:automation.firstSet", {
-                          to: describe(entry.level, entry.verification),
-                        })
-                      : t("intelia:automation.change", {
-                          from: describe(
-                            entry.previousLevel,
-                            entry.previousVerification,
-                          ),
-                          to: describe(entry.level, entry.verification),
-                        })}
-                  </span>
-                  <span className="text-muted-foreground/70">
-                    {who(
-                      entry.changedByName,
-                      entry.changedByActor,
-                      entry.source,
-                    )}
-                    {entry.source !== "session" &&
-                      ` · ${sourceLabel(entry.source)}`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {saved?.automatica === false && draft.automatica === false && (
+          <PauseReasonForm
+            key={saved.setAt}
+            saved={saved.pausaMotivo}
+            disabled={setAutomation.isPending}
+            onSave={(pausaMotivo) =>
+              save({
+                automatica: false,
+                verification: saved.verification,
+                entrega: saved.entrega,
+                pausaMotivo,
+              })
+            }
+          />
+        )}
+
+        <AutomationHistory history={history} />
       </div>
     </section>
   );

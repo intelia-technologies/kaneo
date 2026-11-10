@@ -15,7 +15,7 @@ import {
 import "./i18n";
 import "@/intelia/initiatives/i18n";
 
-// Duplicates a task. The server copies the source's level and initiative, so a
+// Duplicates a task. The server copies the source's automation and initiative, so a
 // task that has both is duplicated as usual. One missing either (old or
 // migrated tasks) cannot be copied without choosing it: that opens the dialog,
 // which asks only for what is missing, and the duplicate is sent from there.
