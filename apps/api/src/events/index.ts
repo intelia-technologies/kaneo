@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { EventEmitter } from "node:events";
+import { trackEventHandler } from "./in-flight-handlers";
 
 const EVENTS = new EventEmitter();
 EVENTS.setMaxListeners(100);
@@ -52,13 +53,17 @@ export async function subscribeToEvent<T>(
   handler: (data: T) => Promise<void>,
 ): Promise<void> {
   try {
-    EVENTS.on(eventType, async (payload: EventPayload<T>) => {
-      try {
-        await handler(payload.data);
-      } catch (error) {
-        console.error(`Error processing event ${eventType}:`, error);
-      }
-    });
+    EVENTS.on(eventType, (payload: EventPayload<T>) =>
+      trackEventHandler(
+        (async () => {
+          try {
+            await handler(payload.data);
+          } catch (error) {
+            console.error(`Error processing event ${eventType}:`, error);
+          }
+        })(),
+      ),
+    );
   } catch (error) {
     console.error("Failed to subscribe to event:", error);
     throw error;

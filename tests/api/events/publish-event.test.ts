@@ -1,4 +1,6 @@
+import { setImmediate } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { drainEventHandlers } from "../../../apps/api/src/events/in-flight-handlers";
 import {
   eventContext,
   publishEvent,
@@ -53,6 +55,36 @@ describe("publishEvent / subscribeToEvent", () => {
   });
   afterEach(async () => {
     await shutdownEventBus();
+  });
+
+  it("drains fire-and-forget handlers, including events they publish", async () => {
+    const outerGate = Promise.withResolvers<void>();
+    const innerGate = Promise.withResolvers<void>();
+    const innerStarted = Promise.withResolvers<void>();
+    await subscribeToEvent("test.drain.outer", async () => {
+      await outerGate.promise;
+      await publishEvent("test.drain.inner", {});
+    });
+    await subscribeToEvent("test.drain.inner", async () => {
+      innerStarted.resolve();
+      await innerGate.promise;
+    });
+
+    await publishEvent("test.drain.outer", {});
+    let drained = false;
+    const drain = drainEventHandlers().then(() => {
+      drained = true;
+    });
+
+    outerGate.resolve();
+    await innerStarted.promise;
+    // Let the outer handler settle so only the inner one is still running.
+    await setImmediate();
+    expect(drained).toBe(false);
+
+    innerGate.resolve();
+    await drain;
+    expect(drained).toBe(true);
   });
 
   it("delivers event data to a subscriber", async () => {
