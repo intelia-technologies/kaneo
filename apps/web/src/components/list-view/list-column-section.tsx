@@ -7,11 +7,13 @@ import { AnimatePresence, motion } from "motion/react";
 import { Archive, ChevronRight, Plus } from "lucide-react";
 import { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { WaitColumnsHeader } from "@/intelia/wait/components/wait-columns-header";
 import { isRequestedStatus } from "@/intelia/requests/status";
 import { cn } from "@/lib/cn";
 import { getColumnIcon } from "@/lib/column";
 import { EASE_OUT } from "@/lib/motion";
 import type { SubtaskRow } from "@/lib/subtask-tree";
+import type { SortConfig } from "@/lib/sort-tasks";
 import type { ProjectWithTasks } from "@/types/project";
 import TaskRow from "./task-row";
 
@@ -35,6 +37,8 @@ type ListColumnSectionProps = {
   onToggleTaskExpanded: (rowId: string) => void;
   relationsLoading: boolean;
   draggingTaskId: string | null;
+  sort?: SortConfig;
+  onSortChange?: (sort: SortConfig) => void;
 };
 
 const ListColumnSection = memo(function ListColumnSection({
@@ -50,6 +54,8 @@ const ListColumnSection = memo(function ListColumnSection({
   onToggleTaskExpanded,
   relationsLoading,
   draggingTaskId,
+  sort,
+  onSortChange,
 }: ListColumnSectionProps) {
   const { t } = useTranslation();
   const [animateExpand, setAnimateExpand] = useState(false);
@@ -137,6 +143,12 @@ const ListColumnSection = memo(function ListColumnSection({
               "transition-[translate,opacity] duration-150 ease-out starting:-translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0",
           )}
         >
+          {column.id === "to-do" &&
+            column.tasks.length > 0 &&
+            sort &&
+            onSortChange && (
+              <WaitColumnsHeader sort={sort} onSortChange={onSortChange} />
+            )}
           {/* Only the top-level rows are sortable; the nested repeats share
               their task id with one of them. */}
           <SortableContext

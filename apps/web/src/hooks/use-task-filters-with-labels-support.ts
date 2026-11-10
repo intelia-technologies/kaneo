@@ -37,7 +37,7 @@ const FILTER_KEYS: Array<keyof BoardFilters> = [
   "dueDate",
   "labels",
   "automation",
-  "readiness",
+  "waitReason",
   "customFields",
   "negated",
 ];

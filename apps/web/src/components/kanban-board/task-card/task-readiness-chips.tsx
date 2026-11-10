@@ -1,6 +1,8 @@
 import { Ban, Hourglass, Rocket } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { taskChipClass } from "@/components/task-chips/task-chip-class";
+import { WaitChip } from "@/intelia/wait/components/wait-chip";
+import { waitSummaryOf } from "@/intelia/wait/reasons";
 import { cn } from "@/lib/cn";
 import type Task from "@/types/task";
 
@@ -19,6 +21,8 @@ export function TaskReadinessChips({
   completed: boolean;
 }) {
   const { t } = useTranslation();
+  // Design 55 §3.2: in To do the wait chip replaces the one below.
+  const waitSummary = waitSummaryOf(task);
   const summary = task.blockersSummary;
   const cancelled = summary?.hasCancelledBlocker;
   const tickets =
@@ -62,7 +66,8 @@ export function TaskReadinessChips({
           ? typeLabels[task.type]
           : t("tasks:readiness.noType", { defaultValue: "sin tipo" })}
       </span>
-      {!completed && label && (
+      {!completed && waitSummary && <WaitChip summary={waitSummary} />}
+      {!completed && !waitSummary && label && (
         <span
           className={cn(
             taskChipClass,

@@ -30,6 +30,8 @@ export function SortOrderControl({
     dueDate: t("tasks:sort.fields.dueDate"),
     title: t("tasks:sort.fields.title"),
     number: t("tasks:sort.fields.number"),
+    wait: t("tasks:readiness.waitColumn", { defaultValue: "Espera" }),
+    root: t("tasks:readiness.rootColumn", { defaultValue: "Raíz" }),
   };
   const directionLabel =
     sort.direction === "asc"

@@ -16,6 +16,7 @@ import {
   it,
   vi,
 } from "vite-plus/test";
+import { waitingOnPerson } from "@/intelia/wait/sample.test-data";
 import type Task from "@/types/task";
 import useBulkSelectionStore from "@/store/bulk-selection";
 import BacklogTaskRow from "../backlog-list-view/backlog-task-row";
@@ -358,6 +359,33 @@ describe("TaskRow", () => {
     ).toHaveTextContent("2/5");
     expect(useExternalLinks).not.toHaveBeenCalled();
     expect(useGetLabelsByTask).not.toHaveBeenCalled();
+  });
+
+  it("shows the «Espera» and «Raíz» columns only in To do (design 55 §3.2)", () => {
+    const { container, unmount } = render(
+      <TaskRow
+        task={{ ...task, blockersSummary: waitingOnPerson }}
+        projectSlug="kan"
+      />,
+    );
+    const chip = container.querySelector("[data-wait-reason]");
+    expect(chip).toHaveAttribute("data-wait-reason", "person");
+    expect(chip).toHaveClass("bg-red-100");
+    expect(screen.getByText("KF-4")).toBeVisible();
+    unmount();
+
+    const other = render(
+      <TaskRow
+        task={{
+          ...task,
+          status: "in-progress",
+          blockersSummary: waitingOnPerson,
+        }}
+        projectSlug="kan"
+      />,
+    );
+    expect(other.container.querySelector("[data-wait-reason]")).toBeNull();
+    expect(screen.queryByText("KF-4")).not.toBeInTheDocument();
   });
 
   it("shows no subtask toggle when the task has no children", () => {

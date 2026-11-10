@@ -10,6 +10,7 @@ import {
   DUE_DATE_FILTER_VALUES,
 } from "@/hooks/use-task-filters";
 import { matchesAutomationFilter } from "@/intelia/automation/filter";
+import { waitSummaryOf } from "@/intelia/wait/reasons";
 import type Task from "@/types/task";
 import { customFieldSubjectId } from "./filter-subject-id";
 
@@ -75,12 +76,9 @@ export function taskMatchesFilters(
   context: TaskFilterContext,
 ) {
   if (!matchesQuery(task, context)) return false;
-  if (
-    filters.readiness?.length &&
-    (task.status !== "to-do" || !task.blockersSummary)
-  ) {
-    return false;
-  }
+  // Design 55 §3.2: the wait reason only exists in To do.
+  const waitSummary = waitSummaryOf(task);
+  if (filters.waitReason?.length && !waitSummary) return false;
 
   const negated = new Set(filters.negated ?? []);
   const passes = (subject: string, matches: boolean) =>
@@ -92,18 +90,11 @@ export function taskMatchesFilters(
       () => filters.status?.includes(task.status) ?? false,
     ],
     [
-      "readiness",
-      filters.readiness,
-      () => {
-        if (task.status !== "to-do" || !task.blockersSummary) return false;
-        const waiting =
-          task.blockersSummary.pendingCount > 0 ||
-          task.blockersSummary.hasCancelledBlocker ||
-          task.blockersSummary.waitingRelease;
-        return (
-          filters.readiness?.includes(waiting ? "waiting" : "ready") ?? false
-        );
-      },
+      "waitReason",
+      filters.waitReason,
+      () =>
+        !!waitSummary &&
+        (filters.waitReason?.includes(waitSummary.reason) ?? false),
     ],
     [
       "priority",
