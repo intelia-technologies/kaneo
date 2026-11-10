@@ -43,6 +43,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+# Throwaway data: no durability, so the tests don't flush the shared disk.
 docker run -d --name "$container" \
   --label "sf.test.invocacion=${id}" \
   --label "sf.test.modo=run" \
@@ -53,7 +54,8 @@ docker run -d --name "$container" \
   -e POSTGRES_PASSWORD="$password" \
   -e POSTGRES_DB="$database" \
   -p 127.0.0.1::5432 \
-  "$image" >/dev/null
+  "$image" \
+  -c fsync=off -c synchronous_commit=off -c full_page_writes=off >/dev/null
 
 # The image's init phase listens on the Unix socket only; TCP answers once the
 # final server is up.
