@@ -4,11 +4,8 @@ import { createId } from "@paralleldrive/cuid2";
 import { sql } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import db, { schema } from "../../../apps/api/src/database";
-import {
-  drainEventHandlers,
-  publishEvent,
-  subscribeToEvent,
-} from "../../../apps/api/src/events";
+import { publishEvent, subscribeToEvent } from "../../../apps/api/src/events";
+import { drainEventHandlers } from "../../../apps/api/src/events/in-flight-handlers";
 // Registers the real workspace.created → createNotification handler.
 import "../../../apps/api/src/notification";
 import { resetTestDatabase } from "./database";

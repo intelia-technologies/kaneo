@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client } from "pg";
 import db from "../../../apps/api/src/database";
-import { drainEventHandlers } from "../../../apps/api/src/events";
+import { drainEventHandlers } from "../../../apps/api/src/events/in-flight-handlers";
 import { migrateInteliaSchema } from "../../../apps/api/src/intelia/migrate";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));

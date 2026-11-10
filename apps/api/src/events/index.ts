@@ -1,13 +1,10 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { EventEmitter } from "node:events";
+import { trackEventHandler } from "./in-flight-handlers";
 
 const EVENTS = new EventEmitter();
 EVENTS.setMaxListeners(100);
 export const eventContext = new AsyncLocalStorage<{ initiatorId: string }>();
-
-// Handler runs started by publishEvent and not yet settled. publishEvent stays
-// fire-and-forget; this only lets a caller wait for that work to finish.
-const inFlightHandlers = new Set<Promise<void>>();
 
 export type EventPayload<T = unknown> = {
   type: string;
@@ -56,33 +53,20 @@ export async function subscribeToEvent<T>(
   handler: (data: T) => Promise<void>,
 ): Promise<void> {
   try {
-    EVENTS.on(eventType, (payload: EventPayload<T>) => {
-      const run = (async () => {
-        try {
-          await handler(payload.data);
-        } catch (error) {
-          console.error(`Error processing event ${eventType}:`, error);
-        }
-      })();
-      inFlightHandlers.add(run);
-      void run.finally(() => inFlightHandlers.delete(run));
-      return run;
-    });
+    EVENTS.on(eventType, (payload: EventPayload<T>) =>
+      trackEventHandler(
+        (async () => {
+          try {
+            await handler(payload.data);
+          } catch (error) {
+            console.error(`Error processing event ${eventType}:`, error);
+          }
+        })(),
+      ),
+    );
   } catch (error) {
     console.error("Failed to subscribe to event:", error);
     throw error;
-  }
-}
-
-/**
- * Resolves once no event handler is running, including handlers started by
- * events that other handlers publish while this waits. The integration tests
- * call it before resetting the database so a previous test's handler cannot
- * write during or after the TRUNCATE.
- */
-export async function drainEventHandlers(): Promise<void> {
-  while (inFlightHandlers.size > 0) {
-    await Promise.all(inFlightHandlers);
   }
 }
 

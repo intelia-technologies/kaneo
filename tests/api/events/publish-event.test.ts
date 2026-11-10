@@ -1,7 +1,7 @@
 import { setImmediate } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { drainEventHandlers } from "../../../apps/api/src/events/in-flight-handlers";
 import {
-  drainEventHandlers,
   eventContext,
   publishEvent,
   shutdownEventBus,
