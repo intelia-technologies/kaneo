@@ -16,7 +16,11 @@ import {
   it,
   vi,
 } from "vite-plus/test";
-import { waitingOnPerson } from "@/intelia/wait/sample.test-data";
+import {
+  readyWaitingRelease,
+  summaryByReason,
+  waitingOnPerson,
+} from "@/intelia/wait/sample.test-data";
 import type Task from "@/types/task";
 import useBulkSelectionStore from "@/store/bulk-selection";
 import BacklogTaskRow from "../backlog-list-view/backlog-task-row";
@@ -386,6 +390,37 @@ describe("TaskRow", () => {
     );
     expect(other.container.querySelector("[data-wait-reason]")).toBeNull();
     expect(screen.queryByText("KF-4")).not.toBeInTheDocument();
+  });
+
+  it("says a validation in To do waits for its release instead of being ready", () => {
+    const { container, unmount } = render(
+      <TaskRow
+        task={{
+          ...task,
+          type: "validacion",
+          blockersSummary: readyWaitingRelease,
+        }}
+        projectSlug="kan"
+      />,
+    );
+    expect(container.querySelector("[data-wait-reason]")).toHaveTextContent(
+      "tasks:readiness.waitingRelease",
+    );
+    unmount();
+
+    const deployed = render(
+      <TaskRow
+        task={{
+          ...task,
+          type: "validacion",
+          blockersSummary: summaryByReason.ready,
+        }}
+        projectSlug="kan"
+      />,
+    );
+    expect(
+      deployed.container.querySelector("[data-wait-reason]"),
+    ).toHaveTextContent("tasks:readiness.reason.ready");
   });
 
   it("shows no subtask toggle when the task has no children", () => {

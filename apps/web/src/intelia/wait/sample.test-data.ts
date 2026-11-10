@@ -71,6 +71,14 @@ export const readyButPaused: BlockersSummary = {
   root: null,
 };
 
+/** A validation with no pending blocker whose release is not deployed. */
+export const readyWaitingRelease: BlockersSummary = {
+  ...readyButPaused,
+  waitingRelease: true,
+  notStartingReason: "waiting_release",
+  pauseReason: null,
+};
+
 const blocker = (
   ticket: string,
   state: BlockerItem["state"],

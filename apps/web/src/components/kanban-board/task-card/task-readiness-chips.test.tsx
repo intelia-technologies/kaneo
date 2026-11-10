@@ -4,6 +4,7 @@ import { I18nextProvider, initReactI18next } from "react-i18next";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
   readyButPaused,
+  readyWaitingRelease,
   summaryByReason,
   waitingOnPerson,
 } from "@/intelia/wait/sample.test-data";
@@ -95,6 +96,39 @@ describe("TaskReadinessChips in To do (design 55 §3.2)", () => {
       "Lista para empezar · pausada (movida_a_mano)",
     );
   });
+
+  it("says a validation waits for its release instead of being ready", () => {
+    const { container } = show({
+      status: "to-do",
+      type: "validacion",
+      blockersSummary: readyWaitingRelease,
+    });
+    expect(waitChip(container)?.textContent).toBe("Esperando release");
+    expect(screen.queryByText(/Lista para empezar/)).toBeNull();
+  });
+
+  it("keeps another reason not to start next to the release wait", () => {
+    const { container } = show({
+      status: "to-do",
+      type: "validacion",
+      blockersSummary: { ...readyWaitingRelease, notStartingReason: "no_role" },
+    });
+    expect(waitChip(container)?.textContent).toBe(
+      "Esperando release · sin rol asignado",
+    );
+  });
+
+  it.each(["validacion", "implementacion"] as const)(
+    "shows a %s with no release wait (deployed, or not a validation) as ready",
+    (type) => {
+      const { container } = show({
+        status: "to-do",
+        type,
+        blockersSummary: summaryByReason.ready,
+      });
+      expect(waitChip(container)?.textContent).toBe("Lista para empezar");
+    },
+  );
 
   it("hides the wait chip for completed tasks", () => {
     const { container } = show(
