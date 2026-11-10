@@ -228,8 +228,14 @@ describe("other routes that would write archived", () => {
     expect(await refused.json()).toMatchObject({ code: "TASK_NOT_CLOSED" });
     expect((await stored([open.id])).get(open.id)?.status).toBe("to-do");
 
-    // A task left in the old status can still be edited.
-    expect((await put(legacy, "Antigua")).status).toBe(200);
+    // A task left in the old status can still be edited: its other fields
+    // change and its status does not.
+    const edited = await put(legacy, "Antigua");
+    expect(edited.status).toBe(200);
+    expect(await edited.json()).toMatchObject({
+      title: "Antigua",
+      status: "archived",
+    });
     expect(await marked([open.id, legacy.id])).toEqual([]);
   });
 
