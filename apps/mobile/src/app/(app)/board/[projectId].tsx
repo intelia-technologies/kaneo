@@ -90,8 +90,11 @@ export default function BoardScreen() {
   const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const board = useQuery({
-    queryKey: qk.board(projectId),
-    queryFn: () => loadFullBoard(projectId),
+    // The archived tasks only when shown: the board API leaves them out.
+    queryKey: showArchived
+      ? qk.boardWithArchived(projectId)
+      : qk.board(projectId),
+    queryFn: () => loadFullBoard(projectId, showArchived),
   });
   const members = useMembers(workspaceId, projectId);
   const labels = useWorkspaceLabels(workspaceId);

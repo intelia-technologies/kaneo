@@ -1,4 +1,5 @@
 import { initiativeOnCreateInput } from "../intelia/initiatives/schema";
+import { ARCHIVED_SCOPES } from "../intelia/task-archive/schema";
 import { automationInput } from "../intelia/task-automation/schema";
 import { pagingNumber, z } from "../openapi";
 import { MAX_TASK_POSITION } from "./controllers/next-task-position";
@@ -92,6 +93,10 @@ export const listTasksQuery = z.object({
   sortOrder: z.enum(["asc", "desc"]).optional(),
   dueBefore: z.string().optional(),
   dueAfter: z.string().optional(),
+  archived: z.enum(ARCHIVED_SCOPES).optional().openapi({
+    description:
+      "Tasks with the archive mark (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just the archived ones, those with the mark and those in upstream's virtual `archived` status. Archived tasks come in `archivedTasks`, the marked ones with `archivedAt`.",
+  }),
 });
 
 export const bulkUpdateBody = z.object({

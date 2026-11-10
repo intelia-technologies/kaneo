@@ -42,7 +42,9 @@ export function patchBoardTask(
   const archivedTasks = board.archivedTasks.filter(
     (task) => task.id !== taskId,
   );
-  if (task) {
+  // Intelia: the board leaves tasks with the archive mark out (design 53
+  // §3.2); a marked task's refresh just takes it off.
+  if (task && !task.archivedAt) {
     const target =
       task.status === "planned"
         ? plannedTasks

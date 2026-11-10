@@ -1,5 +1,6 @@
 import { boundedTaskRead } from "../bounded-read";
 import { taskClassificationTable } from "../../intelia/schema";
+import { taskArchivedAt } from "../../intelia/task-archive/board";
 import { alias } from "drizzle-orm/pg-core";
 import { boardDescription, descriptionDeferred } from "../description-pages";
 import { getSubtaskCounts } from "../get-subtask-counts";
@@ -30,6 +31,7 @@ async function getTask(taskId: string, board = false, userId?: string) {
           }
         : {}),
       status: taskTable.status,
+      archivedAt: taskArchivedAt,
       columnId: taskTable.columnId,
       priority: taskTable.priority,
       startDate: taskTable.startDate,

@@ -45,6 +45,8 @@ type Task = {
   type?: "implementacion" | "validacion" | "operacion" | "diseno" | null;
   validationInProduction?: "requerida" | "no_aplica" | null;
   validationInProductionReason?: string | null;
+  // Intelia (design 53 §3.2): archived, apart from the status.
+  archivedAt?: string | null;
   blockersSummary?: {
     pendingCount: number;
     hasCancelledBlocker: boolean;

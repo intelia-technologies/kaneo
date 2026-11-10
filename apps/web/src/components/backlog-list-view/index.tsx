@@ -14,7 +14,7 @@ import {
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { produce } from "immer";
 import { Archive, Clock, Flag } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { priorityColorsTaskCard } from "@/constants/priority-colors";
@@ -32,11 +32,17 @@ import BacklogSection from "./backlog-section";
 type BacklogListViewProps = {
   project?: ProjectWithTasks;
   disableDragDrop?: boolean;
+  // Intelia: the archived tasks load only while their section is open, and
+  // the section shows their loading or error state (design 53 §3.2).
+  onArchivedExpandedChange?: (expanded: boolean) => void;
+  archivedNotice?: ReactNode;
 };
 
 function BacklogListView({
   project,
   disableDragDrop = false,
+  onArchivedExpandedChange,
+  archivedNotice,
 }: BacklogListViewProps) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
@@ -76,6 +82,11 @@ function BacklogListView({
     clearFocus();
   }, [clearFocus]);
 
+  const archivedExpanded = isExpanded("archived");
+  useEffect(() => {
+    onArchivedExpandedChange?.(archivedExpanded);
+  }, [archivedExpanded, onArchivedExpandedChange]);
+
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: { distance: disableDragDrop ? 999999 : 8 },
@@ -99,22 +110,18 @@ function BacklogListView({
       return;
     }
 
-    if (over.id === "planned" || over.id === "archived") {
-      setOverColumnId(over.id.toString());
+    // Intelia: the archived section takes no drops (see moveTask).
+    if (over.id === "planned") {
+      setOverColumnId("planned");
       return;
     }
 
     const taskId = over.id.toString();
     const plannedTasks = project?.plannedTasks || [];
-    const archivedTasks = project?.archivedTasks || [];
 
-    if (plannedTasks.some((task) => task.id === taskId)) {
-      setOverColumnId("planned");
-    } else if (archivedTasks.some((task) => task.id === taskId)) {
-      setOverColumnId("archived");
-    } else {
-      setOverColumnId(null);
-    }
+    setOverColumnId(
+      plannedTasks.some((task) => task.id === taskId) ? "planned" : null,
+    );
   };
 
   const moveTask = (activeTaskId: string, overId: string) => {
@@ -138,6 +145,10 @@ function BacklogListView({
         return;
       }
     }
+
+    // Intelia: archiving is a mark on closed tasks (design 53 §3.2), not a
+    // status; nothing is archived, or reordered among the archived, by drag.
+    if (targetSection === "archived") return;
 
     const updatedProject = produce(project, (draft) => {
       const sourceSection =
@@ -308,6 +319,7 @@ function BacklogListView({
             icon={Archive}
             tasks={archivedTasks}
             isExpanded={isExpanded("archived")}
+            notice={archivedNotice}
             showDropIndicator={activeId !== null && overColumnId === "archived"}
             onToggle={toggleSection}
           />

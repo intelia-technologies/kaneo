@@ -11,6 +11,7 @@ import {
 import { canAccessProject } from "../../project-access/can-access-project";
 import { projectAccessCondition } from "../../project-access/project-access-condition";
 import { escapeLikePattern } from "../like-pattern";
+import { taskArchivedAt } from "../../intelia/task-archive/board";
 import { aliasedTaskIds } from "../../intelia/task-move/service";
 import { TASK_SHORT_ID_PATTERN } from "../task-short-id";
 
@@ -48,6 +49,7 @@ type SearchResult = {
   projectSlug?: string;
   priority?: string;
   status?: string;
+  archivedAt?: Date | null;
 };
 
 function toDisplayCase(value: string) {
@@ -193,6 +195,7 @@ async function globalSearch(params: SearchParams): Promise<{
           taskNumber: taskTable.number,
           priority: taskTable.priority,
           status: taskTable.status,
+          archivedAt: taskArchivedAt,
         })
         .from(taskTable)
         .leftJoin(projectTable, eq(taskTable.projectId, projectTable.id))
@@ -240,6 +243,7 @@ async function globalSearch(params: SearchParams): Promise<{
           taskNumber: task.taskNumber || undefined,
           priority: task.priority || undefined,
           status: task.status,
+          archivedAt: task.archivedAt,
         });
       }
     }
@@ -269,6 +273,7 @@ async function globalSearch(params: SearchParams): Promise<{
         taskNumber: taskTable.number,
         priority: taskTable.priority,
         status: taskTable.status,
+        archivedAt: taskArchivedAt,
         relevanceScore: taskRelevanceScore.as("relevanceScore"),
       })
       .from(taskTable)
@@ -309,6 +314,7 @@ async function globalSearch(params: SearchParams): Promise<{
         taskNumber: task.taskNumber || undefined,
         priority: task.priority || undefined,
         status: task.status,
+        archivedAt: task.archivedAt,
       });
     }
   }

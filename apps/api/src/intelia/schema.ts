@@ -758,3 +758,56 @@ export const priorityWebhookTable = inteliaSchema.table(
     ),
   ],
 );
+
+// Archived tasks (design 53 §3.2, KF-4): a mark apart from the status. The task
+// stays in its done or cancelled column, so dependencies, initiatives and the
+// critical path keep reading `task.status`; only the board and the listings
+// leave it out unless asked.
+export const taskArchiveTable = inteliaSchema.table("task_archive", {
+  taskId: text("task_id")
+    .primaryKey()
+    .references(() => taskTable.id, {
+      onDelete: "cascade",
+      onUpdate: "cascade",
+    }),
+  archivedAt: timestamp("archived_at", { mode: "date" })
+    .default(utcNow)
+    .notNull(),
+  archivedByUserId: text("archived_by_user_id").references(() => userTable.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+});
+
+// The report of migration 0016: tasks left in upstream's virtual `archived`
+// status because their history does not say which closed column they came
+// from. To be reviewed by hand.
+export const taskArchiveMigrationSkipTable = inteliaSchema.table(
+  "task_archive_migration_skip",
+  {
+    taskId: text("task_id")
+      .primaryKey()
+      .references(() => taskTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    reason: text("reason")
+      .$type<"no_history" | "not_a_closed_column">()
+      .notNull(),
+    oldStatus: text("old_status"),
+    recordedAt: timestamp("recorded_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+  },
+);
+
+// One row written by migration 0016: how many tasks went back to each closed
+// status (`{ "done": n, "cancelled": m }`) and how many were skipped.
+export const taskArchiveMigrationReportTable = inteliaSchema.table(
+  "task_archive_migration_report",
+  {
+    ranAt: timestamp("ran_at", { mode: "date" }).default(utcNow).notNull(),
+    restored: jsonb("restored").$type<Record<string, number>>().notNull(),
+    skipped: integer("skipped").notNull(),
+  },
+);

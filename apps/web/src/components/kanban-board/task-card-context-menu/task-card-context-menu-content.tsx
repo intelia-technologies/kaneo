@@ -20,6 +20,7 @@ import {
   ContextMenuSubContent,
   ContextMenuSubTrigger,
 } from "@/components/ui/context-menu";
+import { useArchiveTasks } from "@/intelia/archive/use-archive-tasks";
 import { useDuplicateWithAutomation } from "@/intelia/automation/use-duplicate-with-automation";
 import { useUpdateTask } from "@/hooks/mutations/task/use-update-task";
 import { useUpdateTaskAssignee } from "@/hooks/mutations/task/use-update-task-assignee";
@@ -89,6 +90,11 @@ export default function TaskCardContextMenuContent({
   const { mutateAsync: updateTaskTitle } = useUpdateTaskTitle();
   const { mutateAsync: updateTaskDescription } = useUpdateTaskDescription();
   const duplicateTask = useDuplicateWithAutomation();
+  const { mutate: archiveTasks } = useArchiveTasks();
+  // Intelia: only a closed task can be archived, and it stays closed.
+  const isClosed = columns.some(
+    (column) => column.slug === task.status && column.isFinal,
+  );
   const { canCreateTasks, canUpdateTasks, canDeleteTasks, canAssignTasks } =
     useWorkspacePermission();
   const canCreate = canCreateTasks();
@@ -296,13 +302,20 @@ export default function TaskCardContextMenuContent({
 
               {canEdit && (
                 <>
-                  <ContextMenuItem
-                    className="[&>svg]:mx-0"
-                    onClick={() => handleChange("status", "archived")}
-                  >
-                    <Archive className="size-3.5 text-muted-foreground" />
-                    <span>{t("tasks:actions.archive")}</span>
-                  </ContextMenuItem>
+                  {isClosed && (
+                    <ContextMenuItem
+                      className="[&>svg]:mx-0"
+                      onClick={() =>
+                        archiveTasks([task.id], {
+                          onError: () =>
+                            toast.error(t("tasks:bulk.archiveError")),
+                        })
+                      }
+                    >
+                      <Archive className="size-3.5 text-muted-foreground" />
+                      <span>{t("tasks:actions.archive")}</span>
+                    </ContextMenuItem>
+                  )}
                   {task.status !== "planned" && (
                     <ContextMenuItem
                       className="[&>svg]:mx-0"

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { archiveTasks } from "@/intelia/archive/archive-tasks";
 import { invalidateMyWork } from "@/lib/invalidate-my-work";
 import bulkOperation from "@/fetchers/task/bulk-operation";
 import deleteTask from "@/fetchers/task/delete-task";
@@ -23,15 +24,10 @@ export function useBulkOperations() {
     },
   });
 
+  // Intelia: archiving is a mark apart from the status (design 53 §3.2).
   const bulkArchive = useMutation({
-    mutationFn: async (taskIds: string[]) => {
-      await bulkOperation({
-        taskIds,
-        operation: "updateStatus",
-        value: "archived",
-      });
-    },
-    onSuccess: invalidateCommon,
+    mutationFn: archiveTasks,
+    onSettled: invalidateCommon,
   });
 
   const bulkChangeStatus = useMutation({

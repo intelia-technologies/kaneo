@@ -216,6 +216,14 @@
           "status": {
             "type": "string"
           },
+          "archivedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the task was archived (Intelia fork, design 53 §3.2), or null. Archiving does not change the status."
+          },
           "type": {
             "type": [
               "string",
@@ -385,6 +393,7 @@
           "number",
           "description",
           "status",
+          "archivedAt",
           "type",
           "blockersSummary",
           "priority",
@@ -1498,6 +1507,14 @@
                   "null"
                 ]
               },
+              "archivedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time",
+                "description": "When the task was archived (Intelia fork, design 53 §3.2), or null. Archiving does not change the status."
+              },
               "workspaceId": {
                 "type": "string",
                 "description": "The workspace currently owning the task's project. Included in the detail view; omitted from the compact board view."
@@ -1563,6 +1580,7 @@
               "type",
               "validationInProduction",
               "validationInProductionReason",
+              "archivedAt",
               "columnId",
               "assigneeName",
               "assigneeId"
@@ -2553,6 +2571,14 @@
           },
           "status": {
             "type": "string"
+          },
+          "archivedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Task results only: when the task was archived, or null (Intelia fork). The search finds archived tasks too."
           }
         },
         "required": [
@@ -9355,6 +9381,60 @@
           "casos"
         ]
       },
+      "ArchiveTasksResult": {
+        "type": "object",
+        "properties": {
+          "archivedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tasks this call archived; those already archived are not counted."
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taskId": {
+                  "type": "string"
+                },
+                "archivedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "When the task was archived: the first archive, kept on later calls."
+                }
+              },
+              "required": [
+                "taskId",
+                "archivedAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "archivedCount",
+          "tasks"
+        ]
+      },
+      "UnarchiveTasksResult": {
+        "type": "object",
+        "properties": {
+          "unarchivedCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tasks this call unarchived; those not archived are not counted."
+          },
+          "taskIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "unarchivedCount",
+          "taskIds"
+        ]
+      },
       "TaskAutomation": {
         "type": "object",
         "properties": {
@@ -10245,6 +10325,21 @@
             },
             "required": false,
             "name": "dueAfter",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "exclude",
+                "include",
+                "only"
+              ],
+              "description": "Tasks with the archive mark (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just the archived ones, those with the mark and those in upstream's virtual `archived` status. Archived tasks come in `archivedTasks`, the marked ones with `archivedAt`."
+            },
+            "required": false,
+            "description": "Tasks with the archive mark (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just the archived ones, those with the mark and those in upstream's virtual `archived` status. Archived tasks come in `archivedTasks`, the marked ones with `archivedAt`.",
+            "name": "archived",
             "in": "query"
           }
         ],
@@ -15338,6 +15433,21 @@
             },
             "required": false,
             "name": "dueAfter",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "exclude",
+                "include",
+                "only"
+              ],
+              "description": "Tasks with the archive mark (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just the archived ones, those with the mark and those in upstream's virtual `archived` status. Archived tasks come in `archivedTasks`, the marked ones with `archivedAt`."
+            },
+            "required": false,
+            "description": "Tasks with the archive mark (Intelia fork, design 53 §3.2): `exclude` (default) leaves them out, `include` adds them and `only` returns just the archived ones, those with the mark and those in upstream's virtual `archived` status. Archived tasks come in `archivedTasks`, the marked ones with `archivedAt`.",
+            "name": "archived",
             "in": "query"
           }
         ],
@@ -36678,6 +36788,196 @@
           },
           "404": {
             "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/tasks/archive": {
+      "post": {
+        "operationId": "archiveTasks",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Archive closed tasks in bulk",
+        "description": "Marks up to 100 tasks of one workspace as archived, in one transaction (Intelia fork, design 53 §3.2). Archiving is a mark apart from the status: the task stays in its done or cancelled column, so dependencies, initiatives and the critical path count it as before. The board and the listings leave archived tasks out unless asked (`archived` on the board); the task detail and the search still return them, with `archivedAt`. Idempotent: an archived task keeps its first `archivedAt`. Only tasks in a final column can be archived: any other fails the whole call with 409 `TASK_NOT_CLOSED`. A task that leaves its final column later loses the mark.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taskIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "description": "From 1 to 100 task ids, all of one workspace. Repeated ids count once."
+                  }
+                },
+                "required": [
+                  "taskIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The archived tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveTasksResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body (from 1 to 100 ids), or the tasks span more than one workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to a project, or missing task:update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Some of the tasks were not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A task is not in a final column (`TASK_NOT_CLOSED`); nothing was archived",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/tasks/unarchive": {
+      "post": {
+        "operationId": "unarchiveTasks",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Unarchive tasks in bulk",
+        "description": "Removes the archive mark from up to 100 tasks of one workspace (Intelia fork). Their status does not change. Tasks without the mark are left alone.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "taskIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "description": "From 1 to 100 task ids, all of one workspace. Repeated ids count once."
+                  }
+                },
+                "required": [
+                  "taskIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The unarchived tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnarchiveTasksResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body (from 1 to 100 ids), or the tasks span more than one workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to a project, or missing task:update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Some of the tasks were not found",
             "content": {
               "application/json": {
                 "schema": {

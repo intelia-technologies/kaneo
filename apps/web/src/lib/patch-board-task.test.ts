@@ -36,6 +36,15 @@ function board() {
 }
 
 describe("bounded board cache updates", () => {
+  it("takes a task with the archive mark off the board, which leaves them out", () => {
+    const patched = patchBoardTask(board(), "a", {
+      projectId: "p",
+      status: "done",
+      archivedAt: "2026-11-09T19:53:00.000Z",
+    });
+    expect(patched?.columns.flatMap((column) => column.tasks)).toEqual([]);
+    expect(patched?.archivedTasks).toEqual([]);
+  });
   it("preserves metadata and the assignee when updating a single field", () => {
     const client = new QueryClient();
     client.setQueryData(["tasks", "p"], board());

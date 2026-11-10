@@ -50,4 +50,14 @@ UNION ALL
 SELECT 'task_request.task_id', count(*),
 	count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM public.task t WHERE t.id = o.task_id)),
 	EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'task_request_task_id_task_id_fk')
-FROM intelia.task_request o;
+FROM intelia.task_request o
+UNION ALL
+SELECT 'task_archive.task_id', count(*),
+	count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM public.task t WHERE t.id = o.task_id)),
+	EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'task_archive_task_id_task_id_fk')
+FROM intelia.task_archive o
+UNION ALL
+SELECT 'task_archive_migration_skip.task_id', count(*),
+	count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM public.task t WHERE t.id = o.task_id)),
+	EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'task_archive_migration_skip_task_id_task_id_fk')
+FROM intelia.task_archive_migration_skip o;

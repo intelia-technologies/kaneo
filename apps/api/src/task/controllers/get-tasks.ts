@@ -33,6 +33,11 @@ import {
 } from "../description-pages";
 import { taskIsCompleted } from "../task-is-completed";
 import { getSubtaskCounts } from "../get-subtask-counts";
+import {
+  archivedScopeCondition,
+  taskArchivedAt,
+} from "../../intelia/task-archive/board";
+import type { ArchivedScope } from "../../intelia/task-archive/schema";
 
 export type GetTasksOptions = {
   publicOnly?: boolean;
@@ -52,6 +57,7 @@ export type GetTasksOptions = {
     | "number";
   sortOrder?: "asc" | "desc";
   status?: string;
+  archived?: ArchivedScope;
 };
 
 const priorityCaseExpr = sql<number>`CASE
@@ -125,6 +131,9 @@ async function getTasksPage(
     conditions.push(eq(taskTable.status, options.status));
   }
 
+  const archived = archivedScopeCondition(options.archived);
+  if (archived) conditions.push(archived);
+
   if (options.priority) {
     conditions.push(eq(taskTable.priority, options.priority));
   }
@@ -162,6 +171,7 @@ async function getTasksPage(
         taskTable.id,
         sortValue(options.sortBy),
         taskTable.status,
+        taskArchivedAt,
         // Row versions detect content edits without hashing large descriptions.
         sql`${taskTable}.xmin::text`,
         userTable.name,
@@ -192,6 +202,7 @@ async function getTasksPage(
     description: boardDescription,
     descriptionDeferred,
     status: taskTable.status,
+    archivedAt: taskArchivedAt,
     type: sql<
       "implementacion" | "validacion" | "operacion" | "diseno" | null
     >`(select type from intelia.task_classification where task_id = ${taskTable.id})`,
@@ -538,7 +549,7 @@ async function getTasksPage(
     icon: column.icon,
     isFinal: column.isFinal,
     tasks: paginatedTasks
-      .filter((task) => task.status === column.slug)
+      .filter((task) => task.status === column.slug && !task.archivedAt)
       .map((task) => ({
         ...task,
         blockersSummary: summaries.get(task.id)!,
@@ -549,7 +560,7 @@ async function getTasksPage(
   }));
 
   const archivedTasks = paginatedTasks
-    .filter((task) => task.status === "archived")
+    .filter((task) => task.status === "archived" || task.archivedAt)
     .map((task) => ({
       ...task,
       blockersSummary: summaries.get(task.id)!,
