@@ -93,6 +93,10 @@ it("restores archived tasks to their closed column with the mark, and lists the 
     (entry) => entry.tag === ARCHIVE_TAG,
   );
   expect(archiveIndex).toBeGreaterThan(0);
+  // The upgrade from the fork's current main: everything up to its latest
+  // migration (0015_priority) is the deployed schema. Drizzle only applies an
+  // entry whose `when` is later than the last applied one.
+  expect(journal.entries[archiveIndex - 1]!.tag).toBe("0015_priority");
   expect(journal.entries[archiveIndex]!.when).toBeGreaterThan(
     journal.entries[archiveIndex - 1]!.when,
   );

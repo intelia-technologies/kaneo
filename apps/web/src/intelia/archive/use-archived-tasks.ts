@@ -7,10 +7,12 @@ import { getArchivedTasks } from "./get-archived-tasks";
 export const archivedTasksKey = (projectId: string) =>
   ["tasks", projectId, "intelia-archived"] as const;
 
-export function useArchivedTasks(projectId: string) {
+// Only while the archived section is open: loading the backlog must not page
+// through every archived task (design 53 §3.2 keeps the board fast).
+export function useArchivedTasks(projectId: string, enabled: boolean) {
   return useQuery({
     queryKey: archivedTasksKey(projectId),
     queryFn: ({ signal }) => getArchivedTasks(projectId, signal),
-    enabled: !!projectId,
+    enabled: !!projectId && enabled,
   });
 }

@@ -1,7 +1,13 @@
 import type { ReactNode } from "react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, render } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 import { ShortcutTestWrapper } from "@/lib/shortcuts/shortcut-test-wrapper";
 import type { ProjectWithTasks } from "@/types/project";
@@ -99,4 +105,40 @@ it("takes no drop in the archived section and never touches the archived tasks",
   expect(m.updateTask).not.toHaveBeenCalledWith(
     expect.objectContaining({ status: "archived" }),
   );
+});
+
+it("reports whether the archived section is open and shows its notice instead of an empty list", () => {
+  const project = {
+    id: "p-notice",
+    columns: [],
+    plannedTasks: [],
+    archivedTasks: [],
+  } as unknown as ProjectWithTasks;
+  const onArchivedExpandedChange = vi.fn();
+  const queryClient = new QueryClient();
+  render(
+    <BacklogListView
+      project={project}
+      onArchivedExpandedChange={onArchivedExpandedChange}
+      archivedNotice={<p role="alert">load failed</p>}
+    />,
+    {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>
+          <ShortcutTestWrapper>{children}</ShortcutTestWrapper>
+        </QueryClientProvider>
+      ),
+    },
+  );
+  expect(onArchivedExpandedChange).toHaveBeenLastCalledWith(true);
+  expect(screen.getByRole("alert").textContent).toBe("load failed");
+  expect(screen.queryAllByText("tasks:backlog.noTasksInSection")).toHaveLength(
+    1,
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: /tasks:backlog.sections.archived/ }),
+  );
+  expect(onArchivedExpandedChange).toHaveBeenLastCalledWith(false);
+  expect(screen.queryByRole("alert")).toBeNull();
 });

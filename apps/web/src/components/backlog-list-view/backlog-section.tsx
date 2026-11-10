@@ -5,7 +5,7 @@ import {
 } from "@dnd-kit/sortable";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, type Clock, Plus } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { EASE_OUT } from "@/lib/motion";
@@ -21,6 +21,7 @@ const BacklogSection = memo(function BacklogSection({
   showDropIndicator,
   onToggle,
   onAddTask,
+  notice,
 }: {
   sectionId: string;
   title: string;
@@ -30,6 +31,8 @@ const BacklogSection = memo(function BacklogSection({
   showDropIndicator: boolean;
   onToggle: (sectionId: string) => void;
   onAddTask?: () => void;
+  // Intelia: shown instead of the rows, e.g. while archived tasks load or fail.
+  notice?: ReactNode;
 }) {
   const { t } = useTranslation();
   const [animateExpand, setAnimateExpand] = useState(false);
@@ -94,7 +97,8 @@ const BacklogSection = memo(function BacklogSection({
         </div>
       </div>
 
-      {isExpanded && (
+      {isExpanded && notice}
+      {isExpanded && !notice && (
         <div
           ref={setNodeRef}
           className={cn(

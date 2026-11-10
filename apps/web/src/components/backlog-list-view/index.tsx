@@ -14,7 +14,7 @@ import {
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import { produce } from "immer";
 import { Archive, Clock, Flag } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { priorityColorsTaskCard } from "@/constants/priority-colors";
@@ -32,11 +32,17 @@ import BacklogSection from "./backlog-section";
 type BacklogListViewProps = {
   project?: ProjectWithTasks;
   disableDragDrop?: boolean;
+  // Intelia: the archived tasks load only while their section is open, and
+  // the section shows their loading or error state (design 53 §3.2).
+  onArchivedExpandedChange?: (expanded: boolean) => void;
+  archivedNotice?: ReactNode;
 };
 
 function BacklogListView({
   project,
   disableDragDrop = false,
+  onArchivedExpandedChange,
+  archivedNotice,
 }: BacklogListViewProps) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
@@ -75,6 +81,11 @@ function BacklogListView({
   useEffect(() => {
     clearFocus();
   }, [clearFocus]);
+
+  const archivedExpanded = isExpanded("archived");
+  useEffect(() => {
+    onArchivedExpandedChange?.(archivedExpanded);
+  }, [archivedExpanded, onArchivedExpandedChange]);
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -308,6 +319,7 @@ function BacklogListView({
             icon={Archive}
             tasks={archivedTasks}
             isExpanded={isExpanded("archived")}
+            notice={archivedNotice}
             showDropIndicator={activeId !== null && overColumnId === "archived"}
             onToggle={toggleSection}
           />

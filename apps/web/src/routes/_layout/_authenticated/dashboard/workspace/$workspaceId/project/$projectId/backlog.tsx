@@ -18,6 +18,7 @@ import CreateTaskModal from "@/components/shared/modals/create-task-modal";
 import TaskDetailsSheet from "@/components/task/task-details-sheet";
 import { useUpdateTask } from "@/hooks/mutations/task/use-update-task";
 import { useGetTasks } from "@/hooks/queries/task/use-get-tasks";
+import { ArchivedTasksStatus } from "@/intelia/archive/components/archived-tasks-status";
 import { useArchivedTasks } from "@/intelia/archive/use-archived-tasks";
 import { useBoardSort } from "@/hooks/use-board-sort";
 import { sortTasks } from "@/lib/sort-tasks";
@@ -51,8 +52,10 @@ function RouteComponent() {
     refetch: retryBacklog,
   } = useGetTasks(projectId);
   // Intelia: the board leaves archived tasks out (design 53 §3.2); the
-  // archived section reads them on its own.
-  const { data: archivedTasks } = useArchivedTasks(projectId);
+  // archived section reads them on its own, only while it is open.
+  const [archivedOpen, setArchivedOpen] = useState(false);
+  const archived = useArchivedTasks(projectId, archivedOpen);
+  const archivedTasks = archived.data;
   const data = useMemo(
     () => boardData && { ...boardData, archivedTasks: archivedTasks ?? [] },
     [boardData, archivedTasks],
@@ -198,6 +201,15 @@ function RouteComponent() {
               key={projectId}
               project={sortedProject}
               disableDragDrop={sort.field !== "position"}
+              onArchivedExpandedChange={setArchivedOpen}
+              archivedNotice={
+                archived.data ? undefined : (
+                  <ArchivedTasksStatus
+                    isError={archived.isError}
+                    onRetry={() => void archived.refetch()}
+                  />
+                )
+              }
             />
           ) : backlogError ? (
             <BoardLoadError
