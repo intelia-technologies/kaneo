@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Client } from "pg";
 import db from "../../../apps/api/src/database";
+import { drainEventHandlers } from "../../../apps/api/src/events";
 import { migrateInteliaSchema } from "../../../apps/api/src/intelia/migrate";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -120,16 +121,23 @@ export async function resetTestDatabase() {
     `TRUNCATE TABLE ${formattedTableNames} RESTART IDENTITY CASCADE`,
   );
 
-  // Event handlers run fire-and-forget (publishEvent without waitForHandlers),
-  // so a previous test's write can still be in flight and lock tables in the
-  // opposite order. Postgres aborts one side with a deadlock; the TRUNCATE is
-  // rolled back whole, so retrying once the other side finishes is safe.
+  // publishEvent runs handlers fire-and-forget, so a previous test's handler
+  // can still be writing. Wait for it: otherwise it locks tables in the
+  // opposite order to the TRUNCATE (deadlock 40P01) or writes after it.
+  await drainEventHandlers();
+
+  // Safety net for fire-and-forget work outside publishEvent (for example
+  // `void deliverNotification()`): the TRUNCATE is rolled back whole on a
+  // deadlock, so retrying is safe. It warns so such a path stays visible.
   for (let attempt = 1; ; attempt++) {
     try {
       await db.execute(truncate);
       return;
     } catch (error) {
       if (attempt >= TRUNCATE_ATTEMPTS || !isDeadlock(error)) throw error;
+      console.warn(
+        `resetTestDatabase: TRUNCATE deadlocked with in-flight work (attempt ${attempt}), retrying`,
+      );
       await sleep(50 * attempt);
     }
   }
