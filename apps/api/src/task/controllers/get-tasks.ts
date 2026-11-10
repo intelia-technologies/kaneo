@@ -24,7 +24,7 @@ import {
   userTable,
 } from "../../database/schema";
 import { boundedTaskRead, type TaskReadDatabase } from "../bounded-read";
-import { projectAccessCondition } from "../../project-access/project-access-condition";
+import { readBlockersSummaries } from "../blockers-summary/read";
 import {
   boardDescription,
   boardProjectDescription,
@@ -248,75 +248,11 @@ async function getTasksPage(
     userId,
   );
 
-  // Fetch all incoming edges for this page together. Hidden projects contribute
-  // only an anonymous, conservatively pending edge, never their task status.
-  const blockerRows = taskIds.length
-    ? await db
-        .select({
-          taskId: taskRelationTable.targetTaskId,
-          visible: options.publicOnly
-            ? sql<boolean>`${projectTable.workspaceId} = ${project.workspaceId} and ${projectTable.isPublic} = true`
-            : userId
-              ? sql<boolean>`${projectTable.workspaceId} = ${project.workspaceId} and ${projectAccessCondition(userId, projectTable.id)}`
-              : sql<boolean>`false`,
-          id: taskTable.id,
-          number: taskTable.number,
-          status: taskTable.status,
-          slug: projectTable.slug,
-        })
-        .from(taskRelationTable)
-        .innerJoin(taskTable, eq(taskRelationTable.sourceTaskId, taskTable.id))
-        .innerJoin(projectTable, eq(taskTable.projectId, projectTable.id))
-        .where(
-          and(
-            inArray(taskRelationTable.targetTaskId, taskIds),
-            eq(taskRelationTable.relationType, "blocks"),
-          ),
-        )
-    : [];
-  const summaries = new Map<
-    string,
-    {
-      pendingCount: number;
-      hasCancelledBlocker: boolean;
-      waitingRelease: boolean;
-      blockers: { id: string; ticket: string; status: string }[];
-      externalCount: number;
-    }
-  >();
-  for (const task of paginatedTasks) {
-    summaries.set(task.id, {
-      pendingCount: 0,
-      hasCancelledBlocker: false,
-      waitingRelease: false,
-      blockers: [],
-      externalCount: 0,
-    });
-  }
-  for (const row of blockerRows) {
-    const summary = summaries.get(row.taskId);
-    if (!summary) continue;
-    if (!row.visible) {
-      summary.externalCount++;
-      summary.pendingCount++;
-    } else if (row.status !== "done") {
-      summary.pendingCount++;
-      summary.hasCancelledBlocker ||= row.status === "cancelled";
-      summary.blockers.push({
-        id: row.id,
-        ticket: `${row.slug}-${row.number}`,
-        status: row.status,
-      });
-    }
-  }
-  for (const task of paginatedTasks) {
-    const summary = summaries.get(task.id);
-    if (summary)
-      summary.waitingRelease =
-        task.type === "validacion" &&
-        summary.pendingCount === 0 &&
-        !task.releaseDeployed;
-  }
+  const summaries = await readBlockersSummaries(db, taskIds, {
+    workspaceId: project.workspaceId,
+    publicOnly: options.publicOnly ?? false,
+    userId,
+  });
 
   const labelsData =
     taskIds.length > 0

@@ -1,4 +1,5 @@
 import { boundedTaskRead } from "../bounded-read";
+import { readBlockersSummaries } from "../blockers-summary/read";
 import { taskClassificationTable } from "../../intelia/schema";
 import { taskArchivedAt } from "../../intelia/task-archive/board";
 import { alias } from "drizzle-orm/pg-core";
@@ -61,9 +62,23 @@ async function getTask(taskId: string, board = false, userId?: string) {
     });
   }
 
-  if (!board) return task[0];
+  // Only the route passes the reader; internal callers skip the extra reads.
+  const summaryWorkspaceId = task[0].workspaceId;
+  const blockersSummary =
+    userId && summaryWorkspaceId
+      ? (
+          await boundedTaskRead((tx) =>
+            readBlockersSummaries(tx, [taskId], {
+              workspaceId: summaryWorkspaceId,
+              publicOnly: false,
+              userId,
+            }),
+          )
+        ).get(taskId)
+      : undefined;
+  if (!board) return { ...task[0], blockersSummary };
   const { workspaceId, ...result } = task[0];
-  if (!workspaceId) return result;
+  if (!workspaceId) return { ...result, blockersSummary };
   const parent = alias(taskTable, "parent");
   const parents = await db
     .selectDistinct({ id: parent.id })
@@ -87,6 +102,7 @@ async function getTask(taskId: string, board = false, userId?: string) {
   );
   return {
     ...result,
+    blockersSummary,
     subtaskCounts: counts.get(taskId) ?? { completed: 0, total: 0 },
     parentSubtaskCounts: parents.map(({ id }) => ({
       taskId: id,
