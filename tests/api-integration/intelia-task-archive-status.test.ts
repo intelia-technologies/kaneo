@@ -159,12 +159,42 @@ describe("PUT /api/task/status/{id} with archived", () => {
     expect(await marked([open.id])).toEqual([]);
   });
 
-  it("leaves a task already in the old status as it is", async () => {
+  // A task left in the old status by migration 0016 has no known closed
+  // column: it is refused like an open one, never guessed into done.
+  it("refuses a task still in the old status, which is archived once a person closes it", async () => {
     const { app, project } = await setup();
     const legacy = await seedTask(project.id, { status: "archived" });
 
+    const refused = await setStatus(app, legacy.id, "archived");
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ code: "TASK_NOT_CLOSED" });
+    expect(await marked([legacy.id])).toEqual([]);
+
+    expect((await setStatus(app, legacy.id, "cancelled")).status).toBe(200);
     expect((await setStatus(app, legacy.id, "archived")).status).toBe(200);
-    expect((await stored([legacy.id])).get(legacy.id)?.status).toBe("archived");
+    expect((await stored([legacy.id])).get(legacy.id)?.status).toBe(
+      "cancelled",
+    );
+    expect(await marked([legacy.id])).toEqual([legacy.id]);
+  });
+
+  it("bulk refuses it too, and reorder only moves it among the old ones", async () => {
+    const { app, project } = await setup();
+    const legacy = await seedTask(project.id, { status: "archived" });
+
+    const bulk = await send(app, "PATCH", "/api/task/bulk", {
+      taskIds: [legacy.id],
+      operation: "updateStatus",
+      value: "archived",
+    });
+    expect(bulk.status).toBe(409);
+    expect(await bulk.json()).toMatchObject({ code: "TASK_NOT_CLOSED" });
+
+    const reorder = await send(app, "POST", "/api/task/reorder", {
+      projectId: project.id,
+      tasks: [{ id: legacy.id, position: 9, status: "archived" }],
+    });
+    expect(reorder.status).toBe(200);
     expect(await marked([legacy.id])).toEqual([]);
   });
 });

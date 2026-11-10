@@ -103,7 +103,8 @@ export default async function reorderTasks(
           message: "Tasks must belong to the requested project",
         });
       // Intelia (design 53 §3.2): a move to `archived` puts the mark on the
-      // closed task and keeps its status; only its position changes.
+      // closed task and keeps its status; only its position changes. A card
+      // already in the old status only moves among the others there.
       const toArchive = new Set(
         tasks
           .filter((task) => task.status === ARCHIVED_STATUS)
@@ -117,9 +118,8 @@ export default async function reorderTasks(
         archiving,
         userId,
       );
-      const keepStatus = new Set(archiving.map((task) => task.id));
       const changes = tasks.map((task) =>
-        keepStatus.has(task.id) ? { ...task, status: undefined } : task,
+        toArchive.has(task.id) ? { ...task, status: undefined } : task,
       );
       const proposedStatuses = new Map(
         changes.flatMap((task) =>

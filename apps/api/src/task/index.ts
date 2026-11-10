@@ -563,7 +563,7 @@ const updateTaskStatusRoute = createRoute({
   tags: ["Tasks"],
   summary: "Update task status",
   description:
-    "Move a task to another column in the same project. In the Intelia fork, `archived` archives the task with the mark instead and keeps its status (design 53 §3.2): only a task in a final column can be archived, any other gets 409 `TASK_NOT_CLOSED`. A task already in upstream's virtual `archived` status is left as it is.",
+    "Move a task to another column in the same project. In the Intelia fork, `archived` archives the task with the mark instead and keeps its status (design 53 §3.2): only a task in a final column can be archived, any other gets 409 `TASK_NOT_CLOSED`, also one still in upstream's virtual `archived` status (its closed column is unknown; close it first).",
   middleware: [
     workspaceAccess.fromTask(),
     requireWorkspacePermission({ task: ["update"] }),

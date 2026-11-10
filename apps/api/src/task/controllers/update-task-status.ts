@@ -25,8 +25,9 @@ async function updateTaskStatus({
     before: existingTask,
     after: { task: updatedTask, archivedProjects },
   } = await withLockedTask(id, async (tx, existingTask) => {
-    // Intelia (design 53 §3.2): `archived` puts the mark, not the status.
-    if (status === ARCHIVED_STATUS && existingTask.status !== ARCHIVED_STATUS) {
+    // Intelia (design 53 §3.2): `archived` puts the mark, never the status; a
+    // task still in the old status is refused like an open one.
+    if (status === ARCHIVED_STATUS) {
       return {
         task: existingTask,
         archivedProjects: await archiveInsteadOfStatus(
