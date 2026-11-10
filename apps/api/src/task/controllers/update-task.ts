@@ -24,6 +24,11 @@ import {
 import { hasInstanceAdminRole } from "../../utils/instance-admin-role";
 import { roleHasWorkspacePermission } from "../../utils/require-workspace-permission";
 import { boardDescription, descriptionDeferred } from "../description-pages";
+import {
+  ARCHIVED_STATUS,
+  archiveInsteadOfStatus,
+} from "../../intelia/task-archive/archive-status";
+import { announceArchived } from "../../intelia/task-archive/service";
 import { assertValidTaskStatus } from "../validate-task-fields";
 import { assertTaskPosition } from "./next-task-position";
 import { assertNoPendingBlockersOnTransition } from "./assert-no-pending-blockers-on-transition";
@@ -79,14 +84,20 @@ async function updateTask(
     });
   }
 
-  await assertValidTaskStatus(status, projectId);
+  // Intelia (design 53 §3.2): a change to `archived` puts the mark on the
+  // closed task and keeps its status. A task already in the old status keeps
+  // it, so the rest of the task can still be edited.
+  const archiving =
+    status === ARCHIVED_STATUS && existingTask.status !== ARCHIVED_STATUS;
+  const targetStatus = archiving ? existingTask.status : status;
+  await assertValidTaskStatus(targetStatus, projectId);
 
   const normalizedUserId = userId?.trim() || undefined;
 
   const column = await db.query.columnTable.findFirst({
     where: and(
       eq(columnTable.projectId, projectId),
-      eq(columnTable.slug, status),
+      eq(columnTable.slug, targetStatus),
     ),
   });
 
@@ -200,6 +211,9 @@ async function updateTask(
       throw new HTTPException(409, {
         message: "Task order changed; refresh before updating",
       });
+    const archivedProjects = archiving
+      ? await archiveInsteadOfStatus(tx, [locked], currentUserId)
+      : [];
     if (userId !== undefined && (normalizedUserId ?? null) !== locked.userId) {
       const actorRole = memberships.find(
         (member) => member.userId === currentUserId,
@@ -242,7 +256,7 @@ async function updateTask(
     await assertNoPendingBlockersOnTransition(
       tx,
       [locked],
-      status,
+      targetStatus,
       currentUserId,
     );
     existingTask = locked;
@@ -251,7 +265,7 @@ async function updateTask(
       .update(taskTable)
       .set({
         title,
-        status,
+        status: targetStatus,
         columnId: column?.id ?? null,
         startDate: startDate || null,
         dueDate: dueDate || null,
@@ -276,7 +290,7 @@ async function updateTask(
         { title, dueDate: dueDate ?? null },
         currentUserId,
       );
-    return task;
+    return task && { ...task, archivedProjects };
   });
 
   if (!updatedTask) {
@@ -284,6 +298,8 @@ async function updateTask(
       message: "Failed to update task",
     });
   }
+  const { archivedProjects, ...task } = updatedTask;
+  await announceArchived(archivedProjects);
 
   await publishTaskMutation(
     {
@@ -291,19 +307,19 @@ async function updateTask(
       description:
         description === undefined ? undefined : existingTask.description,
     },
-    { ...updatedTask, description: description ?? updatedTask.description },
+    { ...task, description: description ?? task.description },
     currentUserId,
   );
 
   await publishEvent("task.updated", {
-    taskId: updatedTask.id,
-    projectId: updatedTask.projectId,
-    title: updatedTask.title,
-    status: updatedTask.status,
+    taskId: task.id,
+    projectId: task.projectId,
+    title: task.title,
+    status: task.status,
     userId: currentUserId,
   });
 
-  return updatedTask;
+  return task;
 }
 
 export default updateTask;

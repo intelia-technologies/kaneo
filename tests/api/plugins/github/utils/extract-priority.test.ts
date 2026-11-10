@@ -41,4 +41,10 @@ describe("extractIssueStatus", () => {
     expect(extractIssueStatus(["status:Needs Review"])).toBeNull();
     expect(extractIssueStatus(["status:review!"])).toBeNull();
   });
+
+  // Intelia (design 53 §3.2): archiving is a mark, not a status.
+  it("never reads archived as a status", () => {
+    expect(extractIssueStatus(["status:archived"])).toBeNull();
+    expect(extractIssueStatus([{ name: "status: Archived " }])).toBeNull();
+  });
 });

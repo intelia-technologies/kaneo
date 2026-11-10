@@ -45,5 +45,8 @@ export function extractIssueStatus(
   if (!firstStatusLabel) return null;
 
   const status = firstStatusLabel.replace("status:", "").trim().toLowerCase();
+  // Intelia (design 53 §3.2): archiving is a mark, never a status an issue
+  // label can set.
+  if (status === "archived") return null;
   return STATUS_SLUG_PATTERN.test(status) ? status : null;
 }

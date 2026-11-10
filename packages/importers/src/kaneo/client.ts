@@ -36,6 +36,8 @@ export type KaneoBoardTask = {
   createdAt?: string | null;
   userId: string | null;
   assigneeName?: string | null;
+  // Intelia fork: closed tasks with the archive mark.
+  archivedAt?: string | null;
   labels?: KaneoLabel[];
   externalLinks?: KaneoExternalLink[];
 };
@@ -178,6 +180,9 @@ export function createKaneoClient(options: KaneoClientOptions): KaneoClient {
         limit: String(BOARD_PAGE_SIZE),
         sortBy: "position",
         sortOrder: "asc",
+        // The Intelia fork leaves archived tasks out unless asked; upstream
+        // ignores the parameter and returns them anyway.
+        archived: "include",
       });
       if (relatedPage > 1) query.set("relatedPage", String(relatedPage));
       const body = await http.request<unknown>(

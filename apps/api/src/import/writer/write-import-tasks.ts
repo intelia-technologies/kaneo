@@ -1,5 +1,6 @@
 import type db from "../../database";
 import { activityTable, taskTable } from "../../database/schema";
+import { taskArchiveTable } from "../../intelia/schema";
 import { chunk } from "./chunk";
 import type { PlannedImportTask } from "./plan-import-tasks";
 
@@ -40,5 +41,15 @@ export async function writeImportTasks(
         createdAt: task.createdAt,
       })),
     );
+
+    // Intelia (design 53 §3.2): archived tasks come in closed, with the mark.
+    const archived = batch.filter((task) => task.archived);
+    if (archived.length > 0)
+      await tx.insert(taskArchiveTable).values(
+        archived.map((task) => ({
+          taskId: task.id,
+          archivedByUserId: importedBy,
+        })),
+      );
   }
 }

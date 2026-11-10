@@ -20,6 +20,11 @@ import {
   assertAssignableUser,
   lockAssignableUser,
 } from "../../utils/assert-assignable-user";
+import {
+  ARCHIVED_STATUS,
+  archiveInsteadOfStatus,
+} from "../../intelia/task-archive/archive-status";
+import { announceArchived } from "../../intelia/task-archive/service";
 import { publishTaskMutation } from "./task-mutation-effects";
 import { getSubtaskParentProjects } from "../get-subtask-parent-projects";
 import {
@@ -109,6 +114,37 @@ async function bulkUpdateTasks({
     case "updateStatus": {
       if (!value) {
         throw new HTTPException(400, { message: "Status value is required" });
+      }
+      // Intelia (design 53 §3.2): `archived` puts the mark, not the status.
+      if (value === ARCHIVED_STATUS) {
+        const archivedProjects = await db.transaction(async (tx) => {
+          const locked = await tx
+            .select({
+              id: taskTable.id,
+              projectId: taskTable.projectId,
+              status: taskTable.status,
+            })
+            .from(taskTable)
+            .where(inArray(taskTable.id, foundIds))
+            .orderBy(asc(taskTable.id))
+            .for("update");
+          const originalProjects = new Map(
+            tasks.map((task) => [task.id, task.projectId]),
+          );
+          if (
+            locked.length !== foundIds.length ||
+            locked.some(
+              (task) => task.projectId !== originalProjects.get(task.id),
+            )
+          )
+            throw new HTTPException(409, {
+              message: "Tasks changed projects; retry the operation",
+            });
+          return archiveInsteadOfStatus(tx, locked, userId);
+        });
+        await announceArchived(archivedProjects);
+        updatedCount = foundIds.length;
+        break;
       }
       const projectIds = [...new Set(tasks.map((t) => t.projectId))];
 

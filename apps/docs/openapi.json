@@ -15712,7 +15712,7 @@
           "Tasks"
         ],
         "summary": "Bulk update tasks",
-        "description": "Apply one operation to many tasks at once. Every task must be in the same workspace.",
+        "description": "Apply one operation to many tasks at once. Every task must be in the same workspace. In the Intelia fork, `updateStatus` to `archived` archives the tasks with the mark instead (design 53 §3.2): their status does not change, and any task that is not in a final column fails the whole call with 409 `TASK_NOT_CLOSED`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -15807,7 +15807,7 @@
             }
           },
           "409": {
-            "description": "Tasks changed projects; retry the operation",
+            "description": "Tasks changed projects; retry the operation. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`); nothing changed",
             "content": {
               "application/json": {
                 "schema": {
@@ -16079,7 +16079,7 @@
           "Tasks"
         ],
         "summary": "Reorder or move cards",
-        "description": "Atomically update positions and optional column status for cards in one project. Other task fields are preserved.",
+        "description": "Atomically update positions and optional column status for cards in one project. Other task fields are preserved. In the Intelia fork, a card moved to `archived` is archived with the mark and keeps its status (design 53 §3.2); a card outside a final column fails the call with 409 `TASK_NOT_CLOSED`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -16222,7 +16222,7 @@
             }
           },
           "409": {
-            "description": "Board changed or task moved; refresh before reordering",
+            "description": "Board changed or task moved; refresh before reordering. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -16542,6 +16542,16 @@
           },
           "404": {
             "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`status` is `archived` (`TASK_NOT_CLOSED`): a new task is open, so it cannot be archived",
             "content": {
               "application/json": {
                 "schema": {
@@ -16954,7 +16964,7 @@
           "Tasks"
         ],
         "summary": "Update task",
-        "description": "Replace every field of a task. Use the single-field routes for narrower edits.",
+        "description": "Replace every field of a task. Use the single-field routes for narrower edits. In the Intelia fork, changing `status` to `archived` archives the task with the mark and keeps its status (design 53 §3.2); a task outside a final column gets 409 `TASK_NOT_CLOSED`, with nothing changed.",
         "parameters": [
           {
             "schema": {
@@ -17097,6 +17107,16 @@
           },
           "404": {
             "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The task changed meanwhile; refresh and retry. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -17363,7 +17383,7 @@
           "Tasks"
         ],
         "summary": "Import tasks",
-        "description": "Import tasks into a project. Each task is reported individually, so a partial import still returns 200.",
+        "description": "Import tasks into a project. Each task is reported individually, so a partial import still returns 200. In the Intelia fork, a task with status `archived` comes in closed, in the final column `done` (or the first final column), with the archive mark (design 53 §3.2). If the project has no final column, an import with archived tasks fails with 409 `NO_FINAL_COLUMN` and creates nothing.",
         "parameters": [
           {
             "schema": {
@@ -17645,6 +17665,16 @@
               }
             }
           },
+          "409": {
+            "description": "Archived tasks and no final column to put them in (`NO_FINAL_COLUMN`); nothing was imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "429": {
             "$ref": "#/components/responses/ApiKeyRateLimited"
           }
@@ -17658,7 +17688,7 @@
           "Tasks"
         ],
         "summary": "Update task status",
-        "description": "Move a task to another column in the same project.",
+        "description": "Move a task to another column in the same project. In the Intelia fork, `archived` archives the task with the mark instead and keeps its status (design 53 §3.2): only a task in a final column can be archived, any other gets 409 `TASK_NOT_CLOSED`, also one still in upstream's virtual `archived` status (its closed column is unknown; close it first).",
         "parameters": [
           {
             "schema": {
@@ -17730,6 +17760,16 @@
           },
           "404": {
             "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`archived` for a task outside a final column (`TASK_NOT_CLOSED`); nothing changed",
             "content": {
               "application/json": {
                 "schema": {

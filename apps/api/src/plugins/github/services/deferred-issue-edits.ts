@@ -264,7 +264,11 @@ async function replayClaimedIssueEdits() {
               : false;
             // Skip state for archived tasks and settle what still waits on it.
             const statePaused =
-              fields.includes("state") && isStateSyncPaused(task.status);
+              fields.includes("state") &&
+              (await isStateSyncPaused(
+                { id: link.taskId, status: task.status },
+                tx,
+              ));
             if (statePaused) current.state = values.state;
             for (const field of fields) {
               if (field === "state" && statePaused) continue;

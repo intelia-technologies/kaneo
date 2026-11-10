@@ -15,6 +15,10 @@ import { writeImportComments } from "./write-import-comments";
 import { writeImportLabels } from "./write-import-labels";
 import { writeImportRelations } from "./write-import-relations";
 import { writeImportTasks } from "./write-import-tasks";
+import {
+  ARCHIVE_COLUMN_WARNING,
+  withArchiveColumn,
+} from "./with-archive-column";
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -47,8 +51,14 @@ export async function writeProjectContent(
       .where(eq(projectTable.id, projectId));
   }
 
-  const columnPlan = planImportColumns(project.columns);
-  const board = await writeImportColumns(tx, projectId, columnPlan);
+  const sourceColumns = withArchiveColumn(project.columns, project.tasks);
+  const columnPlan = planImportColumns(sourceColumns.columns);
+  const board = await writeImportColumns(
+    tx,
+    projectId,
+    columnPlan,
+    project.tasks.some((task) => task.archived),
+  );
   const assignees = createAssigneeMatcher(
     await loadAssignableMembers(tx, workspaceId, projectId),
   );
@@ -66,6 +76,7 @@ export async function writeProjectContent(
     tasks: project.tasks,
     columns: board.byKey,
     fallbackColumn: board.fallback,
+    archiveColumn: board.archive,
     numbers,
     now,
     newId: createId,
@@ -110,6 +121,9 @@ export async function writeProjectContent(
     warnings: [
       ...project.warnings,
       ...columnPlan.warnings,
+      ...(sourceColumns.added || board.archiveAdded
+        ? [ARCHIVE_COLUMN_WARNING]
+        : []),
       ...(unmatched ? [unmatched] : []),
     ],
   };

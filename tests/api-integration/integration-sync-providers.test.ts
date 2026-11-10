@@ -39,6 +39,7 @@ import { resumeSync } from "../../apps/api/src/integration-sync/controllers/resu
 import { reviewSyncResume } from "../../apps/api/src/integration-sync/controllers/review-resume";
 import { updateExternalLink } from "../../apps/api/src/plugins/github/services/link-manager";
 import deleteLabel from "../../apps/api/src/label/controllers/delete-label";
+import { taskArchiveTable } from "../../apps/api/src/intelia/schema";
 import { resetTestDatabase } from "./helpers/database";
 import {
   createProjectFixture,
@@ -801,6 +802,112 @@ describe.each(["github", "gitea", "gitlab"] as const)(
               where: eq(schema.taskTable.id, f.task.id),
             }),
           ).toMatchObject({ status: "archived", columnId: null });
+        },
+      );
+
+      // Intelia (design 53 §3.2, KF-8): the archive mark pauses the state too,
+      // so a reopened issue cannot move a done task out and drop its mark.
+      it.runIf(type === "gitlab")(
+        "ignores a live reopen webhook for a task archived with the mark",
+        async () => {
+          const f = await exported();
+          const { done, todo } = f.columns;
+          await f.changeStatus(todo.slug, done.slug, done.id);
+          await db.insert(taskArchiveTable).values({ taskId: f.task.id });
+          const reopen = (at: Date) =>
+            handleGitlabIssueReopened(
+              {
+                object_attributes: {
+                  iid: 12,
+                  title: f.task.title,
+                  url: "https://gitlab.example/team/repo/-/issues/12",
+                  state: "opened",
+                  action: "reopen",
+                  updated_at: at.toISOString(),
+                },
+                project: {
+                  path_with_namespace: "team/repo",
+                  web_url: "https://gitlab.example/team/repo",
+                },
+              },
+              f.integration.id,
+            );
+          const current = () =>
+            db.query.taskTable.findFirst({
+              where: eq(schema.taskTable.id, f.task.id),
+            });
+
+          await reopen(new Date(Date.now() + 1_000));
+          expect(await current()).toMatchObject({
+            status: done.slug,
+            columnId: done.id,
+          });
+          expect(
+            await db
+              .select({ taskId: taskArchiveTable.taskId })
+              .from(taskArchiveTable)
+              .where(eq(taskArchiveTable.taskId, f.task.id)),
+          ).toHaveLength(1);
+
+          // Without the mark the same webhook reopens the task.
+          await db
+            .delete(taskArchiveTable)
+            .where(eq(taskArchiveTable.taskId, f.task.id));
+          await reopen(new Date(Date.now() + 2_000));
+          expect((await current())?.status).not.toBe(done.slug);
+        },
+      );
+
+      it.runIf(type === "gitlab")(
+        "ignores a status label for a task archived with the mark",
+        async () => {
+          const f = await exported();
+          const { done, todo } = f.columns;
+          await f.changeStatus(todo.slug, done.slug, done.id);
+          await db.insert(taskArchiveTable).values({ taskId: f.task.id });
+          const label = (previous: string[], current: string[]) =>
+            handleGitlabIssueUpdated(
+              {
+                object_attributes: {
+                  iid: 12,
+                  title: f.task.title,
+                  description: "",
+                  state: "closed",
+                  url: "https://gitlab.example/team/repo/-/issues/12",
+                },
+                changes: {
+                  labels: {
+                    previous: previous.map((title) => ({ title })),
+                    current: current.map((title) => ({ title })),
+                  },
+                },
+                project: {
+                  name: "repo",
+                  path_with_namespace: "team/repo",
+                  web_url: "https://gitlab.example/team/repo",
+                },
+              },
+              f.integration.id,
+            );
+          const current = async () =>
+            (
+              await db.query.taskTable.findFirst({
+                where: eq(schema.taskTable.id, f.task.id),
+              })
+            )?.status;
+
+          await label(["export"], ["export", `status:${todo.slug}`]);
+          expect(await current()).toBe(done.slug);
+
+          // Without the mark a new status label moves the task.
+          await db
+            .delete(taskArchiveTable)
+            .where(eq(taskArchiveTable.taskId, f.task.id));
+          await label(
+            ["export", `status:${todo.slug}`],
+            ["export", "status:in-progress"],
+          );
+          expect(await current()).toBe("in-progress");
         },
       );
     });

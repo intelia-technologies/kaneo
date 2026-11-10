@@ -32,7 +32,7 @@ function fakeFetch(routes: Record<string, Reply>) {
 
 function boardPath(projectId: string, page: number, relatedPage = 1): string {
   const related = relatedPage > 1 ? `&relatedPage=${relatedPage}` : "";
-  return `/api/task/tasks/${projectId}?page=${page}&limit=100&sortBy=position&sortOrder=asc${related}`;
+  return `/api/task/tasks/${projectId}?page=${page}&limit=100&sortBy=position&sortOrder=asc&archived=include${related}`;
 }
 
 function boardTask(id: string, status: string, extra: object = {}) {

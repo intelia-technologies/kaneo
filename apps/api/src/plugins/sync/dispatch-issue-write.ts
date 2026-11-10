@@ -56,7 +56,14 @@ export async function dispatchIssueWrite<T>(
             where: eq(taskTable.id, link.taskId),
             columns: { status: true },
           });
-          if (!task || isStateSyncPaused(task.status)) return;
+          if (
+            !task ||
+            (await isStateSyncPaused(
+              { id: link.taskId, status: task.status },
+              tx,
+            ))
+          )
+            return;
         }
         // Start the request while pause/rule/label writes are excluded. Settle it
         // after commit so provider latency never holds these row locks.

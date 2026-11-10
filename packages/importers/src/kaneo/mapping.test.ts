@@ -141,6 +141,16 @@ describe("mapTask", () => {
     expect(archived.archived).toBe(true);
   });
 
+  it("keeps the closed column of a task with the fork's archive mark", () => {
+    expect(
+      mapTask(
+        task({ status: "done", archivedAt: "2026-11-01T00:00:00.000Z" }),
+        columnKeys,
+        members,
+      ),
+    ).toMatchObject({ columnKey: "done", archived: true });
+  });
+
   it("leaves the number out when the source task has none", () => {
     expect(
       mapTask(task({ number: null }), columnKeys, members),

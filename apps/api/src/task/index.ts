@@ -176,7 +176,7 @@ const bulkUpdateTasksRoute = createRoute({
   tags: ["Tasks"],
   summary: "Bulk update tasks",
   description:
-    "Apply one operation to many tasks at once. Every task must be in the same workspace.",
+    "Apply one operation to many tasks at once. Every task must be in the same workspace. In the Intelia fork, `updateStatus` to `archived` archives the tasks with the mark instead (design 53 §3.2): their status does not change, and any task that is not in a final column fails the whole call with 409 `TASK_NOT_CLOSED`.",
   middleware: [
     workspaceAccess.fromTasks(),
     requireBulkTaskPermission,
@@ -197,7 +197,9 @@ const bulkUpdateTasksRoute = createRoute({
       "No access to the project, or missing the permission the operation needs",
     ),
     404: errorResponse("No tasks found"),
-    409: errorResponse("Tasks changed projects; retry the operation"),
+    409: errorResponse(
+      "Tasks changed projects; retry the operation. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`); nothing changed",
+    ),
   },
 });
 
@@ -266,7 +268,7 @@ const reorderTasksRoute = createRoute({
   tags: ["Tasks"],
   summary: "Reorder or move cards",
   description:
-    "Atomically update positions and optional column status for cards in one project. Other task fields are preserved.",
+    "Atomically update positions and optional column status for cards in one project. Other task fields are preserved. In the Intelia fork, a card moved to `archived` is archived with the mark and keeps its status (design 53 §3.2); a card outside a final column fails the call with 409 `TASK_NOT_CLOSED`.",
   middleware: [
     workspaceAccess.fromProject("projectId"),
     requireWorkspacePermission({ task: ["update"] }),
@@ -291,7 +293,7 @@ const reorderTasksRoute = createRoute({
       "Project not found, or tasks do not belong to the project",
     ),
     409: errorResponse(
-      "Board changed or task moved; refresh before reordering",
+      "Board changed or task moved; refresh before reordering. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`)",
     ),
   },
 });
@@ -326,6 +328,9 @@ const createTaskRoute = createRoute({
       "No access to the project, or missing task:create permission",
     ),
     404: errorResponse("Project not found"),
+    409: errorResponse(
+      "`status` is `archived` (`TASK_NOT_CLOSED`): a new task is open, so it cannot be archived",
+    ),
   },
 });
 
@@ -445,7 +450,7 @@ const updateTaskRoute = createRoute({
   tags: ["Tasks"],
   summary: "Update task",
   description:
-    "Replace every field of a task. Use the single-field routes for narrower edits.",
+    "Replace every field of a task. Use the single-field routes for narrower edits. In the Intelia fork, changing `status` to `archived` archives the task with the mark and keeps its status (design 53 §3.2); a task outside a final column gets 409 `TASK_NOT_CLOSED`, with nothing changed.",
   middleware: [
     workspaceAccess.fromTask(),
     requireWorkspacePermission({ task: ["update"] }),
@@ -465,6 +470,9 @@ const updateTaskRoute = createRoute({
       "No access to the project, or missing task:update or task:assign permission",
     ),
     404: errorResponse("Task not found"),
+    409: errorResponse(
+      "The task changed meanwhile; refresh and retry. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`)",
+    ),
   },
 });
 
@@ -495,7 +503,7 @@ const importTasksRoute = createRoute({
   tags: ["Tasks"],
   summary: "Import tasks",
   description:
-    "Import tasks into a project. Each task is reported individually, so a partial import still returns 200.",
+    "Import tasks into a project. Each task is reported individually, so a partial import still returns 200. In the Intelia fork, a task with status `archived` comes in closed, in the final column `done` (or the first final column), with the archive mark (design 53 §3.2). If the project has no final column, an import with archived tasks fails with 409 `NO_FINAL_COLUMN` and creates nothing.",
   middleware: [
     workspaceAccess.fromProject("projectId"),
     requireWorkspacePermission({ task: ["create"] }),
@@ -519,6 +527,9 @@ const importTasksRoute = createRoute({
       "No access to the project, or missing task:create permission",
     ),
     404: errorResponse("Project not found"),
+    409: errorResponse(
+      "Archived tasks and no final column to put them in (`NO_FINAL_COLUMN`); nothing was imported",
+    ),
   },
 });
 
@@ -551,7 +562,8 @@ const updateTaskStatusRoute = createRoute({
   path: "/status/{id}",
   tags: ["Tasks"],
   summary: "Update task status",
-  description: "Move a task to another column in the same project.",
+  description:
+    "Move a task to another column in the same project. In the Intelia fork, `archived` archives the task with the mark instead and keeps its status (design 53 §3.2): only a task in a final column can be archived, any other gets 409 `TASK_NOT_CLOSED`, also one still in upstream's virtual `archived` status (its closed column is unknown; close it first).",
   middleware: [
     workspaceAccess.fromTask(),
     requireWorkspacePermission({ task: ["update"] }),
@@ -571,6 +583,9 @@ const updateTaskStatusRoute = createRoute({
       "No access to the project, or missing task:update permission",
     ),
     404: errorResponse("Task not found"),
+    409: errorResponse(
+      "`archived` for a task outside a final column (`TASK_NOT_CLOSED`); nothing changed",
+    ),
   },
 });
 

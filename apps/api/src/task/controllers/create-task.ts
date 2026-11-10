@@ -20,6 +20,8 @@ import {
   readHiddenOptions,
   readOptions,
 } from "../../custom-field/choice-options";
+import { ApiError } from "../../errors/api-error";
+import { ARCHIVED_STATUS } from "../../intelia/task-archive/archive-status";
 import { publishEvent } from "../../events";
 import type { InitiativeWriter } from "../../intelia/initiatives/access";
 import type { InitiativeOnCreate } from "../../intelia/initiatives/schema";
@@ -112,6 +114,14 @@ async function createTask({
 
   const normalizedUserId = userId?.trim() || undefined;
 
+  // Intelia (design 53 §3.2): archiving is a mark on a closed task, and a new
+  // task is open.
+  if (resolvedStatus === ARCHIVED_STATUS)
+    throw new ApiError(409, {
+      code: "TASK_NOT_CLOSED",
+      message:
+        "A new task is open, so it cannot be archived: create it in a column and archive it once it is closed",
+    });
   await assertValidTaskStatus(resolvedStatus, projectId);
 
   const allFields = await db

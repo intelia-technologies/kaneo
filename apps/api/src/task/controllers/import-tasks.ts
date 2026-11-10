@@ -1,7 +1,14 @@
 import { and, asc, eq } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
-import { taskClassificationTable } from "../../intelia/schema";
+import {
+  taskArchiveTable,
+  taskClassificationTable,
+} from "../../intelia/schema";
+import { ApiError } from "../../errors/api-error";
+import { archiveColumn } from "../../intelia/task-archive/archive-column";
+import { ARCHIVED_STATUS } from "../../intelia/task-archive/archive-status";
+import { announceArchived } from "../../intelia/task-archive/service";
 import { columnTable, projectTable, taskTable } from "../../database/schema";
 import { publishEvent } from "../../events";
 import { filterUsersWithProjectAccess } from "../../project-access/filter-users-with-project-access";
@@ -76,7 +83,24 @@ async function importTasks(
     orderBy: asc(columnTable.position),
   });
 
+  // Intelia (design 53 §3.2): archived tasks come in closed, with the mark.
+  // Without a final column to put them in, nothing is imported.
+  const archiveTarget = archiveColumn(columns);
+  if (
+    !archiveTarget &&
+    tasksToImport.some((taskData) => {
+      const resolved = resolveImportTaskStatus(taskData.status, columns);
+      return !("error" in resolved) && resolved.status === ARCHIVED_STATUS;
+    })
+  )
+    throw new ApiError(409, {
+      code: "NO_FINAL_COLUMN",
+      message:
+        "The project has no final column to archive the imported archived tasks into; nothing was imported",
+    });
+
   const results = [];
+  let archivedAny = false;
 
   for (const taskData of tasksToImport) {
     const reference = taskData.userId?.trim() || null;
@@ -97,7 +121,12 @@ async function importTasks(
         results.push({ success: false, error: resolved.error, task: taskData });
         continue;
       }
-      const { status: resolvedStatus, warning: statusWarning } = resolved;
+      const { warning: statusWarning } = resolved;
+      // Intelia (design 53 §3.2): an archived task comes in closed, with the
+      // mark. Its closed column is unknown, so it goes to `done`.
+      const archived = resolved.status === ARCHIVED_STATUS;
+      const resolvedStatus =
+        archived && archiveTarget ? archiveTarget.slug : resolved.status;
       const { priority, warning: priorityWarning } = coercePriority(
         taskData.priority || "low",
       );
@@ -116,7 +145,7 @@ async function importTasks(
         const taskNumber = await claimTaskNumber(projectId, tx);
         // Recheck the snapshot's column and retain it until the insert commits.
         const [column] = await tx
-          .select({ id: columnTable.id })
+          .select({ id: columnTable.id, isFinal: columnTable.isFinal })
           .from(columnTable)
           .where(
             and(
@@ -126,6 +155,11 @@ async function importTasks(
           )
           .limit(1)
           .for("key share");
+        // The final column went away meanwhile: no open task, no old status.
+        if (archived && !column?.isFinal)
+          throw new Error(
+            `Column "${resolvedStatus}" is no longer final; the archived task was not imported`,
+          );
         const status =
           column ||
           VIRTUAL_STATUSES.some((virtual) => virtual === resolvedStatus)
@@ -170,6 +204,12 @@ async function importTasks(
           });
         }
 
+        if (task && archived && column)
+          await tx.insert(taskArchiveTable).values({
+            taskId: task.id,
+            archivedByUserId: currentUserId || null,
+          });
+
         // Intelia: the level and the initiative commit with the task or the
         // task does not exist.
         if (task) await writeAutomation(tx, task.id, automation);
@@ -185,6 +225,7 @@ async function importTasks(
       });
 
       if (createdTask) {
+        if (archived) archivedAny = true;
         await publishEvent("task.created", {
           ...createdTask,
           taskId: createdTask.id,
@@ -218,6 +259,7 @@ async function importTasks(
     }
   }
 
+  if (archivedAny) await announceArchived([projectId]);
   return {
     importedAt: new Date().toISOString(),
     project: {

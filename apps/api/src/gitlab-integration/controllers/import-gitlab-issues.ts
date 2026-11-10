@@ -1,5 +1,6 @@
 import { acceptsIssue } from "../../plugins/sync/rules";
 import { canSyncTask } from "../../plugins/sync/eligibility";
+import { hasArchiveMark } from "../../plugins/sync/state-sync-paused";
 import { sameConfig } from "../../plugins/sync/same-config";
 import { and, eq, inArray } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
@@ -228,7 +229,9 @@ async function importSingleIssue(
         };
 
         if (priority) updateData.priority = priority;
-        if (status) updateData.status = status;
+        // Intelia (design 53 §3.2): an import does not move an archived task.
+        if (status && !(await hasArchiveMark(existingLink.taskId, database)))
+          updateData.status = status;
 
         await database
           .update(taskTable)

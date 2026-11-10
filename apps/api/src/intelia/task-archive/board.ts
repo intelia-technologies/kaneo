@@ -18,13 +18,14 @@ export const taskArchivedAt =
     taskArchiveTable.archivedAt,
   );
 
-const isMarked = sql`(exists (select 1 from ${taskArchiveTable} where ${taskArchiveTable.taskId} = ${taskTable.id}) and ${taskIsCompleted})`;
+// A task with the mark, while it is closed.
+export const taskIsArchived = sql`(exists (select 1 from ${taskArchiveTable} where ${taskArchiveTable.taskId} = ${taskTable.id}) and ${taskIsCompleted})`;
 
 export function archivedScopeCondition(
   scope: ArchivedScope = "exclude",
 ): SQL | undefined {
   if (scope === "include") return undefined;
   if (scope === "only")
-    return sql`(${isMarked} or ${taskTable.status} = 'archived')`;
-  return sql`not ${isMarked}`;
+    return sql`(${taskIsArchived} or ${taskTable.status} = 'archived')`;
+  return sql`not ${taskIsArchived}`;
 }

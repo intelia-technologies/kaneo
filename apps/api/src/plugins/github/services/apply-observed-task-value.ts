@@ -112,7 +112,11 @@ export async function writeInboundTaskField(
       where: linkedTaskScope(link.taskId, integration.projectId),
       columns: { status: true },
     });
-    if (!task || isStateSyncPaused(task.status)) return;
+    if (
+      !task ||
+      (await isStateSyncPaused({ id: link.taskId, status: task.status }, tx))
+    )
+      return;
     const resolveStatus =
       integration.type === "gitea" ? resolveGiteaStatus : resolveGithubStatus;
     const status = await resolveStatus(

@@ -1,6 +1,7 @@
 import { confirmedFieldLabels } from "../../plugins/sync/field-labels";
 import { acceptsIssue, readSyncRules } from "../../plugins/sync/rules";
 import { canSyncTask } from "../../plugins/sync/eligibility";
+import { hasArchiveMark } from "../../plugins/sync/state-sync-paused";
 import { importIssueLabels } from "../../plugins/sync/issue-labels";
 import { parseLinkMetadata } from "../../plugins/github/utils/parse-link-metadata";
 import { createId } from "@paralleldrive/cuid2";
@@ -458,7 +459,10 @@ async function applyPage(
         ? Math.max(0, current.labelsRemaining - labels.length)
         : 0;
     const priority = current.prioritySeen ? null : extractIssuePriority(labels);
-    const status = current.statusSeen ? null : extractIssueStatus(labels);
+    const labelStatus = current.statusSeen ? null : extractIssueStatus(labels);
+    // Intelia (design 53 §3.2): an import does not move an archived task.
+    const status =
+      labelStatus && !(await hasArchiveMark(task.id, tx)) ? labelStatus : null;
     if (priority || status)
       await tx
         .update(taskTable)
@@ -555,7 +559,13 @@ async function importIssue(
       .set({
         title: issue.title,
         description: formatTaskDescriptionFromIssue(issue.body, task.id),
-        ...(await resolveImportedStatus(tx, projectId, status, task.status)),
+        // Intelia (design 53 §3.2): an import does not move an archived task.
+        ...(await resolveImportedStatus(
+          tx,
+          projectId,
+          (await hasArchiveMark(task.id, tx)) ? null : status,
+          task.status,
+        )),
         ...(priority ? { priority } : {}),
       })
       .where(and(eq(taskTable.id, task.id), eq(taskTable.projectId, projectId)))
