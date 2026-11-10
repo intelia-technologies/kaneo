@@ -293,8 +293,16 @@ jobs:
             -c "ALTER SYSTEM SET synchronous_commit = off" \
             -c "ALTER SYSTEM SET full_page_writes = off" \
             -c "SELECT pg_reload_conf()"
-          docker exec "$PG_CONTAINER" psql -At -U postgres -d kaneo_test \
-            -c "SELECT name || '=' || setting FROM pg_settings WHERE name IN ('fsync', 'synchronous_commit', 'full_page_writes')"
+          # pg_reload_conf() only signals the server; wait until it applied.
+          want="fsync=off,full_page_writes=off,synchronous_commit=off"
+          for _ in $(seq 1 10); do
+            got="$(docker exec "$PG_CONTAINER" psql -At -U postgres -d kaneo_test \
+              -c "SELECT string_agg(name || '=' || setting, ',' ORDER BY name) FROM pg_settings WHERE name IN ('fsync', 'synchronous_commit', 'full_page_writes')")"
+            [ "$got" = "$want" ] && break
+            sleep 1
+          done
+          echo "$got"
+          [ "$got" = "$want" ]
 
       - name: Run API integration tests
         # Each shard has its own Postgres service; files within a shard stay serial.

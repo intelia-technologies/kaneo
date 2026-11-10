@@ -43,7 +43,8 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# Throwaway data: no durability, so the tests don't flush the shared disk.
+# Throwaway data: no durability, so the tests don't flush the shared disk. A
+# KANEO_TEST_POSTGRES_IMAGE must take postgres flags as the official image does.
 docker run -d --name "$container" \
   --label "sf.test.invocacion=${id}" \
   --label "sf.test.modo=run" \
