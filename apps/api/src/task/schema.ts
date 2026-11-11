@@ -1,3 +1,4 @@
+import { estadoCompartidoSchema } from "../intelia/estado-compartido/schema";
 import { initiativeOnCreateInput } from "../intelia/initiatives/schema";
 import { ARCHIVED_SCOPES } from "../intelia/task-archive/schema";
 import { automationInput } from "../intelia/task-automation/schema";
@@ -125,6 +126,7 @@ export const createTaskBody = z
     startDate: z.string().optional(),
     dueDate: z.string().optional(),
     estimacion_horas: z.number().finite().nonnegative().nullable().optional(),
+    estado_compartido: estadoCompartidoSchema.nullable().optional(),
     priority,
     status: z.string().openapi({ description: "The target column's slug." }),
     userId: z.string().optional().openapi({ description: "Assignee, if any." }),
@@ -163,6 +165,9 @@ export const updateTaskBody = z.object({
   startDate: z.string().optional(),
   dueDate: z.string().optional(),
   estimacion_horas: z.number().finite().nonnegative().nullable().optional(),
+  estado_compartido: estadoCompartidoSchema.nullable().optional().openapi({
+    description: "Omit to keep it; null clears it.",
+  }),
   priority,
   status: z.string(),
   projectId: z.string(),
@@ -232,6 +237,9 @@ export const updateStatusBody = z.object({ status: z.string() });
 export const updatePriorityBody = z.object({ priority });
 export const updateEstimationBody = z.object({
   estimacion_horas: z.number().finite().nonnegative().nullable(),
+});
+export const updateEstadoCompartidoBody = z.object({
+  estado_compartido: estadoCompartidoSchema.nullable(),
 });
 export const updateAssigneeBody = z.object({
   userId: z.string().nullable().openapi({ description: "Null unassigns." }),

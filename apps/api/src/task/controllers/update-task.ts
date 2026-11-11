@@ -3,6 +3,7 @@ import { taskClassificationTable } from "../../intelia/schema";
 import { validTaskClassification } from "../schema";
 import type { z } from "zod";
 import type { updateTaskBody } from "../schema";
+import type { EstadoCompartido } from "../../intelia/estado-compartido/schema";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
 import {
@@ -52,6 +53,7 @@ async function updateTask(
     z.infer<typeof updateTaskBody>,
     "type" | "validationInProduction" | "validationInProductionReason"
   >,
+  estado_compartido?: EstadoCompartido | null,
 ) {
   assertTaskPosition(position);
 
@@ -270,6 +272,7 @@ async function updateTask(
         startDate: startDate || null,
         dueDate: dueDate || null,
         estimacion_horas,
+        estado_compartido,
         projectId,
         description,
         priority,

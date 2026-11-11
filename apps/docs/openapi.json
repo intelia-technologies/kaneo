@@ -1588,6 +1588,56 @@
             ],
             "description": "Estimated hours, or null when unset."
           },
+          "estado_compartido": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "nombre": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,39}$",
+                "description": "The chain's name, unique in the organization: lowercase letters, digits and hyphens, up to 40, starting with a letter or digit."
+              },
+              "datos": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "intelia"
+                ],
+                "description": "intelia when the chain holds client data (host and workers only on accredited machines); null otherwise."
+              },
+              "ficheros": {
+                "type": "boolean",
+                "description": "Whether the chain shares a file volume, at /cadena."
+              },
+              "tamano_max_gb": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2000,
+                "description": "Maximum size of the chain's state, in GB (1 to 2000)."
+              },
+              "servicios": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 65536,
+                "description": "A docker compose file with the chain's services (our extensions in x-sf-*), stored as given; null without services."
+              }
+            },
+            "required": [
+              "nombre",
+              "datos",
+              "ficheros",
+              "tamano_max_gb",
+              "servicios"
+            ],
+            "additionalProperties": false,
+            "description": "The chain's shared state when this is the root task of a chain without an initiative (annex of design 33 §4.1), or null. Returned by the task's detail, create and update, not by board lists."
+          },
           "recurrence": {
             "anyOf": [
               {
@@ -1636,6 +1686,56 @@
           "estimacion_horas",
           "createdAt"
         ]
+      },
+      "EstadoCompartido": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,39}$",
+            "description": "The chain's name, unique in the organization: lowercase letters, digits and hyphens, up to 40, starting with a letter or digit."
+          },
+          "datos": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "intelia"
+            ],
+            "description": "intelia when the chain holds client data (host and workers only on accredited machines); null otherwise."
+          },
+          "ficheros": {
+            "type": "boolean",
+            "description": "Whether the chain shares a file volume, at /cadena."
+          },
+          "tamano_max_gb": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2000,
+            "description": "Maximum size of the chain's state, in GB (1 to 2000)."
+          },
+          "servicios": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 65536,
+            "description": "A docker compose file with the chain's services (our extensions in x-sf-*), stored as given; null without services."
+          }
+        },
+        "required": [
+          "nombre",
+          "datos",
+          "ficheros",
+          "tamano_max_gb",
+          "servicios"
+        ],
+        "additionalProperties": false,
+        "description": "The state the tasks of a chain share (annex of design 33 §4.1): a file volume and services in docker compose. No seed field."
       },
       "TaskByTicketId": {
         "allOf": [
@@ -7839,6 +7939,9 @@
               ]
             }
           },
+          "estado_compartido": {
+            "$ref": "#/components/schemas/EstadoCompartido"
+          },
           "designUrl": {
             "type": [
               "string",
@@ -7898,6 +8001,7 @@
           "name",
           "objetivo",
           "hitos_externos",
+          "estado_compartido",
           "designUrl",
           "approvedBy",
           "approvedAt",
@@ -16311,6 +16415,9 @@
                     ],
                     "minimum": 0
                   },
+                  "estado_compartido": {
+                    "$ref": "#/components/schemas/EstadoCompartido"
+                  },
                   "priority": {
                     "type": "string",
                     "enum": [
@@ -17027,6 +17134,56 @@
                       "null"
                     ],
                     "minimum": 0
+                  },
+                  "estado_compartido": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "properties": {
+                      "nombre": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,39}$",
+                        "description": "The chain's name, unique in the organization: lowercase letters, digits and hyphens, up to 40, starting with a letter or digit."
+                      },
+                      "datos": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "intelia"
+                        ],
+                        "description": "intelia when the chain holds client data (host and workers only on accredited machines); null otherwise."
+                      },
+                      "ficheros": {
+                        "type": "boolean",
+                        "description": "Whether the chain shares a file volume, at /cadena."
+                      },
+                      "tamano_max_gb": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 2000,
+                        "description": "Maximum size of the chain's state, in GB (1 to 2000)."
+                      },
+                      "servicios": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "maxLength": 65536,
+                        "description": "A docker compose file with the chain's services (our extensions in x-sf-*), stored as given; null without services."
+                      }
+                    },
+                    "required": [
+                      "nombre",
+                      "datos",
+                      "ficheros",
+                      "tamano_max_gb",
+                      "servicios"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Omit to keep it; null clears it."
                   },
                   "priority": {
                     "type": "string",
@@ -18182,6 +18339,99 @@
           },
           "400": {
             "description": "Invalid estimate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project, or missing task:update permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/task/estado_compartido/{id}": {
+      "put": {
+        "operationId": "updateTaskEstadoCompartido",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Update a task's shared chain state",
+        "description": "Sets or clears (null) `estado_compartido` on the root task of a chain without an initiative (annex of design 33 §4.1). Requires task:update.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "estado_compartido": {
+                    "$ref": "#/components/schemas/EstadoCompartido"
+                  }
+                },
+                "required": [
+                  "estado_compartido"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid shared state",
             "content": {
               "application/json": {
                 "schema": {
@@ -34085,6 +34335,16 @@
                       ]
                     }
                   },
+                  "estado_compartido": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/EstadoCompartido"
+                      },
+                      {
+                        "description": "The state the initiative's tasks share (annex of design 33 §4.1), or null. In PATCH, omit to keep it and null to clear it."
+                      }
+                    ]
+                  },
                   "designUrl": {
                     "type": [
                       "string",
@@ -34328,7 +34588,7 @@
           "Initiatives"
         ],
         "summary": "Edit an initiative",
-        "description": "Changes its name, design link or approval; each real change goes to the change log. A person's session or an account's API key, with task:update. Kaneo does not check who may write beyond that: the factory's gateway does, before calling (design 19 §3). With an API key, `actor` names who the caller acts for (informative, logged as given).",
+        "description": "Changes its name, objective, external milestones, shared state (`estado_compartido`), design link or approval; each real change goes to the change log. A person's session or an account's API key, with task:update. Kaneo does not check who may write beyond that: the factory's gateway does, before calling (design 19 §3). With an API key, `actor` names who the caller acts for (informative, logged as given).",
         "parameters": [
           {
             "schema": {
@@ -34395,6 +34655,16 @@
                         "estado"
                       ]
                     }
+                  },
+                  "estado_compartido": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/EstadoCompartido"
+                      },
+                      {
+                        "description": "The state the initiative's tasks share (annex of design 33 §4.1), or null. In PATCH, omit to keep it and null to clear it."
+                      }
+                    ]
                   },
                   "designUrl": {
                     "type": [

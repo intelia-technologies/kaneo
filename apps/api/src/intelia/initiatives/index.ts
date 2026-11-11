@@ -90,7 +90,7 @@ const updateRouteDef = createRoute({
   path: "/initiative/{initiativeId}",
   tags,
   summary: "Edit an initiative",
-  description: `Changes its name, design link or approval; each real change goes to the change log. ${WRITERS}`,
+  description: `Changes its name, objective, external milestones, shared state (\`estado_compartido\`), design link or approval; each real change goes to the change log. ${WRITERS}`,
   middleware: initiativeAccess.writeOnInitiative(),
   request: {
     params: initiativeIdParam,

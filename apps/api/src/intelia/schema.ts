@@ -20,6 +20,7 @@ import {
   userTable,
   workspaceTable,
 } from "../database/schema";
+import type { EstadoCompartido } from "./estado-compartido/schema";
 
 // Intelia fork: our tables live in their own PostgreSQL schema, never in
 // upstream's. See README-INTELIA.md («Base de datos»).
@@ -347,6 +348,7 @@ export const initiativeTable = inteliaSchema.table(
         tarea?: string;
       }[]
     >(),
+    estado_compartido: jsonb("estado_compartido").$type<EstadoCompartido>(),
     designUrl: text("design_url"),
     approvedBy: text("approved_by"),
     approvedAt: timestamp("approved_at", { mode: "date" }),

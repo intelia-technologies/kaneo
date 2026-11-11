@@ -8,6 +8,10 @@ import { canAccessProject } from "../../project-access/can-access-project";
 import { findInaccessibleProjectIds } from "../../project-access/find-inaccessible-project-ids";
 import { projectAccessCondition } from "../../project-access/project-access-condition";
 import {
+  canonicalEstadoCompartido,
+  type EstadoCompartido,
+} from "../estado-compartido/schema";
+import {
   type InitiativeChangeKind,
   type InitiativeChangeSource,
   initiativeChangeTable,
@@ -107,6 +111,7 @@ const initiativeColumns = {
   name: initiativeTable.name,
   objetivo: initiativeTable.objetivo,
   hitos_externos: initiativeTable.hitos_externos,
+  estado_compartido: initiativeTable.estado_compartido,
   designUrl: initiativeTable.designUrl,
   approvedBy: initiativeTable.approvedBy,
   approvedAt: initiativeTable.approvedAt,
@@ -191,6 +196,7 @@ type InitiativeData = {
         tarea?: string;
       }[]
     | null;
+  estado_compartido?: EstadoCompartido | null;
   designUrl?: string | null;
   approvedBy?: string | null;
   approvedAt?: string | null;
@@ -207,6 +213,7 @@ function dataValue(row: {
         tarea?: string;
       }[]
     | null;
+  estado_compartido: EstadoCompartido | null;
   designUrl: string | null;
   approvedBy: string | null;
   approvedAt: Date | null;
@@ -215,6 +222,7 @@ function dataValue(row: {
     name: row.name,
     objetivo: row.objetivo,
     hitos_externos: row.hitos_externos,
+    estado_compartido: canonicalEstadoCompartido(row.estado_compartido),
     designUrl: row.designUrl,
     approvedBy: row.approvedBy,
     approvedAt: row.approvedAt?.toISOString() ?? null,
@@ -236,6 +244,7 @@ export async function createInitiative(
         nameKey: initiativeNameKey(data.name),
         objetivo: null,
         hitos_externos: data.hitos_externos ?? null,
+        estado_compartido: data.estado_compartido ?? null,
         designUrl: data.designUrl ?? null,
         approvedBy: data.approvedBy ?? null,
         approvedAt: data.approvedAt ? new Date(data.approvedAt) : null,
@@ -298,6 +307,10 @@ export async function updateInitiative(
           data.hitos_externos === undefined
             ? before.hitos_externos
             : data.hitos_externos,
+        estado_compartido:
+          data.estado_compartido === undefined
+            ? before.estado_compartido
+            : canonicalEstadoCompartido(data.estado_compartido),
         designUrl:
           data.designUrl === undefined ? before.designUrl : data.designUrl,
         approvedBy:
@@ -325,6 +338,7 @@ export async function updateInitiative(
           nameKey: initiativeNameKey(next.name),
           objetivo: next.objetivo,
           hitos_externos: next.hitos_externos,
+          estado_compartido: next.estado_compartido,
           designUrl: next.designUrl,
           approvedBy: next.approvedBy,
           approvedAt: next.approvedAt ? new Date(next.approvedAt) : null,

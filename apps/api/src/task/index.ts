@@ -119,6 +119,7 @@ import {
   updateTaskClassificationBody,
   updateDescriptionBody,
   updateDueDateBody,
+  updateEstadoCompartidoBody,
   updateEstimationBody,
   updatePriorityBody,
   updateRecurrenceBody,
@@ -679,6 +680,35 @@ const updateTaskEstimationRoute = createRoute({
     404: errorResponse("Task not found"),
   },
 });
+const updateTaskEstadoCompartidoRoute = createRoute({
+  method: "put",
+  operationId: "updateTaskEstadoCompartido",
+  path: "/estado_compartido/{id}",
+  tags: ["Tasks"],
+  summary: "Update a task's shared chain state",
+  description:
+    "Sets or clears (null) `estado_compartido` on the root task of a chain without an initiative (annex of design 33 §4.1). Requires task:update.",
+  middleware: [
+    workspaceAccess.fromTask(),
+    requireWorkspacePermission({ task: ["update"] }),
+    requireEntitlement,
+  ] as const,
+  request: {
+    params: taskParam,
+    body: {
+      required: true,
+      content: { "application/json": { schema: updateEstadoCompartidoBody } },
+    },
+  },
+  responses: {
+    200: jsonResponse("The updated task", taskSchema),
+    400: errorResponse("Invalid shared state"),
+    403: errorResponse(
+      "No access to the project, or missing task:update permission",
+    ),
+    404: errorResponse("Task not found"),
+  },
+});
 
 const updateTaskAssigneeRoute = createRoute({
   method: "put",
@@ -1036,6 +1066,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       startDate,
       dueDate,
       estimacion_horas,
+      estado_compartido,
       priority,
       status,
       userId,
@@ -1069,6 +1100,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       startDate: parsedStartDate,
       dueDate: parsedDueDate,
       estimacion_horas,
+      estado_compartido,
       priority,
       status,
       recurrence,
@@ -1151,6 +1183,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
       startDate,
       dueDate,
       estimacion_horas,
+      estado_compartido,
       priority,
       status,
       projectId,
@@ -1192,6 +1225,7 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
         : false,
       c.get("workspaceId"),
       { type, validationInProduction, validationInProductionReason },
+      estado_compartido,
     );
 
     return c.json(task, 200);
@@ -1273,6 +1307,24 @@ const task = apiRouter<BaseVariables & { workspaceId: string }>()
     const [updated] = await db
       .update(taskTable)
       .set({ estimacion_horas })
+      .where(eq(taskTable.id, id))
+      .returning();
+    if (!updated) throw new HTTPException(404, { message: "Task not found" });
+    await publishEvent("task.updated", {
+      taskId: updated.id,
+      projectId: updated.projectId,
+      title: updated.title,
+      status: updated.status,
+      userId: c.get("userId"),
+    });
+    return c.json(updated, 200);
+  })
+  .openapi(updateTaskEstadoCompartidoRoute, async (c) => {
+    const { id } = c.req.valid("param");
+    const { estado_compartido } = c.req.valid("json");
+    const [updated] = await db
+      .update(taskTable)
+      .set({ estado_compartido })
       .where(eq(taskTable.id, id))
       .returning();
     if (!updated) throw new HTTPException(404, { message: "Task not found" });

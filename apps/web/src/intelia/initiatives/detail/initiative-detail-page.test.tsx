@@ -148,6 +148,7 @@ const mockInitiative: InitiativeDetail = {
   name: "Importación de pedidos",
   objetivo: null,
   hitos_externos: null,
+  estado_compartido: null,
   designUrl: "https://example.com/design",
   approvedBy: "Persona A",
   approvedAt: "2026-10-12T00:00:00.000Z",
