@@ -4,6 +4,7 @@
 // not say so stay as they are and are listed for review. Replays the API
 // startup on a dedicated database, first without the migration (the deployed
 // schema) and then with it, as an upgrade would.
+import { randomUUID } from "node:crypto";
 import {
   cpSync,
   mkdtempSync,
@@ -138,17 +139,20 @@ it("restores archived tasks to their closed column with the mark, and lists the 
 
   let number = 1;
   const task = async (status: string) => {
-    const [row] = await db
-      .insert(schema.taskTable)
-      .values({
-        projectId: project!.id,
-        title: `Tarea ${number}`,
-        number: number++,
+    const id = randomUUID();
+    await pool.query(
+      `INSERT INTO task (id, project_id, title, number, status, column_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        id,
+        project!.id,
+        `Tarea ${number}`,
+        number++,
         status,
-        columnId: status === "archived" ? null : columnId(status),
-      })
-      .returning();
-    return row!;
+        status === "archived" ? null : columnId(status),
+      ],
+    );
+    return { id, status };
   };
   const change = (
     taskId: string,

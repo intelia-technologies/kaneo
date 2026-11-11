@@ -2,6 +2,7 @@
 // already exist when the migration runs. Replays the API startup on a
 // dedicated database, first without that migration (the deployed schema) and
 // then with it, as an upgrade would.
+import { randomUUID } from "node:crypto";
 import {
   cpSync,
   mkdtempSync,
@@ -107,13 +108,6 @@ it("leaves every open task in manual with verification, logged as the migration,
     migrationsTable: INTELIA_MIGRATIONS_TABLE,
   });
 
-  // The current Drizzle task schema includes this later column even when
-  // seeding a pre-backfill database. Remove it before replaying the upgrade,
-  // so migration 0009 still adds it to the historical schema itself.
-  await pool.query(
-    'ALTER TABLE "task" ADD COLUMN "estimacion_horas" double precision',
-  );
-
   const [user] = await db
     .insert(schema.userTable)
     .values({
@@ -166,19 +160,14 @@ it("leaves every open task in manual with verification, logged as the migration,
     { projectId: legacy!.id, status: "to-do" },
     { projectId: legacy!.id, status: "done" },
   ];
-  const tasks = await db
-    .insert(schema.taskTable)
-    .values(
-      seeded.map(({ projectId, status }, index) => ({
-        projectId,
-        title: status,
-        number: index + 1,
-        status,
-        userId: user!.id,
-      })),
-    )
-    .returning();
-  await pool.query('ALTER TABLE "task" DROP COLUMN "estimacion_horas"');
+  const tasks = seeded.map((task) => ({ ...task, id: randomUUID() }));
+  for (const [index, task] of tasks.entries()) {
+    await pool.query(
+      `INSERT INTO task (id, project_id, title, number, status, assignee_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [task.id, task.projectId, task.status, index + 1, task.status, user!.id],
+    );
+  }
   const idOf = (projectId: string, status: string) =>
     tasks.find(
       (task) => task.projectId === projectId && task.status === status,
