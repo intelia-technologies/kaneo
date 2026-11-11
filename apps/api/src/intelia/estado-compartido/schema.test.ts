@@ -7,7 +7,7 @@ const valid = {
   ficheros: true,
   tamano_max_gb: 50,
   servicios: "services:\n  db:\n    image: x\n",
-};
+} as const;
 
 describe("estadoCompartidoSchema", () => {
   it("keeps a valid value as given, compose text included", () => {

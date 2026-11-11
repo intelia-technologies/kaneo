@@ -218,6 +218,8 @@ Nunca con `pnpm db:generate` ni con `drizzle.config.ts`: esos escriben en el dia
 
 El test `tests/api-integration/intelia-schema-migrations.test.ts` reproduce el arranque en una base de datos aparte y simula el merge de una versión de upstream con una migración nueva: se aplican las de los dos.
 
+Las pruebas de actualizaciones históricas siembran `task` con SQL parametrizado y solo las columnas que existían antes de la migración. No usan el esquema Drizzle actual ni añaden columnas temporales para acomodarlo: así las columnas posteriores (como `estimacion_horas` y `estado_compartido`) las crea su migración real durante la prueba.
+
 ### Ganchos sobre `public.task`
 
 Dependemos de la tabla de upstream `public.task` de dos formas: el trigger `intelia_close_plan_on_start` (con su función `intelia.close_plan_on_start`) y **doce claves ajenas** de nuestras tablas a `task(id)`: `comment_reaction`, `routine`, `task_automation`, `task_automation_change`, `initiative_change` (`ON DELETE SET NULL`), `task_initiative`, `task_initiative_change`, `task_alias`, `task_classification`, `task_request`, `task_archive` y `task_archive_migration_skip` (las demás, `ON DELETE CASCADE`; todas, `ON UPDATE CASCADE`). Una migración de upstream que **recree** `task` (`DROP TABLE … CASCADE` y `CREATE TABLE`) se lleva el trigger y las doce claves sin ningún error; el diario de migraciones `intelia` no lo ve, porque nuestras migraciones ya están aplicadas.

@@ -140,15 +140,13 @@ it("translates manual to automatica no and arranque and completa to yes, keeps t
     { id: "t-diseno", level: "arranque", verification: true, type: "diseno" },
     { id: "t-untyped", level: "manual", verification: false, type: null },
   ];
-  await db.insert(schema.taskTable).values(
-    seeded.map(({ id }, index) => ({
-      id,
-      projectId: project!.id,
-      title: id,
-      number: index + 1,
-      status: "to-do",
-    })),
-  );
+  for (const [index, { id }] of seeded.entries()) {
+    await pool.query(
+      `INSERT INTO task (id, project_id, title, number, status)
+       VALUES ($1, $2, $3, $4, 'to-do')`,
+      [id, project!.id, id, index + 1],
+    );
+  }
   // Raw SQL: the Drizzle schema already has the new columns.
   for (const { id, level, verification, type } of seeded) {
     await pool.query(
