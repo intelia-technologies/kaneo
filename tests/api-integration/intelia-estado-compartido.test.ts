@@ -1,6 +1,8 @@
 // `estado_compartido` on initiatives and tasks (annex of design 33 §4.1,
 // CJ-14): the CJ-13 sample goes in and comes back unchanged, values outside
 // the contract's fields are refused, and only writers may change it.
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { auth } from "../../apps/api/src/auth";
@@ -16,28 +18,27 @@ import {
   createProjectFixture,
   createWorkspaceMember,
 } from "./helpers/fixtures";
+import { parse } from "yaml";
 
-// software-factory testing/contratos/muestras/cadena/lab-h2.estado.yml, the
-// Hito 2 lab of Intelia, as its YAML parses.
-const LAB_H2 = {
-  nombre: "lab-h2",
-  datos: "intelia",
-  ficheros: true,
-  tamano_max_gb: 50,
-  servicios: `services:
-  db:
-    extends: { file: catalogo/postgres-pgvector.compose.yml, service: db }
-    x-sf-credencial: { usuario: intelia }
-    x-sf-cadena: { puerto_en_caja: 15432, variable_credencial: INTELIA_DB_PASSWORD }
-  grafo:
-    extends: { file: catalogo/falkordb.compose.yml, service: grafo }
-    x-sf-credencial: { usuario: intelia }
-    x-sf-cadena: { puerto_en_caja: 16379, variable_credencial: INTELIA_FALKORDB_PASSWORD }
-volumes:
-  postgres-datos: {}
-  falkordb-datos: {}
-`,
-};
+// The CJ-13 sample, byte for byte: software-factory
+// testing/contratos/muestras/cadena/lab-h2.estado.yml at commit
+// 44eb441dad8d4c0d0a09aa4288074b5d026dcffa (PR #1675), git blob
+// 97385b62d070642d878eb0d03f2b09b4989c6aef. Check with
+// `git hash-object tests/api-integration/contract-samples/cadena-lab-h2.estado.yml`
+// here and `git rev-parse 44eb441d:testing/contratos/muestras/cadena/lab-h2.estado.yml`
+// in software-factory.
+const LAB_H2_BLOB = "97385b62d070642d878eb0d03f2b09b4989c6aef";
+const LAB_H2_SOURCE = readFileSync(
+  new URL("./contract-samples/cadena-lab-h2.estado.yml", import.meta.url),
+);
+const LAB_H2 = parse(LAB_H2_SOURCE.toString("utf8")) as Record<string, unknown>;
+
+function gitBlobId(content: Buffer) {
+  return createHash("sha1")
+    .update(`blob ${content.length}\0`)
+    .update(content)
+    .digest("hex");
+}
 
 const INVALID = [
   { ...LAB_H2, semilla: "dump.sql" },
@@ -49,6 +50,17 @@ const INVALID = [
   { ...LAB_H2, ficheros: false, servicios: null },
   "lab-h2",
 ];
+
+it("uses the CJ-13 sample unchanged", () => {
+  expect(gitBlobId(LAB_H2_SOURCE)).toBe(LAB_H2_BLOB);
+  expect(Object.keys(LAB_H2).sort()).toEqual([
+    "datos",
+    "ficheros",
+    "nombre",
+    "servicios",
+    "tamano_max_gb",
+  ]);
+});
 
 const json = { "content-type": "application/json" };
 
