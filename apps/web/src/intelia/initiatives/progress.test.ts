@@ -41,6 +41,7 @@ function initiative(
     name,
     objetivo: null,
     hitos_externos: null,
+    estado_compartido: null,
     designUrl: null,
     approvedBy: null,
     approvedAt: null,

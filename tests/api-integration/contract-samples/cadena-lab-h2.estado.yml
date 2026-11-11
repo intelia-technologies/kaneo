@@ -1,0 +1,21 @@
+# Muestra: `estado_compartido` del laboratorio del Hito 2 de Intelia (anexo del diseño 33, §4.1 y decisión 9), la cadena
+# de referencia del ensayo CJ-24. Postgres con pgvector y FalkorDB del catálogo; el código de Intelia los ve en
+# localhost:15432 y localhost:16379, como hoy, con las contraseñas en INTELIA_DB_PASSWORD e INTELIA_FALKORDB_PASSWORD.
+# Sin semilla (decisión 22): la carga es una tarea del propio diseño.
+nombre: lab-h2
+datos: intelia
+ficheros: true
+tamano_max_gb: 50
+servicios: |
+  services:
+    db:
+      extends: { file: catalogo/postgres-pgvector.compose.yml, service: db }
+      x-sf-credencial: { usuario: intelia }
+      x-sf-cadena: { puerto_en_caja: 15432, variable_credencial: INTELIA_DB_PASSWORD }
+    grafo:
+      extends: { file: catalogo/falkordb.compose.yml, service: grafo }
+      x-sf-credencial: { usuario: intelia }
+      x-sf-cadena: { puerto_en_caja: 16379, variable_credencial: INTELIA_FALKORDB_PASSWORD }
+  volumes:
+    postgres-datos: {}
+    falkordb-datos: {}

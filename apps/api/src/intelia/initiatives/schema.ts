@@ -1,4 +1,5 @@
 import { pagingNumber, z } from "../../openapi";
+import { estadoCompartidoSchema } from "../estado-compartido/schema";
 import { declaredActorInput } from "../task-automation/schema";
 
 export const projectIdParam = z.object({ projectId: z.string() });
@@ -52,11 +53,16 @@ const hitos_externos = z
     }),
   )
   .nullable();
+const estado_compartido = estadoCompartidoSchema.nullable().openapi({
+  description:
+    "The state the initiative's tasks share (annex of design 33 §4.1), or null. In PATCH, omit to keep it and null to clear it.",
+});
 
 export const createInitiativeInput = z.object({
   name,
   objetivo: z.null().optional(),
   hitos_externos: hitos_externos.optional(),
+  estado_compartido: estado_compartido.optional(),
   designUrl: designUrl.optional(),
   approvedBy: approvedBy.optional(),
   approvedAt: approvedAt.optional(),
@@ -68,6 +74,7 @@ export const updateInitiativeInput = z
     name: name.optional(),
     objetivo: objetivo.optional(),
     hitos_externos: hitos_externos.optional(),
+    estado_compartido: estado_compartido.optional(),
     designUrl: designUrl.optional(),
     approvedBy: approvedBy.optional(),
     approvedAt: approvedAt.optional(),
@@ -78,6 +85,7 @@ export const updateInitiativeInput = z
       body.name !== undefined ||
       body.objetivo !== undefined ||
       body.hitos_externos !== undefined ||
+      body.estado_compartido !== undefined ||
       body.designUrl !== undefined ||
       body.approvedBy !== undefined ||
       body.approvedAt !== undefined,

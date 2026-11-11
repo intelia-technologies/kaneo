@@ -1,4 +1,5 @@
 import { responseTimestamp, z } from "../../openapi";
+import { estadoCompartidoSchema } from "../estado-compartido/schema";
 import {
   INITIATIVE_CHANGE_KINDS,
   INITIATIVE_CHANGE_SOURCES,
@@ -35,6 +36,7 @@ export const initiativeSchema = z
         }),
       )
       .nullable(),
+    estado_compartido: estadoCompartidoSchema.nullable(),
     designUrl: z.string().nullable(),
     approvedBy: z.string().nullable(),
     approvedAt: timestamp,

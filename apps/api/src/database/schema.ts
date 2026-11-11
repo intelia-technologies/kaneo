@@ -18,6 +18,7 @@ import type { WEBHOOK_CATEGORIES } from "../admin/webhooks/categories";
 import type { AuditWebhookPayload } from "../admin/webhooks/audit-webhook-payload";
 import type { GitHubImportState } from "../github-integration/import-state";
 import type { ImportRunProject } from "../import/import-run-project";
+import type { EstadoCompartido } from "../intelia/estado-compartido/schema";
 import type { TaskRecurrence } from "../task/recurrence/schema";
 
 // Timestamp columns without a time zone hold UTC (Drizzle reads and writes
@@ -712,6 +713,9 @@ export const taskTable = pgTable(
     startDate: timestamp("start_date", { mode: "date" }),
     dueDate: timestamp("due_date", { mode: "date" }),
     estimacion_horas: doublePrecision("estimacion_horas"),
+    // Intelia: the chain's shared state, on the root task of a chain without
+    // an initiative (annex of design 33 §4.1).
+    estado_compartido: jsonb("estado_compartido").$type<EstadoCompartido>(),
     recurrence: jsonb("recurrence").$type<TaskRecurrence>(),
     createdAt: timestamp("created_at", { mode: "date" })
       .default(utcNow)

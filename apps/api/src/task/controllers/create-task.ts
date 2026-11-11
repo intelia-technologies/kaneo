@@ -23,6 +23,7 @@ import {
 import { ApiError } from "../../errors/api-error";
 import { ARCHIVED_STATUS } from "../../intelia/task-archive/archive-status";
 import { publishEvent } from "../../events";
+import type { EstadoCompartido } from "../../intelia/estado-compartido/schema";
 import type { InitiativeWriter } from "../../intelia/initiatives/access";
 import type { InitiativeOnCreate } from "../../intelia/initiatives/schema";
 import {
@@ -77,6 +78,7 @@ async function createTask({
   startDate,
   dueDate,
   estimacion_horas,
+  estado_compartido,
   description,
   priority,
   recurrence,
@@ -94,6 +96,7 @@ async function createTask({
   startDate?: Date;
   dueDate?: Date;
   estimacion_horas?: number | null;
+  estado_compartido?: EstadoCompartido | null;
   description?: string;
   priority?: string;
   recurrence?: TaskRecurrence;
@@ -224,6 +227,7 @@ async function createTask({
         startDate: startDate || null,
         dueDate: dueDate || null,
         estimacion_horas: estimacion_horas ?? null,
+        estado_compartido: estado_compartido ?? null,
         description: description || "",
         priority: resolvedPriority,
         recurrence: recurrence ?? null,

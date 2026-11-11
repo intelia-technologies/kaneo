@@ -1,3 +1,4 @@
+import { estadoCompartidoSchema } from "../intelia/estado-compartido/schema";
 import { nullableResponseTimestamp, responseTimestamp, z } from "../openapi";
 import { blockersSummarySchema } from "./blockers-summary/schema";
 import { taskRecurrenceSchema } from "./recurrence/schema";
@@ -34,6 +35,10 @@ export const taskSchema = z
       .number()
       .nullable()
       .openapi({ description: "Estimated hours, or null when unset." }),
+    estado_compartido: estadoCompartidoSchema.nullable().optional().openapi({
+      description:
+        "The chain's shared state when this is the root task of a chain without an initiative (annex of design 33 §4.1), or null. Returned by the task's detail, create and update, not by board lists.",
+    }),
     recurrence: z.union([taskRecurrenceSchema, z.null()]).optional(),
     createdAt: responseTimestamp,
     customFields: z
