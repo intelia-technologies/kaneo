@@ -288,27 +288,23 @@ function ListView({
 
         destinationColumn.tasks.splice(destinationIndex, 0, task);
 
-        destinationColumn.tasks.forEach((t, index) => {
-          const moved = {
+        const updates = [
+          ...destinationColumn.tasks.map((t, index) => ({
             ...t,
             status: destinationColumn.slug,
             position: index,
-          };
-          // `mutate` callbacks fire only for the last call of a batch: the
-          // moved row's own failure needs its own promise.
-          if (t.id === activeTaskId)
-            updateTaskAsync(moved).catch((error: unknown) =>
-              moveFailed(error, activeTaskId),
-            );
-          else updateTask(moved);
-        });
-
-        sourceColumn.tasks.forEach((t, index) => {
-          updateTask({
-            ...t,
-            position: index,
-          });
-        });
+          })),
+          ...sourceColumn.tasks.map((t, index) => ({ ...t, position: index })),
+        ];
+        // The moved row first, on its own promise: if it is refused (a drop
+        // into Cancelled of a task with open dependents), nothing else moves.
+        const moved = updates.find((t) => t.id === activeTaskId)!;
+        updateTaskAsync(moved).then(
+          () => {
+            for (const t of updates) if (t.id !== activeTaskId) updateTask(t);
+          },
+          (error: unknown) => moveFailed(error, activeTaskId),
+        );
       }
     });
 

@@ -1,6 +1,12 @@
 // Dragging a card into Cancelled (design 82 §3.1, CD-05) against the real API.
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { act, cleanup, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import {
@@ -14,12 +20,15 @@ import {
 } from "vite-plus/test";
 import KanbanBoard from "@/components/kanban-board";
 import { tasksQueryOptions } from "@/hooks/queries/task/tasks-query-options";
+import useGetProjectTaskRelations from "@/hooks/queries/task-relation/use-get-project-task-relations";
 import useProjectStore from "@/store/project";
 import type { ChainGraph as ChainGraphModel } from "../chain-graph-model";
 import { useCancelPanelStore } from "../entry/cancel-panel-store";
 import {
   cancelAllInPanel,
+  chainNode,
   expectPanel,
+  REASON,
   initI18n,
   renderApp,
   seedBoard,
@@ -68,20 +77,51 @@ vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({}),
   useRouter: () => ({ preloadRoute: () => Promise.resolve() }),
 }));
+const workspace = vi.hoisted(() => ({ id: "" }));
 vi.mock("@/hooks/queries/workspace/use-active-workspace", () => ({
-  default: () => ({ data: { id: "ws" } }),
+  default: () => ({ data: { id: workspace.id } }),
 }));
-// React Flow draws nothing without layout: the chain is listed by key.
-vi.mock("../components/chain-graph", () => ({
-  ChainGraph: ({ graph }: { graph: ChainGraphModel }) => (
-    <ul>
-      {graph.nodes.map((node) => (
-        <li key={node.id} data-ticket={node.data.ticket ?? undefined} />
-      ))}
-    </ul>
-  ),
-}));
+// React Flow draws nothing without layout: the canvas becomes a plain list of
+// the same node components, so they can be picked.
+vi.mock("../components/chain-graph", async () => {
+  const { ReactFlowProvider } = await import("@xyflow/react");
+  const { ChainNode } = await import("../components/chain-node");
+  return {
+    ChainGraph: ({ graph }: { graph: ChainGraphModel }) => (
+      <ReactFlowProvider>
+        {graph.nodes.map((node) => (
+          <ChainNode
+            key={node.id}
+            {...({ id: node.id, data: node.data } as Parameters<
+              typeof ChainNode
+            >[0])}
+          />
+        ))}
+      </ReactFlowProvider>
+    ),
+  };
+});
 
+/** The project's `blocks` edges by key, from the query the views share. */
+function Edges({ projectId }: { projectId: string }) {
+  const { data } = useGetProjectTaskRelations(projectId);
+  const project = useProjectStore((state) => state.project);
+  const key = (id: string) => {
+    const task = project?.columns
+      .flatMap((column) => column.tasks)
+      .find((t) => t.id === id);
+    return task ? `KF-${task.number}` : id;
+  };
+  return (
+    <p data-testid="edges">
+      {(data ?? [])
+        .filter((r) => r.relationType === "blocks")
+        .map((r) => `${key(r.sourceTaskId)}>${key(r.targetTaskId)}`)
+        .sort()
+        .join(",")}
+    </p>
+  );
+}
 /** The board page: the tasks query feeds the project store, as the route does. */
 function Board({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
@@ -108,6 +148,7 @@ afterEach(() => {
 let board: SeededBoard;
 beforeEach(async () => {
   board = await seedBoard();
+  workspace.id = board.workspaceId;
 });
 
 async function dropInCancelled(ticket: string) {
@@ -141,6 +182,51 @@ describe("dragging into Cancelled", () => {
       expect(cards("cancelled")).toEqual(["KF-1", "KF-2", "KF-3"]),
     );
     expect(cards("to-do")).toEqual(["KF-4"]);
+  });
+
+  it("after moving a dependency in the panel, the board and its relations follow without reloading", async () => {
+    renderApp(
+      <>
+        <Board projectId={board.projectId} />
+        <Edges projectId={board.projectId} />
+      </>,
+    );
+    await waitFor(() => expect(cards("to-do")).toContain("KF-1"));
+    await waitFor(() =>
+      expect(screen.getByTestId("edges")).toHaveTextContent("KF-1>KF-2"),
+    );
+    act(() =>
+      dnd.end?.({
+        active: { id: board.id("KF-1") },
+        over: { id: "cancelled" },
+      }),
+    );
+    await expectPanel("KF-1", ["KF-2", "KF-3"]);
+
+    // KF-2's dependency passes to KF-4, picked in the search.
+    fireEvent.click(chainNode("KF-2")!);
+    fireEvent.click(screen.getByRole("button", { name: /Mover a…/ }));
+    fireEvent.change(
+      screen.getByLabelText("Tarea a la que pasa la dependencia"),
+      { target: { value: "Tarea KF-4" } },
+    );
+    fireEvent.click(
+      (await screen.findByText("KF-4", { selector: "span" })).closest(
+        "button",
+      )!,
+    );
+    fireEvent.change(screen.getByLabelText("Motivo"), {
+      target: { value: REASON },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar 1 tarea" }));
+
+    await waitFor(() => expect(cards("cancelled")).toEqual(["KF-1"]));
+    expect(cards("to-do")).toEqual(["KF-2", "KF-3", "KF-4"]);
+    await waitFor(() =>
+      expect(screen.getByTestId("edges").textContent).toBe(
+        "KF-2>KF-3,KF-4>KF-2",
+      ),
+    );
   });
 
   it("without dependents, one drop cancels and no panel opens", async () => {

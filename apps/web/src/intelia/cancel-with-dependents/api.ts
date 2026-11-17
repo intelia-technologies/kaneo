@@ -2,7 +2,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { getApiUrl } from "@/fetchers/get-api-url";
 import { HttpError } from "@/lib/http-error";
 import { invalidateMyWork } from "@/lib/invalidate-my-work";
-import { isPerTaskRelationQuery } from "@/lib/relation-query-keys";
 import {
   rutaCancelarTarea,
   type ErrorDependenciasSinResolver,
@@ -61,7 +60,8 @@ export function useCancelTaskWithDependents(
       queryClient.invalidateQueries({ queryKey: ["project-relations"] });
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      queryClient.invalidateQueries({ predicate: isPerTaskRelationQuery });
+      // Relations removed and moved: every project's edges, too.
+      queryClient.invalidateQueries({ queryKey: ["task-relations"] });
       onCancelled?.(outcome.result);
     },
   });

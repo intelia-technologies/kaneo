@@ -110,9 +110,13 @@ export async function expectPanel(root: string, chain: string[]) {
   expect(
     await screen.findByRole("heading", { name: `Cancelar ${root}` }),
   ).toBeInTheDocument();
-  for (const ticket of chain)
-    expect(document.querySelector(`[data-ticket="${ticket}"]`)).not.toBeNull();
+  for (const ticket of chain) expect(chainNode(ticket)).not.toBeNull();
 }
+
+/** A node of the panel's chain: a button when it can be decided. */
+export const chainNode = (ticket: string) =>
+  screen.queryByRole("button", { name: new RegExp(`^${ticket} `) }) ??
+  document.querySelector<HTMLElement>(`[data-ticket="${ticket}"]`);
 
 /** «Cancelar todo» with a reason, and confirm. */
 export async function cancelAllInPanel(count: number) {
