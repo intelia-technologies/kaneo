@@ -730,6 +730,62 @@ describe("resolutions", () => {
     expect(await snapshot(seeded)).toEqual(before);
   });
 
+  it("refuse resolutions for a task cancelled by someone else between the check and the lock", async () => {
+    const { app, seeded, key } = await setup();
+    for (const t of ["LK-1", "LK-2", "LK-3"]) await seeded.add(t);
+    await seeded.relate("LK-1", "LK-2");
+    await seeded.relate("LK-2", "LK-3");
+    const motivo = "Se cancela mientras otro la estaba cancelando.";
+    // B reads LK-2 open and checks it; A cancels LK-1 with LK-2 and LK-3 and
+    // commits before B takes its locks.
+    const loadGraph = graphs.loadGraph;
+    const aDone = Promise.withResolvers<void>();
+    let held = false;
+    vi.spyOn(graphs, "loadGraph").mockImplementation(async (...args) => {
+      const graph = await loadGraph(...args);
+      if (!held && args[1] === seeded.ids.get("LK-2")) {
+        held = true;
+        await aDone.promise;
+      }
+      return graph;
+    });
+
+    const b = cancel(
+      app,
+      seeded.ids.get("LK-2")!,
+      { motivo, resoluciones: [{ tarea: "LK-3", accion: "quitar" }] },
+      { "x-api-key": key },
+    );
+    await vi.waitFor(() => expect(held).toBe(true));
+    const a = await cancel(
+      app,
+      seeded.ids.get("LK-1")!,
+      {
+        motivo,
+        resoluciones: [
+          { tarea: "LK-2", accion: "cancelar" },
+          { tarea: "LK-3", accion: "cancelar" },
+        ],
+      },
+      { "x-api-key": key },
+    );
+    expect(a.status).toBe(200);
+    const afterA = await snapshot(seeded);
+    aDone.resolve();
+    const lost = await b;
+
+    expect(lost.status).toBe(409);
+    expect(lost.body.details!.problemas).toEqual([
+      {
+        tarea: "LK-2",
+        problema: "cadena_cambiada",
+        detalle: expect.stringContaining("Ya está cancelada"),
+      },
+    ]);
+    expect(schemaErrors("error_dependencias", lost.body)).toBeNull();
+    expect(await snapshot(seeded)).toEqual(afterA);
+  });
+
   it("give the loser of a race on overlapping chains a 409, never a 200 that drops its resolutions (20 rounds)", async () => {
     const { app, seeded, key } = await setup();
     // Half the rounds hold both callers after their first read, so both pass
