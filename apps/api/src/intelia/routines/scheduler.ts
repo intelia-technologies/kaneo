@@ -6,10 +6,7 @@ import updateTaskStatus from "../../task/controllers/update-task-status";
 import { taskIsCompleted } from "../../task/task-is-completed";
 import { projectInActiveWorkspace } from "../../workspace/archive/active-workspace-sql";
 import { type RoutineResult, routineRunTable, routineTable } from "../schema";
-import {
-  activePauseCovering,
-  type CoveringPause,
-} from "../scope-pause/covering";
+import { activePauseCovering } from "../scope-pause/covering";
 import { sendToStatusWebhooks } from "../webhooks";
 import { nextRunAt } from "./schedule";
 import {
@@ -149,13 +146,13 @@ async function runRoutine(
       : null);
   // A paused project or initiative wins over an open task, so the dispatcher
   // does not hand the tick to a worker either (design 81 §4.1).
-  const pause = error
+  const pauseId = error
     ? null
     : await activePauseCovering(routine.taskId, task.projectId);
   let result: RoutineResult;
   if (error) {
     result = "error";
-  } else if (pause) {
+  } else if (pauseId) {
     result = "saltada_pausa";
   } else if (!task.completed) {
     result = "saltada_abierta";
@@ -183,7 +180,7 @@ async function runRoutine(
       scheduledAt: routine.nextRunAt,
       result,
       error,
-      scopePauseId: pause?.id ?? null,
+      scopePauseId: pauseId,
     })
     .returning({ id: routineRunTable.id });
   await db
@@ -194,20 +191,21 @@ async function runRoutine(
   if (result === "saltada_abierta" && run && next) {
     await notifyRoutineSkipped(routine, task.projectId, run.id, next);
   }
-  if (pause && run) {
-    await commentPauseSkipOnce(routine, task.projectId, pause, run.id);
+  if (pauseId && run) {
+    await commentPauseSkipOnce(routine, pauseId, run.id);
   }
   return result;
 }
 
 // One comment per routine and pause: only on the first run that pause skips.
-// The comment is visible to whoever reads the task, so it names the scope and
-// its reason only when the pause belongs to the task's own project; a pause of
-// an initiative of another project may be unreadable to them.
+// The comment stays with the task wherever it moves, so it never names the
+// scope or its reason: who reads it may not read the paused project.
+export const PAUSE_SKIP_COMMENT =
+  "Rutina saltada: su proyecto o su iniciativa está en pausa";
+
 async function commentPauseSkipOnce(
   routine: DueRoutine,
-  taskProjectId: string,
-  pause: CoveringPause,
+  pauseId: string,
   runId: string,
 ) {
   const [earlier] = await db
@@ -216,21 +214,13 @@ async function commentPauseSkipOnce(
     .where(
       and(
         eq(routineRunTable.routineId, routine.id),
-        eq(routineRunTable.scopePauseId, pause.id),
+        eq(routineRunTable.scopePauseId, pauseId),
         ne(routineRunTable.id, runId),
       ),
     )
     .limit(1);
   if (earlier) return;
-  let text = "Rutina saltada: en pausa por su iniciativa, de otro proyecto";
-  if (pause.homeProjectId === taskProjectId) {
-    const scope =
-      pause.scopeType === "project"
-        ? `el proyecto «${pause.scopeName}»`
-        : `la iniciativa «${pause.scopeName}»`;
-    text = `Rutina saltada: en pausa por ${scope} (${pause.motivo})`;
-  }
-  await createComment(routine.taskId, ROUTINE_SERVICE_ID, text);
+  await createComment(routine.taskId, ROUTINE_SERVICE_ID, PAUSE_SKIP_COMMENT);
 }
 
 // Body documented in README-INTELIA.md.

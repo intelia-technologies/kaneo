@@ -572,6 +572,37 @@ describe("API integration: Intelia scope pauses", () => {
     expect(history.status).toBe(200);
   });
 
+  it("refuses to move either project of a paused initiative that spans two projects, until it is resumed", async () => {
+    const { app, sf, kf, user, workspace } = await setup();
+    const initiative = await seedInitiative(sf.id, "Entre tableros");
+    await join((await seedTask(sf.id)).id, initiative.id);
+    await join((await seedTask(kf.id)).id, initiative.id);
+    const pause = (await (
+      await pauseInitiative(app, initiative.id)
+    ).json()) as Json;
+    const [target] = await db
+      .insert(schema.workspaceTable)
+      .values({
+        id: `workspace-span-${initiative.id}`,
+        name: "Destino",
+        slug: `span-${initiative.id}`,
+        createdAt: new Date(),
+      })
+      .returning();
+
+    for (const project of [sf, kf]) {
+      await expect(
+        moveProject(project.id, workspace.id, target!.id, user.id),
+      ).rejects.toMatchObject({ status: 409, code: "PAUSA_ENTRE_PROYECTOS" });
+    }
+    // Nothing moved: the pause still lists both tasks in the same workspace.
+    const { pausas } = await listPauses(app, workspace.id);
+    expect(pausas[0]!.taskIds).toHaveLength(2);
+
+    await call(app, "POST", `/scope-pause/${pause.id}/resume`, {});
+    await moveProject(kf.id, workspace.id, target!.id, user.id);
+  });
+
   it("does not show another workspace's pauses", async () => {
     const { app, sf } = await setup();
     await pauseProject(app, sf.id);

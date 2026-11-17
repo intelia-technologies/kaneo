@@ -14,7 +14,10 @@ import {
 } from "vite-plus/test";
 import db, { schema } from "../../apps/api/src/database";
 import { createApp } from "../../apps/api/src/index";
-import { runDueRoutines } from "../../apps/api/src/intelia/routines/scheduler";
+import {
+  PAUSE_SKIP_COMMENT,
+  runDueRoutines,
+} from "../../apps/api/src/intelia/routines/scheduler";
 import { ROUTINE_SERVICE_ID } from "../../apps/api/src/intelia/routines/service-account";
 import {
   initiativeTable,
@@ -220,12 +223,11 @@ describe("API integration: routines in a paused scope", () => {
       .where(eq(routineTable.id, routine.id));
     expect(stored?.lastResult).toBe("saltada_pausa");
 
-    expect(await serviceComments(task.id)).toEqual([
-      {
-        content:
-          "Rutina saltada: en pausa por el proyecto «PRUEBAS» (Ensayo D81)",
-      },
-    ]);
+    // The comment follows the task if it moves to another project, so it
+    // names neither the scope nor its reason.
+    const comments = await serviceComments(task.id);
+    expect(comments).toEqual([{ content: PAUSE_SKIP_COMMENT }]);
+    expect(JSON.stringify(comments)).not.toMatch(/PRUEBAS|Ensayo/);
     await quietWindow();
     expect(events).not.toContain("intelia.routine_skipped");
     expect(events).not.toContain("task.status_changed");
@@ -275,14 +277,8 @@ describe("API integration: routines in a paused scope", () => {
     expect(await runsOf(routine.id)).toMatchObject([
       { result: "saltada_pausa", scopePauseId: paused.id },
     ]);
-    // The initiative lives in another project: the comment, readable by
-    // anyone who reads the task, names neither the initiative nor its reason.
     const comments = await serviceComments(task.id);
-    expect(comments).toEqual([
-      {
-        content: "Rutina saltada: en pausa por su iniciativa, de otro proyecto",
-      },
-    ]);
+    expect(comments).toEqual([{ content: PAUSE_SKIP_COMMENT }]);
     expect(JSON.stringify(comments)).not.toMatch(/Pausa D81|Revisión/);
     await quietWindow();
     expect(events).not.toContain("intelia.routine_skipped");
@@ -317,10 +313,7 @@ describe("API integration: routines in a paused scope", () => {
     ]);
     expect(
       (await serviceComments(task.id)).map((comment) => comment.content),
-    ).toEqual([
-      "Rutina saltada: en pausa por el proyecto «PRUEBAS» (Primera pausa)",
-      "Rutina saltada: en pausa por el proyecto «PRUEBAS» (Segunda pausa)",
-    ]);
+    ).toEqual([PAUSE_SKIP_COMMENT, PAUSE_SKIP_COMMENT]);
   });
 
   it("ignores pauses of other projects and initiatives", async () => {
