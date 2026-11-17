@@ -11,13 +11,15 @@ import {
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import type Task from "@/types/task";
+import { TaskCardScopePauses } from "@/intelia/scope-pause/components/task-card-scope-pauses";
 import { type TaskAutomation, useProjectAutomation } from "../api";
 import "../i18n";
 
 const ROLES = ["responsable", "implementador", "verificador"] as const;
 
 // Every card reads the project's shared query: the request is deduplicated
-// (one per project) and a task without a row shows nothing.
+// (one per project) and a task without a row shows no automation. The scope
+// pauses (design 81) go first: they hold the task whatever its automation.
 export function TaskCardAutomation({
   task,
 }: {
@@ -25,9 +27,13 @@ export function TaskCardAutomation({
 }) {
   const { data } = useProjectAutomation(task.projectId);
   const automation = data?.get(task.id);
-  if (!automation) return null;
 
-  return <TaskCardAutomationFields automation={automation} />;
+  return (
+    <>
+      <TaskCardScopePauses task={task} />
+      {automation && <TaskCardAutomationFields automation={automation} />}
+    </>
+  );
 }
 
 // The task's fields in words, each with its own icon: `automatica` is the

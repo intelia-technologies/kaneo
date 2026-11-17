@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { TaskAutomation } from "../api";
 import { TaskCardAutomation } from "./task-card-automation";
 
-const mocks = vi.hoisted(() => ({ project: vi.fn() }));
+const mocks = vi.hoisted(() => ({ project: vi.fn(), scopePauses: vi.fn() }));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -31,6 +31,10 @@ vi.mock("react-i18next", () => ({
 vi.mock("../i18n", () => ({}));
 vi.mock("../api", () => ({
   useProjectAutomation: (projectId: string) => mocks.project(projectId),
+}));
+vi.mock("@/intelia/scope-pause/components/task-card-scope-pauses", () => ({
+  TaskCardScopePauses: ({ task }: { task: { id: string } }) =>
+    mocks.scopePauses(task.id),
 }));
 
 afterEach(() => {
@@ -184,6 +188,15 @@ describe("TaskCardAutomation", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("shows the scope pauses of a task without a row", () => {
+    mocks.project.mockReturnValue({ data: new Map() });
+    mocks.scopePauses.mockReturnValueOnce(<span>Project paused</span>);
+    render(<TaskCardAutomation task={{ id: "task-1", projectId: "p1" }} />);
+
+    expect(screen.getByText("Project paused")).toBeInTheDocument();
+    expect(mocks.scopePauses).toHaveBeenCalledWith("task-1");
   });
 
   it("shows nothing while the project map is loading", () => {

@@ -58,6 +58,10 @@ vi.mock("@/components/page-title", () => ({
   default: () => null,
 }));
 
+vi.mock("@/intelia/scope-pause/components/initiative-pause-notice", () => ({
+  InitiativePauseNotice: () => null,
+}));
+
 vi.mock("@/components/task/task-details-sheet", () => ({
   default: ({
     taskId,
