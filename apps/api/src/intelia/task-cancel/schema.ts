@@ -42,7 +42,8 @@ export const cancelTaskInput = z
           "Graph id the caller acts for (`agent:forja`), for the comments and the event. Informative; only with an API key.",
       }),
     firma: z.string().trim().min(1).max(200).optional().openapi({
-      description: "Name the comments are signed with (`externalUserName`).",
+      description:
+        "Name the comments are signed with (`externalUserName`), as the gateway signs its comments. Needs workspace:manage_settings, like importing an external author in `POST /comment`.",
     }),
     lote: z.array(z.string().min(1)).min(1).max(1000).optional().openapi({
       description:

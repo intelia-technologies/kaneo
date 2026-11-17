@@ -2,8 +2,11 @@ import type { ChainNode, EfectoMover, Efectos, GraphTask } from "./types";
 
 export type CancelComment = { taskId: string; content: string };
 
+// §4.6 wrote «…: la rutina la reabrirá en su próximo tick» (today's
+// behaviour, §9 question 3); decision 23 settled that question by pausing it,
+// so the sentence keeps its start and says what now happens.
 const ROUTINE_PAUSED =
-  " Esta tarea tenía una rutina activa: queda en pausa para que no la reabra.";
+  " Esta tarea tiene una rutina activa: queda en pausa (active = false), así que la rutina no la reabrirá en su próximo tick.";
 
 /**
  * One comment per task touched (§4.6), signed by whoever cancels: the root,

@@ -18,22 +18,57 @@ export type CancelledWithDependents = {
   en: string;
 };
 
+type OtroTablero = CancelledWithDependents["otros_tableros"][number] & {
+  taskId: string;
+  /** In a project the canceller does not read (decision 15). */
+  oculta: boolean;
+};
+
 /**
  * `intelia.task.cancelled_with_dependents` (§4.6) once committed, through the
- * root's project webhooks, like `task.automation_changed`. The dispatcher sees
- * everything: no hidden nodes. Body documented in README-INTELIA.md.
+ * project webhooks like `task.automation_changed`. A project's webhooks only
+ * learn the tasks of another board the canceller can read: the root's project
+ * gets those, and each project with a task the canceller does not read gets
+ * the same event with its own tasks only. Between them, a receiver that
+ * listens to every project (the dispatcher) sees each task once. Body
+ * documented in README-INTELIA.md.
  */
-export function notifyCancelledWithDependents(
-  rootId: string,
-  projectId: string,
+export async function notifyCancelledWithDependents(
+  root: { id: string; projectId: string },
   userId: string,
-  data: CancelledWithDependents,
+  data: Omit<CancelledWithDependents, "otros_tableros">,
+  otros: OtroTablero[],
 ) {
-  return sendToStatusWebhooks(
-    CANCELLED_WITH_DEPENDENTS_EVENT,
-    rootId,
-    projectId,
-    userId,
-    data,
+  const deliveries = new Map<string, { taskId: string; otros: OtroTablero[] }>([
+    [
+      root.projectId,
+      { taskId: root.id, otros: otros.filter((o) => !o.oculta) },
+    ],
+  ]);
+  for (const o of otros.filter((o) => o.oculta)) {
+    const delivery = deliveries.get(o.proyecto) ?? {
+      taskId: o.taskId,
+      otros: [],
+    };
+    delivery.otros.push(o);
+    deliveries.set(o.proyecto, delivery);
+  }
+  await Promise.all(
+    [...deliveries].map(([projectId, { taskId, otros }]) =>
+      sendToStatusWebhooks(
+        CANCELLED_WITH_DEPENDENTS_EVENT,
+        taskId,
+        projectId,
+        userId,
+        {
+          ...data,
+          otros_tableros: otros.map(({ tarea, proyecto, responsable }) => ({
+            tarea,
+            proyecto,
+            responsable,
+          })),
+        } satisfies CancelledWithDependents,
+      ),
+    ),
   );
 }

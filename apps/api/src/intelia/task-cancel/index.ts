@@ -5,7 +5,11 @@ import {
   errorResponse,
   jsonResponse,
 } from "../../openapi";
-import { requireWorkspacePermission } from "../../utils/require-workspace-permission";
+import { HTTPException } from "hono/http-exception";
+import {
+  hasWorkspacePermission,
+  requireWorkspacePermission,
+} from "../../utils/require-workspace-permission";
 import { workspaceAccess } from "../../utils/workspace-access-middleware";
 import { initiativeWriter } from "../initiatives/access";
 import { cancelResultSchema, dependenciesErrorSchema } from "./response";
@@ -37,7 +41,9 @@ const cancelRoute = createRoute({
       cancelResultSchema,
     ),
     400: errorResponse("Invalid body, or `actor` from a session"),
-    403: errorResponse("No access to the project or missing task:update"),
+    403: errorResponse(
+      "No access to the project, missing task:update, or `firma` without workspace:manage_settings",
+    ),
     404: errorResponse("Task not found"),
     409: jsonResponse(
       "Open dependents without a complete resolution or a `motivo` (`DEPENDENCIAS_SIN_RESOLVER`); nothing changed",
@@ -51,6 +57,15 @@ const taskCancel = apiRouter<BaseVariables & { workspaceId: string }>().openapi(
   async (c) => {
     const input = c.req.valid("json");
     const writer = initiativeWriter(c, input.actor);
+    // Signing as someone else is importing an external author: the same
+    // permission the comment route asks for.
+    if (
+      input.firma &&
+      !(await hasWorkspacePermission(c, { workspace: ["manage_settings"] }))
+    )
+      throw new HTTPException(403, {
+        message: "`firma` requires workspace:manage_settings permission",
+      });
     return c.json(
       await cancelTask({
         taskId: c.req.valid("param").taskId,

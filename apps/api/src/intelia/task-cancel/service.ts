@@ -189,15 +189,17 @@ export async function cancelTask({
       userId,
     );
     let efectos = NO_EFFECTS;
-    // With nothing hanging any more it cancels as before; otherwise a chain
-    // nobody saw is never applied: the check reports what changed.
-    if (now.length > 0 && (!plain || guard))
+    // A chain nobody saw is never applied: the check reports what changed,
+    // also when it emptied (another cancellation took the last dependent).
+    // Without resolutions to check and nothing hanging, it cancels as before.
+    const changed = !sameChain(chain, now);
+    if ((!plain || guard) && (now.length > 0 || (!plain && changed)))
       efectos = await check(
         tx,
         locked,
         now,
         lockedTargets,
-        sameChain(chain, now) ? undefined : chain,
+        changed ? chain : undefined,
       );
     const applied = await applyCancellation(tx, {
       root: locked.root,
@@ -214,7 +216,12 @@ export async function cancelTask({
   if (!done) return alreadyCancelled(graph.root.ticket);
   const { applied, efectos, root } = done;
 
-  await publishApplied(applied, userId, quien);
+  const hidden = new Set(
+    efectos.otrosTableros
+      .filter((e) => e.node.oculta)
+      .map((e) => e.node.task.id),
+  );
+  await publishApplied(applied, userId, quien, hidden);
   const result: CancelResult = {
     canceladas: [root.ticket, ...efectos.enCascada.map((n) => n.task.ticket)],
     quitadas: efectos.quitadas.map((e) => e.node.task.ticket),
@@ -231,20 +238,26 @@ export async function cancelTask({
     comentarios: applied.comments.length,
   };
   if (efectos !== NO_EFFECTS) {
-    void notifyCancelledWithDependents(root.id, root.projectId, userId, {
-      raiz: root.ticket,
-      actor: input.actor ?? `kaneo:${userId}`,
-      motivo: input.motivo!,
-      canceladas: result.canceladas,
-      quitadas: result.quitadas,
-      movidas: result.movidas,
-      otros_tableros: efectos.otrosTableros.map((e) => ({
+    void notifyCancelledWithDependents(
+      root,
+      userId,
+      {
+        raiz: root.ticket,
+        actor: input.actor ?? `kaneo:${userId}`,
+        motivo: input.motivo!,
+        canceladas: result.canceladas,
+        quitadas: result.quitadas,
+        movidas: result.movidas,
+        en: new Date().toISOString(),
+      },
+      efectos.otrosTableros.map((e) => ({
+        taskId: e.node.task.id,
+        oculta: e.node.oculta,
         tarea: e.node.task.ticket,
         proyecto: e.node.task.projectId,
         responsable: e.node.task.responsable,
       })),
-      en: new Date().toISOString(),
-    }).catch((error) =>
+    ).catch((error) =>
       console.error("intelia.task.cancelled_with_dependents delivery failed", {
         error: error instanceof Error ? error.message : String(error),
         taskId: root.id,
@@ -254,8 +267,18 @@ export async function cancelTask({
   return result;
 }
 
-/** The events of everything committed: the same ones each change sends alone. */
-async function publishApplied(applied: Applied, userId: string, quien: string) {
+/**
+ * The events of everything committed: the same ones each change sends alone.
+ * A relation to a task the canceller does not read (`hidden`) goes out twice,
+ * to each end's project, each without the other end's id: WebSocket clients
+ * of a project only learn ids of that project.
+ */
+async function publishApplied(
+  applied: Applied,
+  userId: string,
+  quien: string,
+  hidden: ReadonlySet<string>,
+) {
   if (applied.createdColumn)
     await publishEvent("project.updated", {
       projectId: applied.cancelled[0]!.after.projectId,
@@ -264,7 +287,10 @@ async function publishApplied(applied: Applied, userId: string, quien: string) {
     await publishTaskMutation(before, after, userId, { fields: ["status"] });
 
   const ids = new Set([
-    ...[...applied.deleted, ...applied.created].map((r) => r.sourceTaskId),
+    ...[...applied.deleted, ...applied.created].flatMap((r) => [
+      r.sourceTaskId,
+      r.targetTaskId,
+    ]),
     ...applied.comments.map((c) => c.taskId),
   ]);
   const projectOf = new Map(
@@ -281,13 +307,32 @@ async function publishApplied(applied: Applied, userId: string, quien: string) {
     ["task-relation.deleted", applied.deleted],
     ["task-relation.created", applied.created],
   ] as const)
-    for (const relation of relations)
+    for (const relation of relations) {
+      const { sourceTaskId, targetTaskId, ...rest } = relation;
+      if (!hidden.has(targetTaskId)) {
+        await publishEvent(event, {
+          ...relation,
+          taskId: sourceTaskId,
+          projectId: projectOf.get(sourceTaskId),
+          userId,
+        });
+        continue;
+      }
       await publishEvent(event, {
-        ...relation,
-        taskId: relation.sourceTaskId,
-        projectId: projectOf.get(relation.sourceTaskId),
+        ...rest,
+        sourceTaskId,
+        taskId: sourceTaskId,
+        projectId: projectOf.get(sourceTaskId),
         userId,
       });
+      await publishEvent(event, {
+        ...rest,
+        targetTaskId,
+        taskId: targetTaskId,
+        projectId: projectOf.get(targetTaskId),
+        userId,
+      });
+    }
   for (const change of applied.automation)
     void notifyAutomationChanged(change.taskId, change).catch((error) =>
       console.error("task.automation_changed delivery failed", {
