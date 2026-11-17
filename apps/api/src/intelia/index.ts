@@ -13,6 +13,7 @@ import statusAge from "./status-age";
 import taskArchive from "./task-archive";
 import "./task-archive/subscribe";
 import taskAutomation from "./task-automation";
+import taskCancel from "./task-cancel";
 import taskMove from "./task-move";
 import taskRequest from "./task-request";
 import "./task-request/subscribe";
@@ -34,6 +35,7 @@ const intelia = apiRouter()
   .route("/", statusAge)
   .route("/", taskArchive)
   .route("/", taskAutomation)
+  .route("/", taskCancel)
   .route("/", taskMove)
   .route("/", taskRequest)
   .route("/", userAvatar);

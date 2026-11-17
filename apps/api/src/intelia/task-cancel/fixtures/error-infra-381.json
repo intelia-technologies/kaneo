@@ -1,0 +1,848 @@
+{
+  "tipo": "error_dependencias",
+  "nota": "409 de la primera llamada para cancelar INFRA-381. Fuente: lectura de Dédalo con kaneo.get_task el 17-nov hacia las 09:00Z (comentarios ed6kc4ugtdaa68gvz5kbe40a y j9benkn94wpn57rby0vrjy97 en SF-2510; role:coder no lee INFRA): ids, claves, títulos, estados, responsables, asignados y las 33 relaciones blocks con sus ids reales. 28 nodos y 20 niveles (la raíz no cuenta). `en_curso` es true en las que tenían worker; ninguna tenía rutina.",
+  "valor": {
+    "error": "DEPENDENCIAS_SIN_RESOLVER",
+    "message": "INFRA-381 tiene 28 tareas abiertas que pueden verse afectadas (28 de este tablero, 0 de otro). Para cancelarla, di qué pasa con cada una de las pendientes con `resoluciones` y escribe un `motivo`.",
+    "details": {
+      "tarea": {
+        "ticket": "INFRA-381",
+        "titulo": "[MA-40] [Fase C · ola 1] Ola 1: PR de OpenFGA",
+        "tablero": "INFRA"
+      },
+      "motivo": {
+        "requerido": true,
+        "recibido": false
+      },
+      "total": 28,
+      "truncada": false,
+      "cadena": [
+        {
+          "ticket": "INFRA-382",
+          "titulo": "[MA-41] [Fase C · ola 1] Ola 1: ensayo",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 1,
+          "depende_de": [
+            {
+              "ticket": "INFRA-381",
+              "relacion": "n5m5q7di6rhjmcghx21g9fq5"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 27,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-383",
+          "titulo": "[MA-42] [Fase C · ola 1] Ola 1: corte",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 2,
+          "depende_de": [
+            {
+              "ticket": "INFRA-382",
+              "relacion": "z7cnvstjrgv1ctctn63wo3j3"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-382"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 26,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-384",
+          "titulo": "[MA-43] [Fase C · ola 1] Validar ola 1",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 3,
+          "depende_de": [
+            {
+              "ticket": "INFRA-383",
+              "relacion": "qjeolthm5tsnv012s60b1grj"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-383"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 25,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-385",
+          "titulo": "[MA-50] [Fase C · ola 2] Ola 2: PR de graph",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 4,
+          "depende_de": [
+            {
+              "ticket": "INFRA-384",
+              "relacion": "mlmr2y33gapf7c968g3r8go8"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-384"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 24,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": true
+        },
+        {
+          "ticket": "INFRA-386",
+          "titulo": "[MA-51] [Fase C · ola 2] Ola 2: ensayo",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 5,
+          "depende_de": [
+            {
+              "ticket": "INFRA-385",
+              "relacion": "hz94p000a79llqyt26jth54g"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-385"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 23,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-387",
+          "titulo": "[MA-52] [Fase C · ola 2] Ola 2: corte",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 6,
+          "depende_de": [
+            {
+              "ticket": "INFRA-386",
+              "relacion": "re4fbrw39odmlywszi6m5v34"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-386"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 22,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-388",
+          "titulo": "[MA-53] [Fase C · ola 2] Validar ola 2",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 7,
+          "depende_de": [
+            {
+              "ticket": "INFRA-387",
+              "relacion": "bykkgz9j2xptfqa68jy7zpnn"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-387"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 21,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-389",
+          "titulo": "[MA-60] [Fase C · ola 3] Ola 3: PR de Matrix",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 8,
+          "depende_de": [
+            {
+              "ticket": "INFRA-388",
+              "relacion": "voeu4o6sdofy9tl46ovlrumv"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-388"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 20,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": true
+        },
+        {
+          "ticket": "INFRA-390",
+          "titulo": "[MA-61] [Fase C · ola 3] Ola 3: copiar estado",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 9,
+          "depende_de": [
+            {
+              "ticket": "INFRA-389",
+              "relacion": "afsaaugr2snl2d0ctpmhyglz"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-389"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 15,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-393",
+          "titulo": "[MA-70] [Fase C · ola 4] Ola 4: PR de Kaneo",
+          "tablero": "INFRA",
+          "estado": "blocked",
+          "nivel": 9,
+          "depende_de": [
+            {
+              "ticket": "INFRA-389",
+              "relacion": "vh3v2l60bb25k6jyc24xgndo"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-389"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 16,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": true
+        },
+        {
+          "ticket": "INFRA-391",
+          "titulo": "[MA-62] [Fase C · ola 3] Ola 3: corte",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 10,
+          "depende_de": [
+            {
+              "ticket": "INFRA-390",
+              "relacion": "kadgqysa81z0sy4otcau8gc7"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-390"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 14,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-394",
+          "titulo": "[MA-71] [Fase C · ola 4] Ola 4: ensayo",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 10,
+          "depende_de": [
+            {
+              "ticket": "INFRA-393",
+              "relacion": "tf2f6zau9gn39ffcynyygxtq"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-393"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 13,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-397",
+          "titulo": "[MA-80] [Fase C · ola 5] Ola 5: PR de dispatcher y gateway",
+          "tablero": "INFRA",
+          "estado": "blocked",
+          "nivel": 10,
+          "depende_de": [
+            {
+              "ticket": "INFRA-393",
+              "relacion": "n6jr72izjmboov77kg7xpmrb"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-393"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 12,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": true
+        },
+        {
+          "ticket": "INFRA-392",
+          "titulo": "[MA-63] [Fase C · ola 3] Validar ola 3",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 11,
+          "depende_de": [
+            {
+              "ticket": "INFRA-391",
+              "relacion": "ozp9jzmgak2s18my4cu9tsu2"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-391"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 13,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-398",
+          "titulo": "[MA-81] [Fase C · ola 5] Ola 5: ensayo",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 11,
+          "depende_de": [
+            {
+              "ticket": "INFRA-397",
+              "relacion": "llptgwka1qcyr90u3zzykyaz"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-397"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 11,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-395",
+          "titulo": "[MA-72] [Fase C · ola 4] Ola 4: corte",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 12,
+          "depende_de": [
+            {
+              "ticket": "INFRA-392",
+              "relacion": "mzfw77zswcqem7hpto1kodc8"
+            },
+            {
+              "ticket": "INFRA-394",
+              "relacion": "ejc4ndlm52bg2rmswe59719p"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-392",
+            "INFRA-394"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 12,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-396",
+          "titulo": "[MA-73] [Fase C · ola 4] Validar ola 4",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 13,
+          "depende_de": [
+            {
+              "ticket": "INFRA-395",
+              "relacion": "zj08txnstb335u9my4cngb4y"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-395"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 11,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-399",
+          "titulo": "[MA-82] [Fase C · ola 5] Ola 5: corte",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 14,
+          "depende_de": [
+            {
+              "ticket": "INFRA-396",
+              "relacion": "x7yj7n9z4x0qi0vn35k74jww"
+            },
+            {
+              "ticket": "INFRA-398",
+              "relacion": "vlowhycaoctl3gm48ipisara"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-396",
+            "INFRA-398"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 10,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-400",
+          "titulo": "[MA-83] [Fase C · ola 5] Validar ola 5",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 15,
+          "depende_de": [
+            {
+              "ticket": "INFRA-399",
+              "relacion": "zeue915blog22vv8brrw6u1b"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-399"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 9,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-404",
+          "titulo": "[MA-95] [Fase D] Retirar la factory de Hetzner",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 16,
+          "depende_de": [
+            {
+              "ticket": "INFRA-400",
+              "relacion": "ms17p0i6c0vygdbqcd3kfcik"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-400"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 3,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-407",
+          "titulo": "[MA-90] [Fase D] Decidir el ingreso público (D5)",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 16,
+          "depende_de": [
+            {
+              "ticket": "INFRA-400",
+              "relacion": "awn63qpkx4bd0an6oxj4xo47"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-400"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 5,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-401",
+          "titulo": "[MA-91] [Fase D] Proxies de VPN en Arsys",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 17,
+          "depende_de": [
+            {
+              "ticket": "INFRA-407",
+              "relacion": "c8gj0f6qswdyo2jvb8m7vlm4"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-407"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 3,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-403",
+          "titulo": "[MA-94] [Fase D] Traefik y DNS en Arsys (opcional)",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 17,
+          "depende_de": [
+            {
+              "ticket": "INFRA-407",
+              "relacion": "ar8tjn0w1dh6yq3skzz7mn63"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-407"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 0,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-405",
+          "titulo": "[MA-96] [Fase D] Actualizar documentación",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 17,
+          "depende_de": [
+            {
+              "ticket": "INFRA-404",
+              "relacion": "z9opbykw6q0q6p4g9wdik7cg"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-404"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 1,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-406",
+          "titulo": "[MA-97] [Fase D] Revisar claves y accesos",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 17,
+          "depende_de": [
+            {
+              "ticket": "INFRA-404",
+              "relacion": "hoptzlq16qre6tzlk101o256"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-404"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 1,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-402",
+          "titulo": "[MA-92] [Fase D] Mover las antenas",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 18,
+          "depende_de": [
+            {
+              "ticket": "INFRA-401",
+              "relacion": "rh0xn9huj1o0n0jdkvhw7fio"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-401"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 2,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-408",
+          "titulo": "[MA-93] [Fase D] Retirar los relés",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 19,
+          "depende_de": [
+            {
+              "ticket": "INFRA-402",
+              "relacion": "u0rdn0j9mk1un9ydkt6vcp76"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-402"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 1,
+          "responsable": "agent:pasquale",
+          "asignado": "Pasquale",
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-665",
+          "titulo": "[MA-RETRO] Retrospectiva de la migración de Hetzner a Arsys",
+          "tablero": "INFRA",
+          "estado": "planned",
+          "nivel": 20,
+          "depende_de": [
+            {
+              "ticket": "INFRA-404",
+              "relacion": "prir2mrlj0w2lx1zy2a3aeqv"
+            },
+            {
+              "ticket": "INFRA-405",
+              "relacion": "uag95kp5pvkyd1dwbhvybrgi"
+            },
+            {
+              "ticket": "INFRA-406",
+              "relacion": "gve4squyknbell8bu8oqvta6"
+            },
+            {
+              "ticket": "INFRA-408",
+              "relacion": "xsa2e5w9bl4fsjslryjjhrj8"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "INFRA-404",
+            "INFRA-405",
+            "INFRA-406",
+            "INFRA-408"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 0,
+          "responsable": "agent:pasquale",
+          "asignado": null,
+          "automatica": false,
+          "rutina_activa": false,
+          "en_curso": false
+        }
+      ],
+      "pendientes": [
+        "INFRA-382"
+      ],
+      "problemas": [],
+      "opciones": {
+        "cancelar": "La cancela también, con el mismo motivo. Después hay que resolver lo que cuelga de ella (sus nodos con solo_si_cancelas).",
+        "quitar": "Le quita la dependencia; sigue viva y lo que cuelga de ella no se toca.",
+        "mover": "Su dependencia pasa a la tarea `a` (por ejemplo, la tarea en la que se partió esta). Lo que cuelga de ella no se toca."
+      },
+      "otros_tableros": "No se deciden: al cancelar se les quita la dependencia, se les apaga la automática y se avisa a su responsable.",
+      "ejemplo_resoluciones": [
+        {
+          "tarea": "INFRA-382",
+          "accion": "elige: cancelar | quitar | mover",
+          "a": "solo con mover: clave de la tarea"
+        }
+      ],
+      "a_mano": "También puedes resolverlo en varias llamadas: kaneo.remove_dependency {relationId} para quitar; remove_dependency y kaneo.add_dependency {taskId, dependsOnTaskId: a} para mover; y cancelar de abajo arriba. Después cancela INFRA-381."
+    }
+  }
+}

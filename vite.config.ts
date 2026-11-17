@@ -36,6 +36,8 @@ export default defineConfig({
       "**/package.json",
       "**/*.{css,svg,html,md,mdx,yaml,yml}",
       "**/package-lock.json",
+      // Copies of the CD-01 contract samples (design 82): kept byte for byte.
+      "apps/api/src/intelia/task-cancel/fixtures/*.json",
     ],
     overrides: [{ files: ["**/*.{json,jsonc}"], options: { useTabs: true } }],
   },

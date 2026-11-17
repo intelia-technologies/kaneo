@@ -1,0 +1,932 @@
+{
+  "tipo": "error_dependencias",
+  "nota": "409 tras una llamada con resoluciones mal puestas sobre la cadena de SF-2491 (primera de dos: falta, sobra, accion_desconocida, falta_a, a_se_cancela, a_es_ella_misma y cadena_cambiada, porque SF-2504 no estaba en la cadena que vio quien resolvió). `entrada` es lo que se pasa a aplicarResoluciones.",
+  "entrada": {
+    "motivo": "Se parte el diseño de la pausa de ámbito en dos fases.",
+    "resoluciones": [
+      {
+        "tarea": "SF-2493",
+        "accion": "cancelar"
+      },
+      {
+        "tarea": "SF-2495",
+        "accion": "elige: cancelar | quitar | mover"
+      },
+      {
+        "tarea": "SF-2496",
+        "accion": "cancelar"
+      },
+      {
+        "tarea": "SF-2494",
+        "accion": "mover"
+      },
+      {
+        "tarea": "SF-2505",
+        "accion": "mover",
+        "a": "SF-2493"
+      },
+      {
+        "tarea": "SF-2499",
+        "accion": "mover",
+        "a": "SF-2499"
+      },
+      {
+        "tarea": "SF-2501",
+        "accion": "quitar"
+      }
+    ],
+    "contexto": {
+      "cadena_anterior": [
+        {
+          "ticket": "SF-2493",
+          "titulo": "[PZ-05] Despachador: lector de pausas, capacidad y refresco",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 1,
+          "depende_de": [
+            {
+              "ticket": "SF-2491",
+              "relacion": "owoqj92vmzbq95vb2mvd6x40"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 10,
+          "responsable": "agent:forja",
+          "asignado": "role-coder-software-factory",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2495",
+          "titulo": "[PZ-08] Gateway: kaneo.pausa, guarda de agentes y CT-01",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 1,
+          "depende_de": [
+            {
+              "ticket": "SF-2491",
+              "relacion": "p08c13t3bnmu1bv8fzajamkj"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 8,
+          "responsable": "agent:forja",
+          "asignado": "role-coder-software-factory",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2496",
+          "titulo": "[PZ-09] Prompts y diseños anteriores",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 1,
+          "depende_de": [
+            {
+              "ticket": "SF-2491",
+              "relacion": "bplp8s2r534cr6h4hha9ueuh"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 2,
+          "responsable": "agent:forja",
+          "asignado": "Dédalo",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "KF-15",
+          "titulo": "[PZ-03] Fork: registro de pausa, API, historial y rutinas",
+          "tablero": "KF",
+          "estado": "to-do",
+          "nivel": 1,
+          "depende_de": [
+            {
+              "ticket": "SF-2491",
+              "relacion": "xceaxcjlaz1xm70mx0i9dlxl"
+            }
+          ],
+          "tipo": "otro_tablero",
+          "solo_si_cancelas": [],
+          "responsable": "agent:forja",
+          "automatico": "Se quita la dependencia, se apaga su automática y se avisa a agent:forja"
+        },
+        {
+          "ticket": "SF-2494",
+          "titulo": "[PZ-07] Despachador: fusión, validación, rutinas, repaso y aviso diario",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 2,
+          "depende_de": [
+            {
+              "ticket": "SF-2493",
+              "relacion": "t08mve9yxfvf1ce0twtdmrzq"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2493"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 8,
+          "responsable": "agent:forja",
+          "asignado": "role-coder-software-factory",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2505",
+          "titulo": "[PZ-06] Despachador: la guarda del núcleo",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 2,
+          "depende_de": [
+            {
+              "ticket": "SF-2493",
+              "relacion": "qrt9kzqh2atgam2qsfk4mtrr"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2493"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 8,
+          "responsable": "agent:forja",
+          "asignado": "role-coder-software-factory",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2497",
+          "titulo": "[PZ-11] Ensayo en PRUEBAS",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 3,
+          "depende_de": [
+            {
+              "ticket": "SF-2494",
+              "relacion": "kauzu45g22s5lrw7n18x91k0"
+            },
+            {
+              "ticket": "SF-2495",
+              "relacion": "wybsaxig2rwbuffwx4p6nekl"
+            },
+            {
+              "ticket": "SF-2505",
+              "relacion": "wdt1fae0he3imtfsb18zilj6"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2494",
+            "SF-2495",
+            "SF-2505"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 5,
+          "responsable": "agent:forja",
+          "asignado": "Forja",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2499",
+          "titulo": "[PZ-12] Validar el despliegue",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 3,
+          "depende_de": [
+            {
+              "ticket": "SF-2493",
+              "relacion": "j4gi3ffbxvoc2ztdszctn3w8"
+            },
+            {
+              "ticket": "SF-2494",
+              "relacion": "ell0r8nhhtquzt099xk0c5fc"
+            },
+            {
+              "ticket": "SF-2495",
+              "relacion": "gf59viaxj3lhr0c9xbzwskf1"
+            },
+            {
+              "ticket": "SF-2505",
+              "relacion": "ay3o8rt400kgkde4yyb4yx2e"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2493",
+            "SF-2494",
+            "SF-2495",
+            "SF-2505"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 6,
+          "responsable": "agent:forja",
+          "asignado": "validador",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2498",
+          "titulo": "[PZ-17] Migrar las pausas tarea a tarea que quedan",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 4,
+          "depende_de": [
+            {
+              "ticket": "SF-2496",
+              "relacion": "e389wlkkvljlca89g9bvwgig"
+            },
+            {
+              "ticket": "SF-2499",
+              "relacion": "anhrl8aql5kdcqskxgveph2q"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2496",
+            "SF-2499"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 1,
+          "responsable": "agent:forja",
+          "asignado": "Forja",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2500",
+          "titulo": "[PZ-13] Pausar una iniciativa de prueba en producción",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 4,
+          "depende_de": [
+            {
+              "ticket": "SF-2497",
+              "relacion": "diu3yzlwak8dfor9u0azuqcv"
+            },
+            {
+              "ticket": "SF-2499",
+              "relacion": "suwkqt57x562yy1p6shbnlij"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2497",
+            "SF-2499"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 4,
+          "responsable": "agent:forja",
+          "asignado": "Forja",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2501",
+          "titulo": "[PZ-14] Validar la pausa en vivo",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 5,
+          "depende_de": [
+            {
+              "ticket": "SF-2500",
+              "relacion": "eyd5mb0rcw444mrgmzujkucq"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2500"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 3,
+          "responsable": "agent:forja",
+          "asignado": "validador",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2502",
+          "titulo": "[PZ-15] Reanudar la iniciativa de prueba",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 6,
+          "depende_de": [
+            {
+              "ticket": "SF-2501",
+              "relacion": "ilhtqt6jmkqtgskfjefokhio"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2501"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 2,
+          "responsable": "agent:forja",
+          "asignado": "Forja",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2503",
+          "titulo": "[PZ-16] Validar la reanudación",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 7,
+          "depende_de": [
+            {
+              "ticket": "SF-2502",
+              "relacion": "dno74g574x06svh2qm1oqgly"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2502"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 1,
+          "responsable": "agent:forja",
+          "asignado": "validador",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        }
+      ]
+    }
+  },
+  "valor": {
+    "error": "DEPENDENCIAS_SIN_RESOLVER",
+    "message": "No se ha cancelado nada: las resoluciones tienen 7 problemas y quedan 5 tareas por decidir. Corrígelas y vuelve a llamar con la lista entera.",
+    "details": {
+      "tarea": {
+        "ticket": "SF-2491",
+        "titulo": "[PZ-01] Contrato de la pausa de ámbito",
+        "tablero": "SF"
+      },
+      "motivo": {
+        "requerido": true,
+        "recibido": true
+      },
+      "total": 14,
+      "truncada": false,
+      "cadena": [
+        {
+          "ticket": "SF-2493",
+          "titulo": "[PZ-05] Despachador: lector de pausas, capacidad y refresco",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 1,
+          "depende_de": [
+            {
+              "ticket": "SF-2491",
+              "relacion": "owoqj92vmzbq95vb2mvd6x40"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 10,
+          "responsable": "agent:forja",
+          "asignado": "role-coder-software-factory",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2495",
+          "titulo": "[PZ-08] Gateway: kaneo.pausa, guarda de agentes y CT-01",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 1,
+          "depende_de": [
+            {
+              "ticket": "SF-2491",
+              "relacion": "p08c13t3bnmu1bv8fzajamkj"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 8,
+          "responsable": "agent:forja",
+          "asignado": "role-coder-software-factory",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2496",
+          "titulo": "[PZ-09] Prompts y diseños anteriores",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 1,
+          "depende_de": [
+            {
+              "ticket": "SF-2491",
+              "relacion": "bplp8s2r534cr6h4hha9ueuh"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 2,
+          "responsable": "agent:forja",
+          "asignado": "Dédalo",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "KF-15",
+          "titulo": "[PZ-03] Fork: registro de pausa, API, historial y rutinas",
+          "tablero": "KF",
+          "estado": "to-do",
+          "nivel": 1,
+          "depende_de": [
+            {
+              "ticket": "SF-2491",
+              "relacion": "xceaxcjlaz1xm70mx0i9dlxl"
+            }
+          ],
+          "tipo": "otro_tablero",
+          "solo_si_cancelas": [],
+          "responsable": "agent:forja",
+          "automatico": "Se quita la dependencia, se apaga su automática y se avisa a agent:forja"
+        },
+        {
+          "ticket": "SF-2494",
+          "titulo": "[PZ-07] Despachador: fusión, validación, rutinas, repaso y aviso diario",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 2,
+          "depende_de": [
+            {
+              "ticket": "SF-2493",
+              "relacion": "t08mve9yxfvf1ce0twtdmrzq"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2493"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 8,
+          "responsable": "agent:forja",
+          "asignado": "role-coder-software-factory",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2505",
+          "titulo": "[PZ-06] Despachador: la guarda del núcleo",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 2,
+          "depende_de": [
+            {
+              "ticket": "SF-2493",
+              "relacion": "qrt9kzqh2atgam2qsfk4mtrr"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2493"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 8,
+          "responsable": "agent:forja",
+          "asignado": "role-coder-software-factory",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2497",
+          "titulo": "[PZ-11] Ensayo en PRUEBAS",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 3,
+          "depende_de": [
+            {
+              "ticket": "SF-2494",
+              "relacion": "kauzu45g22s5lrw7n18x91k0"
+            },
+            {
+              "ticket": "SF-2495",
+              "relacion": "wybsaxig2rwbuffwx4p6nekl"
+            },
+            {
+              "ticket": "SF-2505",
+              "relacion": "wdt1fae0he3imtfsb18zilj6"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2494",
+            "SF-2495",
+            "SF-2505"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 5,
+          "responsable": "agent:forja",
+          "asignado": "Forja",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2499",
+          "titulo": "[PZ-12] Validar el despliegue",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 3,
+          "depende_de": [
+            {
+              "ticket": "SF-2493",
+              "relacion": "j4gi3ffbxvoc2ztdszctn3w8"
+            },
+            {
+              "ticket": "SF-2494",
+              "relacion": "ell0r8nhhtquzt099xk0c5fc"
+            },
+            {
+              "ticket": "SF-2495",
+              "relacion": "gf59viaxj3lhr0c9xbzwskf1"
+            },
+            {
+              "ticket": "SF-2505",
+              "relacion": "ay3o8rt400kgkde4yyb4yx2e"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2493",
+            "SF-2494",
+            "SF-2495",
+            "SF-2505"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 6,
+          "responsable": "agent:forja",
+          "asignado": "validador",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2498",
+          "titulo": "[PZ-17] Migrar las pausas tarea a tarea que quedan",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 4,
+          "depende_de": [
+            {
+              "ticket": "SF-2496",
+              "relacion": "e389wlkkvljlca89g9bvwgig"
+            },
+            {
+              "ticket": "SF-2499",
+              "relacion": "anhrl8aql5kdcqskxgveph2q"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2496",
+            "SF-2499"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 1,
+          "responsable": "agent:forja",
+          "asignado": "Forja",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2500",
+          "titulo": "[PZ-13] Pausar una iniciativa de prueba en producción",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 4,
+          "depende_de": [
+            {
+              "ticket": "SF-2497",
+              "relacion": "diu3yzlwak8dfor9u0azuqcv"
+            },
+            {
+              "ticket": "SF-2499",
+              "relacion": "suwkqt57x562yy1p6shbnlij"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2497",
+            "SF-2499"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 4,
+          "responsable": "agent:forja",
+          "asignado": "Forja",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2501",
+          "titulo": "[PZ-14] Validar la pausa en vivo",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 5,
+          "depende_de": [
+            {
+              "ticket": "SF-2500",
+              "relacion": "eyd5mb0rcw444mrgmzujkucq"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2500"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 3,
+          "responsable": "agent:forja",
+          "asignado": "validador",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2502",
+          "titulo": "[PZ-15] Reanudar la iniciativa de prueba",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 6,
+          "depende_de": [
+            {
+              "ticket": "SF-2501",
+              "relacion": "ilhtqt6jmkqtgskfjefokhio"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2501"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 2,
+          "responsable": "agent:forja",
+          "asignado": "Forja",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2503",
+          "titulo": "[PZ-16] Validar la reanudación",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 7,
+          "depende_de": [
+            {
+              "ticket": "SF-2502",
+              "relacion": "dno74g574x06svh2qm1oqgly"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2502"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 1,
+          "responsable": "agent:forja",
+          "asignado": "validador",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2504",
+          "titulo": "[PZ-RETRO] Retrospectiva",
+          "tablero": "SF",
+          "estado": "to-do",
+          "nivel": 8,
+          "depende_de": [
+            {
+              "ticket": "SF-2498",
+              "relacion": "z91l7abvdzu36oxup3aveypz"
+            },
+            {
+              "ticket": "SF-2503",
+              "relacion": "ckavd5mu3fae715fwbjankfc"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2498",
+            "SF-2503"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 0,
+          "responsable": "agent:forja",
+          "asignado": "Dédalo",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        }
+      ],
+      "pendientes": [
+        "SF-2495",
+        "SF-2494",
+        "SF-2505",
+        "SF-2499",
+        "SF-2498"
+      ],
+      "problemas": [
+        {
+          "tarea": "SF-2504",
+          "problema": "cadena_cambiada",
+          "detalle": "Ha entrado en la cadena después de que la vieras."
+        },
+        {
+          "tarea": "SF-2495",
+          "problema": "accion_desconocida",
+          "detalle": "La acción tiene que ser cancelar, quitar o mover; llegó \"elige: cancelar | quitar | mover\"."
+        },
+        {
+          "tarea": "SF-2494",
+          "problema": "falta_a",
+          "detalle": "`mover` necesita `a`: la clave de la tarea a la que pasa la dependencia."
+        },
+        {
+          "tarea": "SF-2498",
+          "problema": "falta",
+          "detalle": "Está en juego y no tiene resolución: elige cancelar, quitar o mover."
+        },
+        {
+          "tarea": "SF-2501",
+          "problema": "sobra",
+          "detalle": "No entra en juego: no se cancela ninguna de SF-2500."
+        },
+        {
+          "tarea": "SF-2505",
+          "problema": "a_se_cancela",
+          "detalle": "SF-2493 se cancela en esta operación."
+        },
+        {
+          "tarea": "SF-2499",
+          "problema": "a_es_ella_misma",
+          "detalle": "Una tarea no puede depender de sí misma."
+        }
+      ],
+      "opciones": {
+        "cancelar": "La cancela también, con el mismo motivo. Después hay que resolver lo que cuelga de ella (sus nodos con solo_si_cancelas).",
+        "quitar": "Le quita la dependencia; sigue viva y lo que cuelga de ella no se toca.",
+        "mover": "Su dependencia pasa a la tarea `a` (por ejemplo, la tarea en la que se partió esta). Lo que cuelga de ella no se toca."
+      },
+      "otros_tableros": "No se deciden: al cancelar se les quita la dependencia, se les apaga la automática y se avisa a su responsable.",
+      "ejemplo_resoluciones": [
+        {
+          "tarea": "SF-2495",
+          "accion": "elige: cancelar | quitar | mover"
+        },
+        {
+          "tarea": "SF-2494",
+          "accion": "elige: cancelar | quitar | mover"
+        },
+        {
+          "tarea": "SF-2505",
+          "accion": "elige: cancelar | quitar | mover"
+        },
+        {
+          "tarea": "SF-2499",
+          "accion": "elige: cancelar | quitar | mover"
+        },
+        {
+          "tarea": "SF-2498",
+          "accion": "elige: cancelar | quitar | mover"
+        }
+      ],
+      "a_mano": "También puedes resolverlo en varias llamadas: kaneo.remove_dependency {relationId} para quitar; remove_dependency y kaneo.add_dependency {taskId, dependsOnTaskId: a} para mover; y cancelar de abajo arriba. Después cancela SF-2491."
+    }
+  }
+}
