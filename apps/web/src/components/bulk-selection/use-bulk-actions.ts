@@ -18,6 +18,10 @@ import { useWorkspacePermission } from "@/hooks/use-workspace-permission";
 import { PriorityGlyph } from "@/components/task-chips/priority-glyph";
 import { type ToastIcon, toast } from "@/lib/toast";
 import useProjectStore from "@/store/project";
+import { openCancelPanel } from "@/intelia/cancel-with-dependents/entry/cancel-panel-store";
+import { dependenciesErrorOf } from "@/intelia/cancel-with-dependents/entry/dependencies-error";
+import { findTaskByTicket } from "@/intelia/cancel-with-dependents/entry/find-task-by-ticket";
+import { notifyDeleteBlocked } from "@/intelia/cancel-with-dependents/entry/notify-delete-blocked";
 
 export function useBulkActions(
   selectedTaskIds: Set<string>,
@@ -63,7 +67,19 @@ export function useBulkActions(
       await action();
       toast.success(success, { icon });
       clearSelection();
-    } catch (_error) {
+    } catch (caught) {
+      // A batch whose chains leave it (design 82, decision 18): nothing
+      // changed, the server's message names those tasks and panel D opens
+      // for the first.
+      const unresolved = dependenciesErrorOf(caught);
+      if (unresolved) {
+        toast.error(unresolved.message);
+        openCancelPanel(
+          caught,
+          (ticket) => findTaskByTicket(project, ticket)?.id,
+        );
+        return;
+      }
       toast.error(error);
     }
   };
@@ -160,7 +176,16 @@ export function useBulkActions(
           });
           setDeleteCount(null);
           clearSelection();
-        } catch (_error) {
+        } catch (caught) {
+          // Out of the way of the toast and its «Cancel first».
+          if (
+            notifyDeleteBlocked(caught, (ticket) =>
+              findTaskByTicket(project, ticket),
+            )
+          ) {
+            setDeleteCount(null);
+            return;
+          }
           toast.error(t("tasks:bulk.deleteError"));
         }
       },

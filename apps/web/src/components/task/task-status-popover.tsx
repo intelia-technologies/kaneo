@@ -10,6 +10,7 @@ import { useUpdateTaskStatus } from "@/hooks/mutations/task/use-update-task-stat
 import { useGetColumns } from "@/hooks/queries/column/use-get-columns";
 import { useWorkspacePermission } from "@/hooks/use-workspace-permission";
 import { toast } from "@/lib/toast";
+import { openCancelPanel } from "@/intelia/cancel-with-dependents/entry/cancel-panel-store";
 import type Task from "@/types/task";
 import { statusMenuOptions } from "./menus/status-menu-options";
 
@@ -39,6 +40,7 @@ export default function TaskStatusPopover({
     try {
       await updateTaskStatus({ ...task, status });
     } catch (error) {
+      if (openCancelPanel(error, task.id)) return;
       toast.error(
         error instanceof Error
           ? error.message

@@ -21,6 +21,7 @@ import {
   ContextMenuSubTrigger,
 } from "@/components/ui/context-menu";
 import { useArchiveTasks } from "@/intelia/archive/use-archive-tasks";
+import { openCancelPanel } from "@/intelia/cancel-with-dependents/entry/cancel-panel-store";
 import { useDuplicateWithAutomation } from "@/intelia/automation/use-duplicate-with-automation";
 import { useUpdateTask } from "@/hooks/mutations/task/use-update-task";
 import { useUpdateTaskAssignee } from "@/hooks/mutations/task/use-update-task-assignee";
@@ -168,6 +169,7 @@ export default function TaskCardContextMenuContent({
           });
       }
     } catch (error) {
+      if (openCancelPanel(error, task.id)) return;
       toast.error(
         error instanceof Error ? error.message : t("tasks:update.error"),
       );

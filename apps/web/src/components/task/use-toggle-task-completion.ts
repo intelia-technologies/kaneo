@@ -3,6 +3,7 @@ import getColumns from "@/fetchers/column/get-columns";
 import { useUpdateTaskStatus } from "@/hooks/mutations/task/use-update-task-status";
 import { toast } from "@/lib/toast";
 import { isRequestedStatus } from "@/intelia/requests/status";
+import { openCancelPanel } from "@/intelia/cancel-with-dependents/entry/cancel-panel-store";
 import queryClient from "@/query-client";
 import type Task from "@/types/task";
 
@@ -30,6 +31,7 @@ export function useToggleTaskCompletion() {
       }
       await updateTaskStatus({ ...task, status: nextColumn.slug });
     } catch (error) {
+      if (openCancelPanel(error, task.id)) return;
       toast.error(
         error instanceof Error
           ? error.message

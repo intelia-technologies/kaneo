@@ -10,6 +10,8 @@ import { useUpdateTaskStatus } from "@/hooks/mutations/task/use-update-task-stat
 import { useGetColumns } from "@/hooks/queries/column/use-get-columns";
 import { useWorkspacePermission } from "@/hooks/use-workspace-permission";
 import { toast } from "@/lib/toast";
+import { openCancelPanel } from "@/intelia/cancel-with-dependents/entry/cancel-panel-store";
+import { dependenciesErrorOf } from "@/intelia/cancel-with-dependents/entry/dependencies-error";
 import type Task from "@/types/task";
 import { statusMenuOptions } from "./menus/status-menu-options";
 
@@ -38,17 +40,24 @@ export default function SubtaskStatusPopover({
 
   const changeStatus = async (status: string) => {
     setOpen(false);
-    try {
-      await Promise.all(
-        tasks.map((task) => updateTaskStatus({ ...task, status })),
-      );
-    } catch (error) {
+    const results = await Promise.allSettled(
+      tasks.map((task) => updateTaskStatus({ ...task, status })),
+    );
+    const failures = results.flatMap((result, index) =>
+      result.status === "rejected"
+        ? [{ error: result.reason as unknown, taskId: tasks[index]!.id }]
+        : [],
+    );
+    // The first subtask with open dependents opens panel D for itself (the
+    // panel takes one root at a time); any other failure is reported once.
+    failures.find(({ error, taskId }) => openCancelPanel(error, taskId));
+    const other = failures.find(({ error }) => !dependenciesErrorOf(error));
+    if (other)
       toast.error(
-        error instanceof Error
-          ? error.message
+        other.error instanceof Error
+          ? other.error.message
           : t("tasks:popover.status.updateError"),
       );
-    }
   };
 
   return (

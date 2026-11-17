@@ -22,6 +22,9 @@ export class HttpError extends Error {
   code?: string;
   issues?: ApiErrorIssue[];
   missingPermissions?: string[];
+  /** The JSON error body as the API sent it, for errors that carry data
+   * (`409 DEPENDENCIAS_SIN_RESOLVER` and its chain). */
+  body?: unknown;
 
   constructor(status: number, message: string, details: ApiErrorDetails = {}) {
     super(message);
@@ -39,7 +42,10 @@ export class HttpError extends Error {
     const body = parseApiErrorBody(text);
     const message =
       (body ? body.message : text).trim() || fallbackMessage(response.status);
-    return new HttpError(response.status, message, body ?? {});
+    const error = new HttpError(response.status, message, body ?? {});
+    // A body that parsed above is a JSON object.
+    if (body) error.body = JSON.parse(text) as unknown;
+    return error;
   }
 }
 

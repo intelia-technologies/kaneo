@@ -8,6 +8,8 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    // Against the real API: vitest.integration.config.ts.
+    exclude: ["src/**/*.integration.test.{ts,tsx}"],
     coverage: {
       enabled: false,
     },

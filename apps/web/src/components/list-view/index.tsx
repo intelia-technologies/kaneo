@@ -40,6 +40,7 @@ import { ArchiveTasksModal } from "../shared/modals/archive-tasks-modal";
 import CreateTaskModal from "../shared/modals/create-task-modal";
 import ListColumnSection from "./list-column-section";
 import { useArchiveTasks } from "@/intelia/archive/use-archive-tasks";
+import { openCancelPanel } from "@/intelia/cancel-with-dependents/entry/cancel-panel-store";
 
 type ListViewProps = {
   project: ProjectWithTasks;
@@ -69,7 +70,7 @@ function ListView({
     (state) => state.setAvailableTasks,
   );
   const clearFocus = useBulkSelectionStore((state) => state.clearFocus);
-  const { mutate: updateTask } = useUpdateTask();
+  const { mutate: updateTask, mutateAsync: updateTaskAsync } = useUpdateTask();
   const { mutate: archiveTasks } = useArchiveTasks();
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
@@ -227,6 +228,15 @@ function ListView({
     }
   };
 
+  // The row goes back where it was (the other rows' position updates refresh
+  // the board); a drop into Cancelled of a task with open dependents opens
+  // panel D instead (design 82).
+  const moveFailed = (error: unknown, taskId: string) => {
+    setProject(project);
+    if (!openCancelPanel(error, taskId))
+      toast.error(t("tasks:board.reorderFailed"));
+  };
+
   const moveTask = (activeTaskId: string, overId: string) => {
     if (disableDragDrop || !project?.columns) return;
 
@@ -278,20 +288,23 @@ function ListView({
 
         destinationColumn.tasks.splice(destinationIndex, 0, task);
 
-        destinationColumn.tasks.forEach((t, index) => {
-          updateTask({
+        const updates = [
+          ...destinationColumn.tasks.map((t, index) => ({
             ...t,
             status: destinationColumn.slug,
             position: index,
-          });
-        });
-
-        sourceColumn.tasks.forEach((t, index) => {
-          updateTask({
-            ...t,
-            position: index,
-          });
-        });
+          })),
+          ...sourceColumn.tasks.map((t, index) => ({ ...t, position: index })),
+        ];
+        // The moved row first, on its own promise: if it is refused (a drop
+        // into Cancelled of a task with open dependents), nothing else moves.
+        const moved = updates.find((t) => t.id === activeTaskId)!;
+        updateTaskAsync(moved).then(
+          () => {
+            for (const t of updates) if (t.id !== activeTaskId) updateTask(t);
+          },
+          (error: unknown) => moveFailed(error, activeTaskId),
+        );
       }
     });
 

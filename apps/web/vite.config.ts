@@ -39,6 +39,16 @@ export default defineConfig({
         ],
         cache: false,
       },
+      "test:integration:run": {
+        command: "vp test run --config vitest.integration.config.ts",
+        dependsOn: [
+          { task: "build", from: ["dependencies", "devDependencies"] },
+          // The tests boot the API in-process: its workspace packages too.
+          "@kaneo/importers#build",
+          "@kaneo/mcp#build",
+        ],
+        cache: false,
+      },
     },
   },
   define: {

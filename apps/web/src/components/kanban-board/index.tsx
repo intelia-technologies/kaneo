@@ -21,6 +21,8 @@ import reorderTasks, { type TaskReorder } from "@/fetchers/task/reorder-tasks";
 import { toast } from "@/lib/toast";
 import { useTranslation } from "react-i18next";
 import { rollbackBoardReorder } from "./apply-reorder";
+import { openCancelPanel } from "@/intelia/cancel-with-dependents/entry/cancel-panel-store";
+import { findTaskByTicket } from "@/intelia/cancel-with-dependents/entry/find-task-by-ticket";
 import { boardCollisionDetection } from "./board-collision-detection";
 import { findTaskColumn } from "./drag-preview/find-task-column";
 import { moveBoardTask } from "./move-task";
@@ -91,7 +93,7 @@ function KanbanBoard({
       for (const task of variables.tasks)
         void queryClient.invalidateQueries({ queryKey: ["task", task.id] });
     },
-    onError: (_error, variables, context) => {
+    onError: (error, variables, context) => {
       const previous = context?.previousBoard;
       if (previous) {
         const current = queryClient.getQueryData<ProjectWithTasks>([
@@ -107,7 +109,15 @@ function KanbanBoard({
             setProject(restored);
         }
       }
-      toast.error(t("tasks:board.reorderFailed"));
+      // Dropping into Cancelled a task with open dependents: the card is back
+      // in its column and panel D asks what happens to them (design 82).
+      if (
+        !openCancelPanel(
+          error,
+          (ticket) => findTaskByTicket(previous, ticket)?.id,
+        )
+      )
+        toast.error(t("tasks:board.reorderFailed"));
       void queryClient.invalidateQueries({ queryKey: ["tasks", project.id] });
     },
   });
