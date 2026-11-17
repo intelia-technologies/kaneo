@@ -1,0 +1,774 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/intelia-technologies/software-factory/testing/contratos/muestras/cancelar-con-dependientes/esquema.json",
+  "title": "Cancelar con dependientes (diseño 82)",
+  "$defs": {
+    "resolucion": {
+      "type": "object",
+      "properties": {
+        "tarea": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+        },
+        "accion": {
+          "enum": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ]
+        },
+        "a": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+        }
+      },
+      "required": [
+        "tarea",
+        "accion"
+      ],
+      "additionalProperties": false
+    },
+    "problema": {
+      "type": "object",
+      "properties": {
+        "tarea": {
+          "type": "string",
+          "minLength": 1
+        },
+        "problema": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Conocidos: falta, sobra, accion_desconocida, falta_a, a_no_existe, a_se_cancela, a_cancelada, a_es_ella_misma, ciclo, cadena_cambiada. Uno nuevo se lee como texto."
+        },
+        "detalle": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "tarea",
+        "problema",
+        "detalle"
+      ],
+      "additionalProperties": false
+    },
+    "nodo": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "ticket": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+            },
+            "titulo": {
+              "type": "string"
+            },
+            "tablero": {
+              "type": "string",
+              "minLength": 1
+            },
+            "estado": {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "enum": [
+                  "done",
+                  "cancelled"
+                ]
+              }
+            },
+            "nivel": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "depende_de": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ticket": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+                  },
+                  "relacion": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "ticket",
+                  "relacion"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "solo_si_cancelas": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+              },
+              "uniqueItems": true
+            },
+            "responsable": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tipo": {
+              "const": "decidir"
+            },
+            "opciones": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "cancelar",
+                  "quitar",
+                  "mover"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "cuelgan": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "asignado": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "automatica": {
+              "type": "boolean"
+            },
+            "rutina_activa": {
+              "type": "boolean"
+            },
+            "en_curso": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "ticket",
+            "titulo",
+            "tablero",
+            "estado",
+            "nivel",
+            "depende_de",
+            "tipo",
+            "solo_si_cancelas",
+            "responsable",
+            "opciones",
+            "cuelgan",
+            "asignado",
+            "automatica",
+            "rutina_activa",
+            "en_curso"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ticket": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+            },
+            "titulo": {
+              "type": "string"
+            },
+            "tablero": {
+              "type": "string",
+              "minLength": 1
+            },
+            "estado": {
+              "type": "string",
+              "minLength": 1,
+              "not": {
+                "enum": [
+                  "done",
+                  "cancelled"
+                ]
+              }
+            },
+            "nivel": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "depende_de": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "ticket": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+                  },
+                  "relacion": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "ticket",
+                  "relacion"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "solo_si_cancelas": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+              },
+              "uniqueItems": true
+            },
+            "responsable": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tipo": {
+              "const": "otro_tablero"
+            },
+            "automatico": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "ticket",
+            "titulo",
+            "tablero",
+            "estado",
+            "nivel",
+            "depende_de",
+            "tipo",
+            "solo_si_cancelas",
+            "responsable",
+            "automatico"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tipo": {
+              "const": "oculta"
+            },
+            "tablero": {
+              "type": "string",
+              "minLength": 1
+            },
+            "nivel": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "solo_si_cancelas": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+              },
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "tipo",
+            "tablero",
+            "nivel",
+            "solo_si_cancelas"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "peticion": {
+      "type": "object",
+      "properties": {
+        "motivo": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 1000,
+          "pattern": "\\S"
+        },
+        "resoluciones": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resolucion"
+          }
+        },
+        "actor": {
+          "type": "string",
+          "pattern": "^[a-z]+:[A-Za-z0-9._-]{1,120}$"
+        },
+        "firma": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lote": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "error_dependencias": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "const": "DEPENDENCIAS_SIN_RESOLVER"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "details": {
+          "type": "object",
+          "properties": {
+            "tarea": {
+              "type": "object",
+              "properties": {
+                "ticket": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+                },
+                "titulo": {
+                  "type": "string"
+                },
+                "tablero": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "ticket",
+                "titulo",
+                "tablero"
+              ],
+              "additionalProperties": false
+            },
+            "motivo": {
+              "type": "object",
+              "properties": {
+                "requerido": {
+                  "type": "boolean"
+                },
+                "recibido": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "requerido",
+                "recibido"
+              ],
+              "additionalProperties": false
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "truncada": {
+              "type": "boolean"
+            },
+            "cadena": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/nodo"
+              },
+              "maxItems": 200
+            },
+            "pendientes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+              },
+              "uniqueItems": true
+            },
+            "problemas": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/problema"
+              }
+            },
+            "opciones": {
+              "type": "object",
+              "properties": {
+                "cancelar": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "quitar": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "mover": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "cancelar",
+                "quitar",
+                "mover"
+              ],
+              "additionalProperties": false
+            },
+            "otros_tableros": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ejemplo_resoluciones": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tarea": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+                  },
+                  "accion": {
+                    "type": "string",
+                    "minLength": 1,
+                    "not": {
+                      "enum": [
+                        "cancelar",
+                        "quitar",
+                        "mover"
+                      ]
+                    }
+                  },
+                  "a": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "tarea",
+                  "accion"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "llamada": {
+              "type": "object",
+              "properties": {
+                "herramienta": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "argumentos": {
+                  "type": "object"
+                }
+              },
+              "required": [
+                "herramienta",
+                "argumentos"
+              ],
+              "additionalProperties": false
+            },
+            "a_mano": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "tarea",
+            "motivo",
+            "total",
+            "truncada",
+            "cadena",
+            "pendientes",
+            "problemas",
+            "opciones",
+            "otros_tableros",
+            "ejemplo_resoluciones",
+            "a_mano"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "error",
+        "message",
+        "details"
+      ],
+      "additionalProperties": false
+    },
+    "error_permiso": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "const": "CANCELAR_SIN_PERMISO"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "details": {
+          "type": "object",
+          "properties": {
+            "tareas": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "tarea": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+                  },
+                  "falta": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "tarea",
+                  "falta"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "tareas"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "error",
+        "message",
+        "details"
+      ],
+      "additionalProperties": false
+    },
+    "resultado": {
+      "type": "object",
+      "properties": {
+        "canceladas": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+          },
+          "minItems": 1
+        },
+        "quitadas": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+          }
+        },
+        "movidas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tarea": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+              },
+              "de": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+                },
+                "minItems": 1
+              },
+              "a": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+              }
+            },
+            "required": [
+              "tarea",
+              "de",
+              "a"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "otros_tableros": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "tarea": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+                  },
+                  "responsable": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "tarea",
+                  "responsable"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "oculta": {
+                    "const": true
+                  },
+                  "tablero": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "oculta",
+                  "tablero"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "comentarios": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "canceladas",
+        "quitadas",
+        "movidas",
+        "otros_tableros",
+        "comentarios"
+      ],
+      "additionalProperties": false
+    },
+    "evento": {
+      "type": "object",
+      "properties": {
+        "raiz": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+        },
+        "actor": {
+          "type": "string",
+          "pattern": "^[a-z]+:[A-Za-z0-9._-]{1,120}$"
+        },
+        "motivo": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 1000,
+          "pattern": "\\S"
+        },
+        "canceladas": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+          },
+          "minItems": 1
+        },
+        "quitadas": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+          }
+        },
+        "movidas": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tarea": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+              },
+              "de": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+                },
+                "minItems": 1
+              },
+              "a": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+              }
+            },
+            "required": [
+              "tarea",
+              "de",
+              "a"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "otros_tableros": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tarea": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9]*-\\d+$"
+              },
+              "proyecto": {
+                "type": "string",
+                "minLength": 1
+              },
+              "responsable": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "tarea",
+              "proyecto",
+              "responsable"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "en": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,3})?Z$"
+        }
+      },
+      "required": [
+        "raiz",
+        "actor",
+        "motivo",
+        "canceladas",
+        "quitadas",
+        "movidas",
+        "otros_tableros",
+        "en"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

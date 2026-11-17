@@ -1,0 +1,38 @@
+{
+  "tipo": "evento",
+  "nota": "intelia.task.cancelled_with_dependents de esa cancelación. KF-15 con su proyecto real (kdxbj1wccwe4yf97sg4rwtl7, KF) y responsable, leídos por Dédalo (comentario j9benkn94wpn57rby0vrjy97 en SF-2510).",
+  "valor": {
+    "raiz": "SF-2491",
+    "actor": "agent:forja",
+    "motivo": "Se parte el diseño de la pausa de ámbito en dos fases.",
+    "canceladas": [
+      "SF-2491",
+      "SF-2493",
+      "SF-2494"
+    ],
+    "quitadas": [
+      "SF-2495",
+      "SF-2496",
+      "SF-2505",
+      "SF-2497"
+    ],
+    "movidas": [
+      {
+        "tarea": "SF-2499",
+        "de": [
+          "SF-2493",
+          "SF-2494"
+        ],
+        "a": "SF-2496"
+      }
+    ],
+    "otros_tableros": [
+      {
+        "tarea": "KF-15",
+        "proyecto": "kdxbj1wccwe4yf97sg4rwtl7",
+        "responsable": "agent:forja"
+      }
+    ],
+    "en": "2026-11-17T09:00:00.000Z"
+  }
+}

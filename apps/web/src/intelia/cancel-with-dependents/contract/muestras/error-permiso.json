@@ -1,0 +1,16 @@
+{
+  "tipo": "error_permiso",
+  "nota": "403 del gateway a un coder que intenta cancelar SF-2491 con dependientes: le falta can_set_automation sobre el proyecto de la raíz (decisión 14).",
+  "valor": {
+    "error": "CANCELAR_SIN_PERMISO",
+    "message": "No puedes cancelar SF-2491 con sus dependientes: cancelar en cascada es una decisión de planificación. Pídeselo a tu orquestador.",
+    "details": {
+      "tareas": [
+        {
+          "tarea": "SF-2491",
+          "falta": "can_set_automation sobre el proyecto SF"
+        }
+      ]
+    }
+  }
+}
