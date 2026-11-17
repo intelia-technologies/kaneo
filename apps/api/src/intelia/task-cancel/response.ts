@@ -1,3 +1,4 @@
+import { apiErrorSchema } from "../../errors/api-error-schema";
 import { z } from "../../openapi";
 
 const movida = z.object({
@@ -90,3 +91,12 @@ export const dependenciesErrorSchema = z
     }),
   })
   .openapi("DependenciesUnresolvedError");
+
+/**
+ * The 409 of a path that cancels or deletes a task: its own conflicts, or the
+ * guard's `DEPENDENCIAS_SIN_RESOLVER` (design 82, decision 17).
+ */
+export const conflictOrDependenciesSchema = z.union([
+  apiErrorSchema,
+  dependenciesErrorSchema,
+]);

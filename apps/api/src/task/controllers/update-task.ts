@@ -33,6 +33,7 @@ import { announceArchived } from "../../intelia/task-archive/service";
 import { assertValidTaskStatus } from "../validate-task-fields";
 import { assertTaskPosition } from "./next-task-position";
 import { assertNoPendingBlockersOnTransition } from "./assert-no-pending-blockers-on-transition";
+import { assertCancelResolved } from "./assert-cancel-resolved";
 
 async function updateTask(
   id: string,
@@ -261,6 +262,8 @@ async function updateTask(
       targetStatus,
       currentUserId,
     );
+    // Without a caller, every other project's task shows as hidden.
+    await assertCancelResolved(tx, [locked], targetStatus, currentUserId ?? "");
     existingTask = locked;
 
     const [task] = await tx

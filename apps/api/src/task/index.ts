@@ -81,6 +81,7 @@ import {
   getDescriptionPage,
 } from "./description-pages";
 import "./recurrence/subscribe";
+import { conflictOrDependenciesSchema } from "../intelia/task-cancel/response";
 import {
   assignedTasksSchema,
   boardSchema,
@@ -198,8 +199,9 @@ const bulkUpdateTasksRoute = createRoute({
       "No access to the project, or missing the permission the operation needs",
     ),
     404: errorResponse("No tasks found"),
-    409: errorResponse(
-      "Tasks changed projects; retry the operation. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`); nothing changed",
+    409: jsonResponse(
+      "Tasks changed projects; retry the operation. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`). Or, with `INTELIA_CANCEL_GUARD` on, `updateStatus` to a cancelled column or `delete` of a task whose open dependents are not all in the batch (`DEPENDENCIAS_SIN_RESOLVER`, design 82 decision 18: cancel it with `POST /intelia/task/{taskId}/cancel`); nothing changed",
+      conflictOrDependenciesSchema,
     ),
   },
 });
@@ -293,8 +295,9 @@ const reorderTasksRoute = createRoute({
     404: errorResponse(
       "Project not found, or tasks do not belong to the project",
     ),
-    409: errorResponse(
-      "Board changed or task moved; refresh before reordering. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`)",
+    409: jsonResponse(
+      "Board changed or task moved; refresh before reordering. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`). Or, with `INTELIA_CANCEL_GUARD` on, a card moved to a cancelled column with open dependents not moved with it (`DEPENDENCIAS_SIN_RESOLVER`); nothing changed",
+      conflictOrDependenciesSchema,
     ),
   },
 });
@@ -471,8 +474,9 @@ const updateTaskRoute = createRoute({
       "No access to the project, or missing task:update or task:assign permission",
     ),
     404: errorResponse("Task not found"),
-    409: errorResponse(
-      "The task changed meanwhile; refresh and retry. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`)",
+    409: jsonResponse(
+      "The task changed meanwhile; refresh and retry. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`). Or, with `INTELIA_CANCEL_GUARD` on, `status` to a cancelled column with open dependents (`DEPENDENCIAS_SIN_RESOLVER`: cancel it with `POST /intelia/task/{taskId}/cancel`); nothing changed",
+      conflictOrDependenciesSchema,
     ),
   },
 });
@@ -549,7 +553,10 @@ const deleteTaskRoute = createRoute({
   request: { params: taskParam },
   responses: {
     200: jsonResponse("The deleted task", taskSchema),
-    409: errorResponse("Task changed projects; retry the operation"),
+    409: jsonResponse(
+      "Task changed projects; retry the operation. Or, with `INTELIA_CANCEL_GUARD` on, the task has open dependents (`DEPENDENCIAS_SIN_RESOLVER`): cancel it first with `POST /intelia/task/{taskId}/cancel`; nothing changed",
+      conflictOrDependenciesSchema,
+    ),
     403: errorResponse(
       "No access to the project, or missing task:delete permission",
     ),
@@ -584,8 +591,9 @@ const updateTaskStatusRoute = createRoute({
       "No access to the project, or missing task:update permission",
     ),
     404: errorResponse("Task not found"),
-    409: errorResponse(
-      "`archived` for a task outside a final column (`TASK_NOT_CLOSED`); nothing changed",
+    409: jsonResponse(
+      "`archived` for a task outside a final column (`TASK_NOT_CLOSED`). Or, with `INTELIA_CANCEL_GUARD` on, a cancelled column for a task with open dependents (`DEPENDENCIAS_SIN_RESOLVER`: cancel it with `POST /intelia/task/{taskId}/cancel`); nothing changed",
+      conflictOrDependenciesSchema,
     ),
   },
 });

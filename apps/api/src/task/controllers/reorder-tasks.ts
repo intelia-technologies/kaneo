@@ -12,6 +12,7 @@ import { assertValidTaskStatus } from "../validate-task-fields";
 import { assertTaskPosition } from "./next-task-position";
 import { publishTaskMutation } from "./task-mutation-effects";
 import { assertNoPendingBlockersOnTransition } from "./assert-no-pending-blockers-on-transition";
+import { assertCancelResolved } from "./assert-cancel-resolved";
 
 type Reorder = { id: string; position: number; status?: string };
 export default async function reorderTasks(
@@ -140,6 +141,8 @@ export default async function reorderTasks(
           proposedStatuses,
         );
       }
+      // The cards cancelled together are one batch (design 82, decision 18).
+      await assertCancelResolved(tx, before, proposedStatuses, userId);
       const values = changes.map((task) => ({
         id: task.id,
         position: task.position,

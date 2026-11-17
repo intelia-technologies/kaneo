@@ -9,6 +9,7 @@ import {
 import { requireWorkspacePermission } from "../../utils/require-workspace-permission";
 import { workspaceAccess } from "../../utils/workspace-access-middleware";
 import { initiativeWriter } from "../initiatives/access";
+import { conflictOrDependenciesSchema } from "../task-cancel/response";
 import { workspaceFromRequestedTask } from "./access";
 import { addRequestComment, getRequestDetail, listMyRequests } from "./read";
 import {
@@ -23,10 +24,10 @@ import {
   taskIdParam,
   workspaceIdParam,
 } from "./schema";
+import { rejectTaskRequest } from "./reject";
 import {
   clearTaskRequester,
   getTaskRequester,
-  rejectTaskRequest,
   setTaskRequester,
 } from "./service";
 
@@ -109,7 +110,7 @@ const rejectRoute = createRoute({
   tags: ["Requests"],
   summary: "Reject a requested task",
   description:
-    "Moves a task in «Pedida» to its project's cancelled column (`cancelled` or `canceled`); a project without one gets a final «Cancelled» column, last. The requester loses access and gets a notice (`task_request_closed`) with the reason, and «My requests» lists it as rejected with that reason. Cancelling the task any other way closes the request too, with no reason.",
+    "Moves a task in «Pedida» to its project's cancelled column (`cancelled` or `canceled`); a project without one gets a final «Cancelled» column, last. The requester loses access and gets a notice (`task_request_closed`) with the reason, and «My requests» lists it as rejected with that reason. Cancelling the task any other way closes the request too, with no reason. A task with open dependents is cancelled as `POST /intelia/task/{taskId}/cancel` does, with `reason` as its `motivo` (design 82): with `INTELIA_CANCEL_GUARD` on, or with `resoluciones`, they must cover its chain (dependents of other boards are handled on their own), or 409 `DEPENDENCIAS_SIN_RESOLVER` and nothing changes; a `reason` outside 10 to 1000 characters then counts as no `motivo`.",
   middleware: [
     workspaceAccess.fromTaskId("taskId"),
     requireWorkspacePermission({ task: ["update"] }),
@@ -126,8 +127,9 @@ const rejectRoute = createRoute({
     400: errorResponse("Invalid body"),
     403: errorResponse("No access to the project or missing task:update"),
     404: errorResponse("Task not found"),
-    409: errorResponse(
-      "The task has no requester (`TASK_NOT_REQUESTED`) or is not in «Pedida» (`TASK_NOT_PENDING_REQUEST`)",
+    409: jsonResponse(
+      "The task has no requester (`TASK_NOT_REQUESTED`) or is not in «Pedida» (`TASK_NOT_PENDING_REQUEST`); or open dependents without a complete resolution (`DEPENDENCIAS_SIN_RESOLVER`). Nothing changed",
+      conflictOrDependenciesSchema,
     ),
   },
 });
@@ -221,11 +223,16 @@ const taskRequest = apiRouter<BaseVariables & { workspaceId: string }>()
     return c.json(null, 200);
   })
   .openapi(rejectRoute, async (c) => {
-    const closed = await rejectTaskRequest(
-      c.req.valid("param").taskId,
-      c.req.valid("json").reason,
-      c.get("userId"),
-    );
+    const { reason, resoluciones } = c.req.valid("json");
+    const closed = await rejectTaskRequest({
+      taskId: c.req.valid("param").taskId,
+      reason,
+      resoluciones,
+      userId: c.get("userId"),
+      userName: c.get("user")?.name ?? null,
+      workspaceId: c.get("workspaceId"),
+      writer: initiativeWriter(c, undefined),
+    });
     return c.json(closed!, 200);
   })
   .openapi(getRequestRoute, async (c) =>

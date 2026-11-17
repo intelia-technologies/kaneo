@@ -1,3 +1,4 @@
+import { assertDeleteResolved } from "./assert-cancel-resolved";
 import { eq, or } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
@@ -26,7 +27,11 @@ async function deleteTask(taskId: string, currentUserId: string) {
 
   const deletedTask = await db.transaction(async (tx) => {
     const [locked] = await tx
-      .select({ id: taskTable.id, projectId: taskTable.projectId })
+      .select({
+        id: taskTable.id,
+        projectId: taskTable.projectId,
+        status: taskTable.status,
+      })
       .from(taskTable)
       .where(eq(taskTable.id, taskId))
       .for("update");
@@ -35,6 +40,7 @@ async function deleteTask(taskId: string, currentUserId: string) {
       throw new HTTPException(409, {
         message: "Task changed projects; retry the operation",
       });
+    await assertDeleteResolved(tx, [locked], currentUserId);
     const assets = await tx
       .select({ objectKey: assetTable.objectKey })
       .from(assetTable)

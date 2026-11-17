@@ -11,6 +11,7 @@ import { announceArchived } from "../../intelia/task-archive/service";
 import { publishTaskMutation } from "./task-mutation-effects";
 import { assertValidTaskStatus } from "../validate-task-fields";
 import { assertNoPendingBlockersOnTransition } from "./assert-no-pending-blockers-on-transition";
+import { assertCancelResolved } from "./assert-cancel-resolved";
 
 async function updateTaskStatus({
   id,
@@ -44,6 +45,7 @@ async function updateTaskStatus({
       status,
       currentUserId,
     );
+    await assertCancelResolved(tx, [existingTask], status, currentUserId);
 
     const column = await tx.query.columnTable.findFirst({
       where: and(
