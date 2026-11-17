@@ -39,6 +39,7 @@ import {
 } from "../../intelia/task-archive/board";
 import type { ArchivedScope } from "../../intelia/task-archive/schema";
 import { statusSince } from "../../intelia/status-since";
+import { boardTaskInitiative } from "../../intelia/initiatives/board";
 
 export type GetTasksOptions = {
   publicOnly?: boolean;
@@ -178,6 +179,7 @@ async function getTasksPage(
         userTable.name,
         userTable.image,
         sql`(select type from intelia.task_classification where task_id = ${taskTable.id})`,
+        sql`(select initiative_id from intelia.task_initiative where task_id = ${taskTable.id})`,
         sql`exists (
           select 1 from custom_field_value v
           join custom_field_definition d on d.id = v.field_id
@@ -226,6 +228,11 @@ async function getTasksPage(
     assigneeId: userTable.id,
     assigneeImage: userTable.image,
     projectId: taskTable.projectId,
+    initiative: boardTaskInitiative({
+      workspaceId: project.workspaceId,
+      publicOnly: options.publicOnly ?? false,
+      userId,
+    }),
   };
 
   const query = db

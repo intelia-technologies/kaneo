@@ -197,7 +197,7 @@ describe("TaskInitiativePanel", () => {
     fireEvent.click(option2);
 
     expect(mocks.setTaskInitiativeMutate).toHaveBeenCalledWith(
-      { taskId: "task-1", initiativeId: "init-2" },
+      { taskId: "task-1", initiativeId: "init-2", projectId: "proj-1" },
       expect.anything(),
     );
   });

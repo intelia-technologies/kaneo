@@ -54,6 +54,7 @@ const en = {
     createError: "Failed to create the initiative",
     closePlanError: "Failed to close the plan",
     otherProject: "An initiative of another project",
+    otherProjectShort: "Another project",
     thisProject: "This project",
   },
   initiatives: {
@@ -164,6 +165,7 @@ const es = {
     createError: "No se pudo crear la iniciativa",
     closePlanError: "No se pudo cerrar el plan",
     otherProject: "Una iniciativa de otro proyecto",
+    otherProjectShort: "Otro proyecto",
     thisProject: "Este proyecto",
   },
   initiatives: {

@@ -42,7 +42,7 @@ export function TaskDisplayOptions({
         }
       >
         <div className="flex flex-col gap-3">
-          <CardFieldToggles />
+          <CardFieldToggles layout={layout} />
           <CustomFieldToggles projectId={projectId} />
         </div>
       </DisplaySection>

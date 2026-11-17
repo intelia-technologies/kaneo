@@ -15,6 +15,7 @@ import { getPriorityLabel } from "@/lib/i18n/domain";
 import { getPriorityIcon } from "@/lib/priority";
 import { useUserPreferencesStore } from "@/store/user-preferences";
 import type Task from "@/types/task";
+import { InitiativeCell } from "@/intelia/initiatives/components/initiative-cell";
 import { TaskOriginChip } from "@/intelia/initiatives/origin/task-origin-chip";
 import { StatusAgeChip } from "@/intelia/status-age/components/status-age-chip";
 import { WAIT_COLUMN_CLASS } from "@/intelia/wait/columns";
@@ -55,6 +56,7 @@ export function TaskRowBody({
     showLabels,
     showTaskNumbers,
     showTaskItemCounts,
+    showInitiative,
   } = useUserPreferencesStore();
   const cardFields = useTaskCardFields(task.projectId, task.id);
   const priorityLabel = `${t("tasks:priority.label")}: ${getPriorityLabel(task.priority ?? "")}`;
@@ -135,8 +137,15 @@ export function TaskRowBody({
         />
       )}
 
-      {/* Intelia (design 55 §3.2): the «Espera» and «Raíz» columns of To do,
-          last so they line up with the section's header. */}
+      {/* Intelia: the «Iniciativa» column of every group (KF-23), then the
+          «Espera» and «Raíz» columns of To do (design 55 §3.2), last so they
+          line up with the section's header. */}
+      {showInitiative && (
+        <InitiativeCell
+          initiative={task.initiative}
+          workspaceId={workspaceId}
+        />
+      )}
       {waitSummary && (
         <>
           <div className={WAIT_COLUMN_CLASS}>

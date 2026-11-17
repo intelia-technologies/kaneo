@@ -2,6 +2,7 @@ import { boundedTaskRead } from "../bounded-read";
 import { readBlockersSummaries } from "../blockers-summary/read";
 import { taskClassificationTable } from "../../intelia/schema";
 import { taskArchivedAt } from "../../intelia/task-archive/board";
+import { boardTaskInitiative } from "../../intelia/initiatives/board";
 import { alias } from "drizzle-orm/pg-core";
 import { boardDescription, descriptionDeferred } from "../description-pages";
 import { getSubtaskCounts } from "../get-subtask-counts";
@@ -29,6 +30,12 @@ async function getTask(taskId: string, board = false, userId?: string) {
       ...(board
         ? {
             descriptionDeferred,
+            // The row's initiative, so a task patched into the board keeps it.
+            initiative: boardTaskInitiative({
+              workspaceId: sql`(select ${projectTable.workspaceId} from ${projectTable} where ${projectTable.id} = ${taskTable.projectId})`,
+              publicOnly: false,
+              userId,
+            }),
           }
         : {}),
       status: taskTable.status,
