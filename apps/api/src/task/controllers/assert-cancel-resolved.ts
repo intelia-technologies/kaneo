@@ -125,10 +125,9 @@ async function assertChainsInside(
   outside.sort((a, b) => compareTickets(a.ticket, b.ticket));
   const [first, ...others] = outside;
   const body = first!.body;
-  const { total } = body.details;
   let message =
     kind === "delete"
-      ? `${first!.ticket} tiene ${total} tareas abiertas que dependen de ella: borrarla quitaría esas dependencias sin decidir nada. Cancélala antes, diciendo qué pasa con cada una con \`resoluciones\` y un \`motivo\`, y después bórrala.`
+      ? `${first!.ticket} tiene tareas abiertas que dependen de ella fuera de esta operación: borrarla quitaría esas dependencias sin decidir nada. Cancélala antes, diciendo qué pasa con cada una con \`resoluciones\` y un \`motivo\`, y después bórrala.`
       : body.message;
   const named = others.filter((o) => o.visible).map((o) => o.ticket);
   if (others.length)
