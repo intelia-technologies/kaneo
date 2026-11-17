@@ -730,6 +730,42 @@ describe("resolutions", () => {
     expect(await snapshot(seeded)).toEqual(before);
   });
 
+  it("refuse resolutions for an open task whose chain emptied before the call, with the guard on or off", async () => {
+    const { app, seeded, key } = await setup();
+    // EMP-2 was released and EMP-3 cancelled by someone else since the
+    // caller resolved them: nothing open hangs from EMP-1 any more.
+    await seeded.add("EMP-1");
+    await seeded.add("EMP-2");
+    await seeded.add("EMP-3", { estado: "cancelled" });
+    await seeded.relate("EMP-1", "EMP-3");
+    const before = await snapshot(seeded);
+    const body = {
+      motivo: "Se cancela con lo que colgaba de ella.",
+      resoluciones: [
+        { tarea: "EMP-2", accion: "quitar" },
+        { tarea: "EMP-3", accion: "cancelar" },
+      ],
+    };
+
+    for (const guard of ["1", ""]) {
+      vi.stubEnv("INTELIA_CANCEL_GUARD", guard);
+      const res = await cancel(app, seeded.ids.get("EMP-1")!, body, {
+        "x-api-key": key,
+      });
+
+      expect(res.status, `guard "${guard}"`).toBe(409);
+      expect(res.body.details!.problemas).toEqual(
+        ["EMP-2", "EMP-3"].map((tarea) => ({
+          tarea,
+          problema: "cadena_cambiada",
+          detalle: "Ya no está en la cadena.",
+        })),
+      );
+      expect(schemaErrors("error_dependencias", res.body)).toBeNull();
+      expect(await snapshot(seeded)).toEqual(before);
+    }
+  });
+
   it("refuse resolutions for a task cancelled by someone else between the check and the lock", async () => {
     const { app, seeded, key } = await setup();
     for (const t of ["LK-1", "LK-2", "LK-3"]) await seeded.add(t);
