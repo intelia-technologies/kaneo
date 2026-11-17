@@ -5,6 +5,7 @@ import type { RoutineRun } from "../api";
 const RESULT_CLASS: Record<RoutineRun["result"], string> = {
   reabierta: "text-success-foreground",
   saltada_abierta: "text-warning-foreground",
+  saltada_pausa: "text-muted-foreground",
   error: "text-destructive",
 };
 

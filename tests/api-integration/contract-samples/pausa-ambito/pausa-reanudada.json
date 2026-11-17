@@ -1,0 +1,48 @@
+{
+	"muestra": "Pausa ya reanudada, tal como sale en GET /scope-pauses?estado=todas: no cubre ninguna tarea.",
+	"procedencia": "Ids reales de Kaneo de producción, comprobados por Forja con kaneo.get_task el 2026-11-17 (comentario en SF-2491): espacio 62KupB9bbjpBOYrQJmJEox89MrDMljNn; proyectos PRUEBAS plt06huzxhv1h2gc16l8jmce, SF tpb8sm8p2xof9x8tf32tvws6 y KF kdxbj1wccwe4yf97sg4rwtl7; iniciativa l8keiqq0ixzoeg3yrd9p3irx («Pausa por iniciativa o proyecto (diseño 81)», casa SF) con SF-2491 (k6jbv95thzp952p5elne618x) y KF-15 (metubfub7tyh5h1b1g6305p2); PRUEBAS-31 (iht97nhd8ysei4djmnubnbd1), de otra iniciativa; cuentas de Kaneo de Forja (RChgoVHfb2mcm21vMc7Ydk94rMHnXDlZ) y Dédalo (k0CoLsKvfkjchNA44TdHWSncB6kD9Qec). Los ids de pausa y de cambio, las fechas y los motivos son sintéticos: la tabla scope_pause aún no existe (PZ-03). No hay ninguna iniciativa con tareas en PRUEBAS y en otro proyecto (Forja revisó las 7 de PRUEBAS y las 55 en curso), así que la iniciativa de la muestra tiene sus tareas en SF y en KF.",
+	"respuesta": {
+		"pausas": [
+			{
+				"id": "szpz01reanudada000000001",
+				"workspaceId": "62KupB9bbjpBOYrQJmJEox89MrDMljNn",
+				"scopeType": "project",
+				"projectId": "plt06huzxhv1h2gc16l8jmce",
+				"initiativeId": null,
+				"scopeName": "PRUEBAS",
+				"motivo": "Ensayo previo del diseño 81",
+				"revisarEl": "2026-11-17",
+				"pausedByUserId": "RChgoVHfb2mcm21vMc7Ydk94rMHnXDlZ",
+				"pausedByActor": "agent:forja",
+				"pausedAt": "2026-11-16T08:00:00.000Z",
+				"resumedByUserId": "k0CoLsKvfkjchNA44TdHWSncB6kD9Qec",
+				"resumedByActor": "agent:dedalo",
+				"resumedAt": "2026-11-16T09:30:00.000Z",
+				"notaReanudar": "Ensayo terminado; se levanta sin cambios"
+			}
+		],
+		"calculadoEn": "2026-11-17T07:02:00.000Z"
+	},
+	"esperado": {
+		"id": "szpz01reanudada000000001",
+		"ambito": {
+			"tipo": "proyecto",
+			"id": "plt06huzxhv1h2gc16l8jmce",
+			"nombre": "PRUEBAS",
+			"proyectoId": "plt06huzxhv1h2gc16l8jmce"
+		},
+		"motivo": "Ensayo previo del diseño 81",
+		"revisarEl": "2026-11-17",
+		"pausadaPor": {
+			"actor": "agent:forja",
+			"usuario": "RChgoVHfb2mcm21vMc7Ydk94rMHnXDlZ"
+		},
+		"pausadaEn": "2026-11-16T08:00:00.000Z",
+		"reanudadaPor": {
+			"actor": "agent:dedalo",
+			"usuario": "k0CoLsKvfkjchNA44TdHWSncB6kD9Qec"
+		},
+		"reanudadaEn": "2026-11-16T09:30:00.000Z",
+		"notaReanudar": "Ensayo terminado; se levanta sin cambios"
+	}
+}

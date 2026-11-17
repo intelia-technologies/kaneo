@@ -1,0 +1,51 @@
+{
+	"muestra": "Pausa activa de una iniciativa de SF con tareas en SF y en KF: `taskIds` lista las de todos los proyectos (task_initiative).",
+	"procedencia": "Ids reales de Kaneo de producción, comprobados por Forja con kaneo.get_task el 2026-11-17 (comentario en SF-2491): espacio 62KupB9bbjpBOYrQJmJEox89MrDMljNn; proyectos PRUEBAS plt06huzxhv1h2gc16l8jmce, SF tpb8sm8p2xof9x8tf32tvws6 y KF kdxbj1wccwe4yf97sg4rwtl7; iniciativa l8keiqq0ixzoeg3yrd9p3irx («Pausa por iniciativa o proyecto (diseño 81)», casa SF) con SF-2491 (k6jbv95thzp952p5elne618x) y KF-15 (metubfub7tyh5h1b1g6305p2); PRUEBAS-31 (iht97nhd8ysei4djmnubnbd1), de otra iniciativa; cuentas de Kaneo de Forja (RChgoVHfb2mcm21vMc7Ydk94rMHnXDlZ) y Dédalo (k0CoLsKvfkjchNA44TdHWSncB6kD9Qec). Los ids de pausa y de cambio, las fechas y los motivos son sintéticos: la tabla scope_pause aún no existe (PZ-03). No hay ninguna iniciativa con tareas en PRUEBAS y en otro proyecto (Forja revisó las 7 de PRUEBAS y las 55 en curso), así que la iniciativa de la muestra tiene sus tareas en SF y en KF.",
+	"ids": {
+		"iniciativa": "l8keiqq0ixzoeg3yrd9p3irx",
+		"proyectoCasaIniciativa": "tpb8sm8p2xof9x8tf32tvws6",
+		"tareaIniciativaEnCasa": "k6jbv95thzp952p5elne618x",
+		"tareaIniciativaEnOtroProyecto": "metubfub7tyh5h1b1g6305p2",
+		"otroProyecto": "kdxbj1wccwe4yf97sg4rwtl7"
+	},
+	"respuesta": {
+		"pausas": [
+			{
+				"id": "szpz01iniciativa000000001",
+				"workspaceId": "62KupB9bbjpBOYrQJmJEox89MrDMljNn",
+				"scopeType": "initiative",
+				"projectId": "tpb8sm8p2xof9x8tf32tvws6",
+				"initiativeId": "l8keiqq0ixzoeg3yrd9p3irx",
+				"scopeName": "Pausa por iniciativa o proyecto (diseño 81)",
+				"taskIds": ["k6jbv95thzp952p5elne618x", "metubfub7tyh5h1b1g6305p2"],
+				"motivo": "Ensayo del diseño 81: pausar la iniciativa entera",
+				"revisarEl": "2026-11-18",
+				"pausedByUserId": "RChgoVHfb2mcm21vMc7Ydk94rMHnXDlZ",
+				"pausedByActor": "agent:forja",
+				"pausedAt": "2026-11-17T07:05:00.000Z",
+				"resumedByUserId": null,
+				"resumedByActor": null,
+				"resumedAt": null,
+				"notaReanudar": null
+			}
+		],
+		"calculadoEn": "2026-11-17T07:06:00.000Z"
+	},
+	"esperado": {
+		"id": "szpz01iniciativa000000001",
+		"ambito": {
+			"tipo": "iniciativa",
+			"id": "l8keiqq0ixzoeg3yrd9p3irx",
+			"nombre": "Pausa por iniciativa o proyecto (diseño 81)",
+			"proyectoId": "tpb8sm8p2xof9x8tf32tvws6"
+		},
+		"tareas": ["k6jbv95thzp952p5elne618x", "metubfub7tyh5h1b1g6305p2"],
+		"motivo": "Ensayo del diseño 81: pausar la iniciativa entera",
+		"revisarEl": "2026-11-18",
+		"pausadaPor": {
+			"actor": "agent:forja",
+			"usuario": "RChgoVHfb2mcm21vMc7Ydk94rMHnXDlZ"
+		},
+		"pausadaEn": "2026-11-17T07:05:00.000Z"
+	}
+}

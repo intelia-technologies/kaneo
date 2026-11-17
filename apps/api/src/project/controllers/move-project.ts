@@ -17,6 +17,7 @@ import {
 import { publishEvent } from "../../events";
 import { grantProjectToRestrictedMember } from "../../project-access/grant-project-to-restricted-member";
 import { filterUsersWithProjectAccess } from "../../project-access/filter-users-with-project-access";
+import { assertNoPauseAcrossWorkspaces } from "../../intelia/scope-pause/move-guard";
 import { closeProjectConnections } from "../../ws";
 import { findProjectKeyConflict } from "../project-key";
 
@@ -60,6 +61,8 @@ async function moveProject(
           "Project doesn't exist or doesn't belong to the specified workspace",
       });
     }
+    // Intelia fork (design 81): see assertNoPauseAcrossWorkspaces.
+    await assertNoPauseAcrossWorkspaces(tx, id);
 
     // The key doubles as the ticket-id prefix (KAN-12), and short-id lookup
     // resolves it per workspace with a limit of 1. Two projects sharing a key
