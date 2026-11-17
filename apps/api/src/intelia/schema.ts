@@ -4,6 +4,7 @@ import {
   type AnyPgColumn,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -94,6 +95,7 @@ export const commentReactionTable = inteliaSchema.table(
 export const ROUTINE_RESULTS = [
   "reabierta",
   "saltada_abierta",
+  "saltada_pausa",
   "error",
 ] as const;
 export type RoutineResult = (typeof ROUTINE_RESULTS)[number];
@@ -150,6 +152,11 @@ export const routineRunTable = inteliaSchema.table(
     scheduledAt: timestamp("scheduled_at", { mode: "date" }).notNull(),
     result: text("result").$type<RoutineResult>().notNull(),
     error: text("error"),
+    // The scope pause that skipped this run (`saltada_pausa`); null otherwise.
+    scopePauseId: text("scope_pause_id").references(
+      (): AnyPgColumn => scopePauseTable.id,
+      { onDelete: "set null", onUpdate: "cascade" },
+    ),
     // When the task reached a final column (Done, Cancelled) after this run.
     closedAt: timestamp("closed_at", { mode: "date" }),
     createdAt: timestamp("created_at", { mode: "date" })
@@ -812,4 +819,117 @@ export const taskArchiveMigrationReportTable = inteliaSchema.table(
     restored: jsonb("restored").$type<Record<string, number>>().notNull(),
     skipped: integer("skipped").notNull(),
   },
+);
+
+// Pause of a whole project or initiative (design 81 §4.1): the dispatcher
+// does not move or launch its tasks and routines skip their ticks. At most one
+// active pause (resumed_at null) per scope; resumed ones stay as history.
+export const SCOPE_PAUSE_TYPES = ["project", "initiative"] as const;
+export type ScopePauseType = (typeof SCOPE_PAUSE_TYPES)[number];
+export const SCOPE_PAUSE_CHANGE_KINDS = [
+  "created",
+  "updated",
+  "resumed",
+] as const;
+export type ScopePauseChangeKind = (typeof SCOPE_PAUSE_CHANGE_KINDS)[number];
+export const SCOPE_PAUSE_CHANGE_SOURCES = ["session", "api_key"] as const;
+export type ScopePauseChangeSource =
+  (typeof SCOPE_PAUSE_CHANGE_SOURCES)[number];
+
+export const scopePauseTable = inteliaSchema.table(
+  "scope_pause",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaceTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    scopeType: text("scope_type").$type<ScopePauseType>().notNull(),
+    projectId: text("project_id").references(() => projectTable.id, {
+      onDelete: "cascade",
+      onUpdate: "cascade",
+    }),
+    initiativeId: text("initiative_id").references(() => initiativeTable.id, {
+      onDelete: "cascade",
+      onUpdate: "cascade",
+    }),
+    motivo: text("motivo").notNull(),
+    revisarEl: date("revisar_el", { mode: "string" }).notNull(),
+    pausedByUserId: text("paused_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    pausedByActor: text("paused_by_actor"),
+    pausedAt: timestamp("paused_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+    resumedByUserId: text("resumed_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    resumedByActor: text("resumed_by_actor"),
+    resumedAt: timestamp("resumed_at", { mode: "date" }),
+    notaReanudar: text("nota_reanudar"),
+  },
+  (table) => [
+    uniqueIndex("scope_pause_active_project_idx")
+      .on(table.projectId)
+      .where(sql`"resumed_at" IS NULL AND "project_id" IS NOT NULL`),
+    uniqueIndex("scope_pause_active_initiative_idx")
+      .on(table.initiativeId)
+      .where(sql`"resumed_at" IS NULL AND "initiative_id" IS NOT NULL`),
+    index("scope_pause_workspace_idx").on(table.workspaceId, table.resumedAt),
+    check("scope_pause_type_check", inCheck("scope_type", SCOPE_PAUSE_TYPES)),
+    check(
+      "scope_pause_scope_check",
+      sql`("scope_type" = 'project' AND "project_id" IS NOT NULL AND "initiative_id" IS NULL) OR ("scope_type" = 'initiative' AND "initiative_id" IS NOT NULL AND "project_id" IS NULL)`,
+    ),
+    check(
+      "scope_pause_motivo_check",
+      sql`char_length("motivo") BETWEEN 3 AND 500`,
+    ),
+  ],
+);
+
+// Change log of a scope pause: its creation, edits and resumption.
+export const scopePauseChangeTable = inteliaSchema.table(
+  "scope_pause_change",
+  {
+    id: text("id")
+      .$defaultFn(() => createId())
+      .primaryKey(),
+    pauseId: text("pause_id")
+      .notNull()
+      .references(() => scopePauseTable.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    kind: text("kind").$type<ScopePauseChangeKind>().notNull(),
+    previous: jsonb("previous").$type<Record<string, unknown>>(),
+    value: jsonb("value").$type<Record<string, unknown>>().notNull(),
+    changedByUserId: text("changed_by_user_id").references(() => userTable.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    changedByActor: text("changed_by_actor"),
+    source: text("source").$type<ScopePauseChangeSource>().notNull(),
+    changedAt: timestamp("changed_at", { mode: "date" })
+      .default(utcNow)
+      .notNull(),
+  },
+  (table) => [
+    index("scope_pause_change_pause_id_idx").on(table.pauseId, table.changedAt),
+    check(
+      "scope_pause_change_kind_check",
+      inCheck("kind", SCOPE_PAUSE_CHANGE_KINDS),
+    ),
+    check(
+      "scope_pause_change_source_check",
+      inCheck("source", SCOPE_PAUSE_CHANGE_SOURCES),
+    ),
+  ],
 );

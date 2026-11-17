@@ -8,6 +8,7 @@ import projectName from "./project-name";
 import reactions from "./reactions";
 import relations from "./relations";
 import routines from "./routines";
+import scopePause from "./scope-pause";
 import statusAge from "./status-age";
 import taskArchive from "./task-archive";
 import "./task-archive/subscribe";
@@ -29,6 +30,7 @@ const intelia = apiRouter()
   .route("/", priorityWebhooks)
   .route("/", projectName)
   .route("/", routines)
+  .route("/", scopePause)
   .route("/", statusAge)
   .route("/", taskArchive)
   .route("/", taskAutomation)

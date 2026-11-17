@@ -9544,10 +9544,11 @@
             "enum": [
               "reabierta",
               "saltada_abierta",
+              "saltada_pausa",
               "error",
               null
             ],
-            "description": "reabierta: the task was reopened to In progress. saltada_abierta: the task was still open, so the tick was skipped. error: the reopen failed."
+            "description": "reabierta: the task was reopened to In progress. saltada_abierta: the task was still open, so the tick was skipped. saltada_pausa: the task's project or initiative is paused, so the tick was consumed without reopening it, open or not. error: the reopen failed. Readers must ignore values they do not know."
           },
           "createdAt": {
             "type": "string",
@@ -9591,15 +9592,23 @@
             "enum": [
               "reabierta",
               "saltada_abierta",
+              "saltada_pausa",
               "error"
             ],
-            "description": "reabierta: the task was reopened to In progress. saltada_abierta: the task was still open, so the tick was skipped. error: the reopen failed."
+            "description": "reabierta: the task was reopened to In progress. saltada_abierta: the task was still open, so the tick was skipped. saltada_pausa: the task's project or initiative is paused, so the tick was consumed without reopening it, open or not. error: the reopen failed. Readers must ignore values they do not know."
           },
           "error": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "scopePauseId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The pause that skipped this run (`saltada_pausa`)."
           },
           "closedAt": {
             "type": [
@@ -9620,7 +9629,239 @@
           "scheduledAt",
           "result",
           "error",
+          "scopePauseId",
           "closedAt",
+          "createdAt"
+        ]
+      },
+      "ScopePause": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "scopeType": {
+            "type": "string",
+            "enum": [
+              "project",
+              "initiative"
+            ]
+          },
+          "projectId": {
+            "type": "string",
+            "description": "The paused project, or the initiative's home project: the one whose task:update the writes require."
+          },
+          "initiativeId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The paused initiative; null for a project pause."
+          },
+          "scopeName": {
+            "type": "string",
+            "description": "The project's or the initiative's name."
+          },
+          "taskIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Initiative pauses only (absent for a project): the ids of the initiative's tasks in every project the caller can read, as of this read, so a task added after pausing shows up in the next one."
+          },
+          "motivo": {
+            "type": "string"
+          },
+          "revisarEl": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-20"
+          },
+          "pausedByUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pausedByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pausedByActor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The graph id the API key's caller declared, if any."
+          },
+          "pausedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resumedByUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resumedByName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resumedByActor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "resumedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Null while the pause is active."
+          },
+          "notaReanudar": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "scopeType",
+          "projectId",
+          "initiativeId",
+          "scopeName",
+          "motivo",
+          "revisarEl",
+          "pausedByUserId",
+          "pausedByName",
+          "pausedByActor",
+          "pausedAt",
+          "resumedByUserId",
+          "resumedByName",
+          "resumedByActor",
+          "resumedAt",
+          "notaReanudar"
+        ]
+      },
+      "ScopePauseAlreadyActive": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "PAUSA_YA_ACTIVA"
+            ]
+          },
+          "pause": {
+            "$ref": "#/components/schemas/ScopePause"
+          }
+        },
+        "required": [
+          "message",
+          "code",
+          "pause"
+        ]
+      },
+      "ScopePauseList": {
+        "type": "object",
+        "properties": {
+          "pausas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScopePause"
+            }
+          },
+          "calculadoEn": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "pausas",
+          "calculadoEn"
+        ]
+      },
+      "ScopePauseChange": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "pauseId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "created",
+              "updated",
+              "resumed"
+            ]
+          },
+          "previous": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {}
+          },
+          "value": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "userName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "actor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "description": "session or api_key: how the change arrived."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "pauseId",
+          "kind",
+          "previous",
+          "value",
+          "userId",
+          "userName",
+          "actor",
+          "source",
           "createdAt"
         ]
       },
@@ -37327,6 +37568,631 @@
           },
           "404": {
             "description": "Task or routine not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/project/{projectId}/pause": {
+      "post": {
+        "operationId": "pauseProject",
+        "tags": [
+          "Scope pauses"
+        ],
+        "summary": "Pause a project",
+        "description": "Pauses the scope: the dispatcher stops moving and launching its tasks, and their routines skip their ticks, until someone resumes it. At most one active pause per scope, also with concurrent requests. A person's session or an account's API key, with task:update on the home project (the project, or the initiative's). Who may pause is checked by the factory's gateway against the graph before calling (design 81 §4.3). With an API key, `actor` names who the caller acts for (informative, logged as given).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "projectId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "motivo": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "Why the scope is paused, 3 to 500 characters after trimming. Otherwise 400 PAUSA_MOTIVO_REQUERIDO.",
+                    "example": "Esperando la decisión de Jaime sobre el alcance"
+                  },
+                  "revisarEl": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "description": "Date to review the pause (YYYY-MM-DD), after today in Europe/Madrid. Missing or not a date: 400 PAUSA_REVISAR_EL_REQUERIDA; today or earlier: 400 PAUSA_REVISAR_EL_PASADA. The pause never lifts itself.",
+                    "example": "2026-11-20"
+                  },
+                  "actor": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
+                    "example": "agent:orq-jaime"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new pause",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopePause"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "PAUSA_MOTIVO_REQUERIDO, PAUSA_REVISAR_EL_REQUERIDA, PAUSA_REVISAR_EL_PASADA, or `actor` from a session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing task:update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The scope already has an active pause (PAUSA_YA_ACTIVA): nothing changed, and the body carries that pause",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopePauseAlreadyActive"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/initiative/{initiativeId}/pause": {
+      "post": {
+        "operationId": "pauseInitiative",
+        "tags": [
+          "Scope pauses"
+        ],
+        "summary": "Pause an initiative",
+        "description": "Pauses the scope: the dispatcher stops moving and launching its tasks, and their routines skip their ticks, until someone resumes it. At most one active pause per scope, also with concurrent requests. A person's session or an account's API key, with task:update on the home project (the project, or the initiative's). Who may pause is checked by the factory's gateway against the graph before calling (design 81 §4.3). With an API key, `actor` names who the caller acts for (informative, logged as given). It covers the initiative's tasks in every project.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "initiativeId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "motivo": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "Why the scope is paused, 3 to 500 characters after trimming. Otherwise 400 PAUSA_MOTIVO_REQUERIDO.",
+                    "example": "Esperando la decisión de Jaime sobre el alcance"
+                  },
+                  "revisarEl": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "description": "Date to review the pause (YYYY-MM-DD), after today in Europe/Madrid. Missing or not a date: 400 PAUSA_REVISAR_EL_REQUERIDA; today or earlier: 400 PAUSA_REVISAR_EL_PASADA. The pause never lifts itself.",
+                    "example": "2026-11-20"
+                  },
+                  "actor": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
+                    "example": "agent:orq-jaime"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new pause",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopePause"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "PAUSA_MOTIVO_REQUERIDO, PAUSA_REVISAR_EL_REQUERIDA, PAUSA_REVISAR_EL_PASADA, or `actor` from a session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing task:update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Initiative not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The scope already has an active pause (PAUSA_YA_ACTIVA): nothing changed, and the body carries that pause",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopePauseAlreadyActive"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/scope-pause/{pauseId}": {
+      "patch": {
+        "operationId": "updateScopePause",
+        "tags": [
+          "Scope pauses"
+        ],
+        "summary": "Change an active pause",
+        "description": "Changes its reason or review date; each real change goes to the history. A person's session or an account's API key, with task:update on the home project (the project, or the initiative's). Who may pause is checked by the factory's gateway against the graph before calling (design 81 §4.3). With an API key, `actor` names who the caller acts for (informative, logged as given).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "pauseId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "motivo": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "Why the scope is paused, 3 to 500 characters after trimming. Otherwise 400 PAUSA_MOTIVO_REQUERIDO.",
+                    "example": "Esperando la decisión de Jaime sobre el alcance"
+                  },
+                  "revisarEl": {
+                    "type": "string",
+                    "maxLength": 40,
+                    "description": "Date to review the pause (YYYY-MM-DD), after today in Europe/Madrid. Missing or not a date: 400 PAUSA_REVISAR_EL_REQUERIDA; today or earlier: 400 PAUSA_REVISAR_EL_PASADA. The pause never lifts itself.",
+                    "example": "2026-11-20"
+                  },
+                  "actor": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
+                    "example": "agent:orq-jaime"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The pause",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopePause"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nothing to change, PAUSA_MOTIVO_REQUERIDO, PAUSA_REVISAR_EL_REQUERIDA, PAUSA_REVISAR_EL_PASADA, or `actor` from a session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing task:update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pause not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The pause was already resumed (PAUSA_REANUDADA)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/scope-pause/{pauseId}/resume": {
+      "post": {
+        "operationId": "resumeScopePause",
+        "tags": [
+          "Scope pauses"
+        ],
+        "summary": "Resume a pause",
+        "description": "Lifts the pause. Idempotent: resuming a resumed pause changes nothing and returns it as it is. A person's session or an account's API key, with task:update on the home project (the project, or the initiative's). Who may pause is checked by the factory's gateway against the graph before calling (design 81 §4.3). With an API key, `actor` names who the caller acts for (informative, logged as given). The body is optional.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "pauseId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nota": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Why it is resumed (optional, up to 500 characters)."
+                  },
+                  "actor": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^(agent|person):[a-z0-9-]+$",
+                    "description": "With an API key only: the graph id the caller acts for (agent:…, person:…), informative and not checked by Kaneo. An invalid one is ignored. A session acts as its own user and must not send it.",
+                    "example": "agent:orq-jaime"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The resumed pause",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopePause"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, or `actor` from a session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing task:update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pause not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/workspace/{workspaceId}/scope-pauses": {
+      "get": {
+        "operationId": "listScopePauses",
+        "tags": [
+          "Scope pauses"
+        ],
+        "summary": "List a workspace's scope pauses",
+        "description": "The pauses of the projects and initiatives the caller can read, oldest first. Each initiative pause lists its tasks of every readable project, read now, so a task added to the initiative after pausing it is included. Needs task:read.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "workspaceId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "activa",
+                "todas"
+              ],
+              "default": "activa",
+              "description": "activa (default): only the active pauses. todas: the resumed ones too."
+            },
+            "required": false,
+            "description": "activa (default): only the active pauses. todas: the resumed ones too.",
+            "name": "estado",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              ],
+              "description": "With estado=todas, leaves out the pauses resumed before this date or instant. Active pauses are always listed.",
+              "example": "2026-10-18"
+            },
+            "required": false,
+            "description": "With estado=todas, leaves out the pauses resumed before this date or instant. Active pauses are always listed.",
+            "name": "desde",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pauses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopePauseList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No session or API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the workspace or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Workspace not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/scope-pause/{pauseId}/history": {
+      "get": {
+        "operationId": "listScopePauseChanges",
+        "tags": [
+          "Scope pauses"
+        ],
+        "summary": "Get a pause's history",
+        "description": "Its creation, changes and resumption, oldest first, each with who made it. Needs task:read and access to the home project.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "pauseId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The pause's changes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScopePauseChange"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project or missing read permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pause not found",
             "content": {
               "application/json": {
                 "schema": {

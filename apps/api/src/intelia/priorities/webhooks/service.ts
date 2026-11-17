@@ -4,6 +4,7 @@ import db from "../../../database";
 import { ApiError } from "../../../errors/api-error";
 import { assertPublicWebhookDestination } from "../../../plugins/generic-webhook/config";
 import { priorityWebhookTable } from "../../schema";
+import { isUniqueViolation } from "../../unique-violation";
 import type { CreatePriorityWebhookInput } from "./schema";
 
 type Row = typeof priorityWebhookTable.$inferSelect;
@@ -11,14 +12,6 @@ type Row = typeof priorityWebhookTable.$inferSelect;
 // What the API shows of a destination: never its secret.
 function visible({ secret, ...row }: Row) {
   return { ...row, hasSecret: secret !== null };
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  for (let e = error; e && typeof e === "object";) {
-    if ("code" in e && e.code === "23505") return true;
-    e = "cause" in e ? e.cause : undefined;
-  }
-  return false;
 }
 
 export async function listPriorityWebhooks(workspaceId: string) {

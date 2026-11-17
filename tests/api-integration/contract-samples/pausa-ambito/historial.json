@@ -1,0 +1,104 @@
+{
+	"muestra": "Historial de la pausa reanudada (GET /api/intelia/scope-pause/{id}/history): creada, cambiada y reanudada, en orden.",
+	"procedencia": "Ids reales de Kaneo de producción, comprobados por Forja con kaneo.get_task el 2026-11-17 (comentario en SF-2491): espacio 62KupB9bbjpBOYrQJmJEox89MrDMljNn; proyectos PRUEBAS plt06huzxhv1h2gc16l8jmce, SF tpb8sm8p2xof9x8tf32tvws6 y KF kdxbj1wccwe4yf97sg4rwtl7; iniciativa l8keiqq0ixzoeg3yrd9p3irx («Pausa por iniciativa o proyecto (diseño 81)», casa SF) con SF-2491 (k6jbv95thzp952p5elne618x) y KF-15 (metubfub7tyh5h1b1g6305p2); PRUEBAS-31 (iht97nhd8ysei4djmnubnbd1), de otra iniciativa; cuentas de Kaneo de Forja (RChgoVHfb2mcm21vMc7Ydk94rMHnXDlZ) y Dédalo (k0CoLsKvfkjchNA44TdHWSncB6kD9Qec). Los ids de pausa y de cambio, las fechas y los motivos son sintéticos: la tabla scope_pause aún no existe (PZ-03). No hay ninguna iniciativa con tareas en PRUEBAS y en otro proyecto (Forja revisó las 7 de PRUEBAS y las 55 en curso), así que la iniciativa de la muestra tiene sus tareas en SF y en KF.",
+	"respuesta": [
+		{
+			"id": "szpz01cambio00000000001",
+			"pauseId": "szpz01reanudada000000001",
+			"kind": "created",
+			"previous": null,
+			"value": {
+				"motivo": "Ensayo previo",
+				"revisarEl": "2026-11-17"
+			},
+			"userId": "RChgoVHfb2mcm21vMc7Ydk94rMHnXDlZ",
+			"actor": "agent:forja",
+			"source": "gateway",
+			"createdAt": "2026-11-16T08:00:00.000Z"
+		},
+		{
+			"id": "szpz01cambio00000000002",
+			"pauseId": "szpz01reanudada000000001",
+			"kind": "updated",
+			"previous": {
+				"motivo": "Ensayo previo"
+			},
+			"value": {
+				"motivo": "Ensayo previo del diseño 81"
+			},
+			"userId": "RChgoVHfb2mcm21vMc7Ydk94rMHnXDlZ",
+			"actor": "agent:forja",
+			"source": "gateway",
+			"createdAt": "2026-11-16T08:10:00.000Z"
+		},
+		{
+			"id": "szpz01cambio00000000003",
+			"pauseId": "szpz01reanudada000000001",
+			"kind": "resumed",
+			"previous": {
+				"resumedAt": null
+			},
+			"value": {
+				"resumedAt": "2026-11-16T09:30:00.000Z",
+				"notaReanudar": "Ensayo terminado; se levanta sin cambios"
+			},
+			"userId": "k0CoLsKvfkjchNA44TdHWSncB6kD9Qec",
+			"actor": "agent:dedalo",
+			"source": "gateway",
+			"createdAt": "2026-11-16T09:30:00.000Z"
+		}
+	],
+	"esperado": [
+		{
+			"id": "szpz01cambio00000000001",
+			"pausaId": "szpz01reanudada000000001",
+			"tipo": "creada",
+			"anterior": null,
+			"valor": {
+				"motivo": "Ensayo previo",
+				"revisarEl": "2026-11-17"
+			},
+			"hechoPor": {
+				"actor": "agent:forja",
+				"usuario": "RChgoVHfb2mcm21vMc7Ydk94rMHnXDlZ"
+			},
+			"origen": "gateway",
+			"en": "2026-11-16T08:00:00.000Z"
+		},
+		{
+			"id": "szpz01cambio00000000002",
+			"pausaId": "szpz01reanudada000000001",
+			"tipo": "cambiada",
+			"anterior": {
+				"motivo": "Ensayo previo"
+			},
+			"valor": {
+				"motivo": "Ensayo previo del diseño 81"
+			},
+			"hechoPor": {
+				"actor": "agent:forja",
+				"usuario": "RChgoVHfb2mcm21vMc7Ydk94rMHnXDlZ"
+			},
+			"origen": "gateway",
+			"en": "2026-11-16T08:10:00.000Z"
+		},
+		{
+			"id": "szpz01cambio00000000003",
+			"pausaId": "szpz01reanudada000000001",
+			"tipo": "reanudada",
+			"anterior": {
+				"resumedAt": null
+			},
+			"valor": {
+				"resumedAt": "2026-11-16T09:30:00.000Z",
+				"notaReanudar": "Ensayo terminado; se levanta sin cambios"
+			},
+			"hechoPor": {
+				"actor": "agent:dedalo",
+				"usuario": "k0CoLsKvfkjchNA44TdHWSncB6kD9Qec"
+			},
+			"origen": "gateway",
+			"en": "2026-11-16T09:30:00.000Z"
+		}
+	]
+}

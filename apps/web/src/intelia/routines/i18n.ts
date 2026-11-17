@@ -48,6 +48,7 @@ const en = {
     result: {
       reabierta: "Reopened",
       saltada_abierta: "Skipped, task open",
+      saltada_pausa: "Skipped, paused scope",
       error: "Error",
     },
     page: {
@@ -121,6 +122,7 @@ const es = {
     result: {
       reabierta: "Reabierta",
       saltada_abierta: "Saltada, tarea abierta",
+      saltada_pausa: "Saltada, ámbito en pausa",
       error: "Error",
     },
     page: {

@@ -1,10 +1,15 @@
-import { and, asc, eq, exists, lte } from "drizzle-orm";
+import { and, asc, eq, exists, lte, ne } from "drizzle-orm";
+import createComment from "../../activity/controllers/create-comment";
 import db from "../../database";
 import { taskTable, userTable } from "../../database/schema";
 import updateTaskStatus from "../../task/controllers/update-task-status";
 import { taskIsCompleted } from "../../task/task-is-completed";
 import { projectInActiveWorkspace } from "../../workspace/archive/active-workspace-sql";
 import { type RoutineResult, routineRunTable, routineTable } from "../schema";
+import {
+  activePauseCovering,
+  type CoveringPause,
+} from "../scope-pause/covering";
 import { sendToStatusWebhooks } from "../webhooks";
 import { nextRunAt } from "./schedule";
 import {
@@ -142,9 +147,16 @@ async function runRoutine(
     (task.recurrence
       ? "The task repeats with Kaneo's recurrence; a routine cannot reopen it"
       : null);
+  // A paused project or initiative wins over an open task, so the dispatcher
+  // does not hand the tick to a worker either (design 81 §4.1).
+  const pause = error
+    ? null
+    : await activePauseCovering(routine.taskId, task.projectId);
   let result: RoutineResult;
   if (error) {
     result = "error";
+  } else if (pause) {
+    result = "saltada_pausa";
   } else if (!task.completed) {
     result = "saltada_abierta";
   } else {
@@ -171,6 +183,7 @@ async function runRoutine(
       scheduledAt: routine.nextRunAt,
       result,
       error,
+      scopePauseId: pause?.id ?? null,
     })
     .returning({ id: routineRunTable.id });
   await db
@@ -181,7 +194,39 @@ async function runRoutine(
   if (result === "saltada_abierta" && run && next) {
     await notifyRoutineSkipped(routine, task.projectId, run.id, next);
   }
+  if (pause && run) {
+    await commentPauseSkipOnce(routine, pause, run.id);
+  }
   return result;
+}
+
+// One comment per routine and pause: only on the first run that pause skips.
+async function commentPauseSkipOnce(
+  routine: DueRoutine,
+  pause: CoveringPause,
+  runId: string,
+) {
+  const [earlier] = await db
+    .select({ id: routineRunTable.id })
+    .from(routineRunTable)
+    .where(
+      and(
+        eq(routineRunTable.routineId, routine.id),
+        eq(routineRunTable.scopePauseId, pause.id),
+        ne(routineRunTable.id, runId),
+      ),
+    )
+    .limit(1);
+  if (earlier) return;
+  const scope =
+    pause.scopeType === "project"
+      ? `el proyecto «${pause.scopeName}»`
+      : `la iniciativa «${pause.scopeName}»`;
+  await createComment(
+    routine.taskId,
+    ROUTINE_SERVICE_ID,
+    `Rutina saltada: en pausa por ${scope} (${pause.motivo})`,
+  );
 }
 
 // Body documented in README-INTELIA.md.

@@ -3,7 +3,7 @@ import { ROUTINE_RESULTS } from "../schema";
 
 const routineResult = z.enum(ROUTINE_RESULTS).openapi({
   description:
-    "reabierta: the task was reopened to In progress. saltada_abierta: the task was still open, so the tick was skipped. error: the reopen failed.",
+    "reabierta: the task was reopened to In progress. saltada_abierta: the task was still open, so the tick was skipped. saltada_pausa: the task's project or initiative is paused, so the tick was consumed without reopening it, open or not. error: the reopen failed. Readers must ignore values they do not know.",
 });
 
 export const routineSchema = z
@@ -50,6 +50,9 @@ export const routineRunSchema = z
     scheduledAt: responseTimestamp,
     result: routineResult,
     error: z.string().nullable(),
+    scopePauseId: z.string().nullable().openapi({
+      description: "The pause that skipped this run (`saltada_pausa`).",
+    }),
     closedAt: nullableResponseTimestamp.openapi({
       description:
         "When the task reached Done or Cancelled (a final column) after this run.",
