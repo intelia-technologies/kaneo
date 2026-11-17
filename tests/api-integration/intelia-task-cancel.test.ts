@@ -5,7 +5,7 @@
 import { createHmac } from "node:crypto";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   afterEach,
   beforeEach,
@@ -698,6 +698,256 @@ describe("resolutions", () => {
       comentarios: 0,
     });
     expect((await snapshot(seeded)).relations).toHaveLength(1);
+  });
+
+  it("refuse resolutions for an already cancelled task: cadena_cambiada, nothing changes", async () => {
+    const { app, seeded, key } = await setup();
+    await seeded.add("DONE-1", { estado: "cancelled" });
+    await seeded.add("DONE-2");
+    await seeded.relate("DONE-1", "DONE-2");
+    const before = await snapshot(seeded);
+
+    const res = await cancel(
+      app,
+      seeded.ids.get("DONE-1")!,
+      {
+        motivo: "Se cancela con lo que cuelga de ella.",
+        resoluciones: [{ tarea: "DONE-2", accion: "quitar" }],
+      },
+      { "x-api-key": key },
+    );
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("DEPENDENCIAS_SIN_RESOLVER");
+    expect(res.body.details!.problemas).toEqual([
+      {
+        tarea: "DONE-1",
+        problema: "cadena_cambiada",
+        detalle: expect.stringContaining("Ya está cancelada"),
+      },
+    ]);
+    expect(schemaErrors("error_dependencias", res.body)).toBeNull();
+    expect(await snapshot(seeded)).toEqual(before);
+  });
+
+  it("refuse resolutions for an open task whose chain emptied before the call, with the guard on or off", async () => {
+    const { app, seeded, key } = await setup();
+    // EMP-2 was released and EMP-3 cancelled by someone else since the
+    // caller resolved them: nothing open hangs from EMP-1 any more.
+    await seeded.add("EMP-1");
+    await seeded.add("EMP-2");
+    await seeded.add("EMP-3", { estado: "cancelled" });
+    await seeded.relate("EMP-1", "EMP-3");
+    const before = await snapshot(seeded);
+    const body = {
+      motivo: "Se cancela con lo que colgaba de ella.",
+      resoluciones: [
+        { tarea: "EMP-2", accion: "quitar" },
+        { tarea: "EMP-3", accion: "cancelar" },
+      ],
+    };
+
+    for (const guard of ["1", ""]) {
+      vi.stubEnv("INTELIA_CANCEL_GUARD", guard);
+      const res = await cancel(app, seeded.ids.get("EMP-1")!, body, {
+        "x-api-key": key,
+      });
+
+      expect(res.status, `guard "${guard}"`).toBe(409);
+      expect(res.body.details!.problemas).toEqual(
+        ["EMP-2", "EMP-3"].map((tarea) => ({
+          tarea,
+          problema: "cadena_cambiada",
+          detalle: "Ya no está en la cadena.",
+        })),
+      );
+      expect(schemaErrors("error_dependencias", res.body)).toBeNull();
+      expect(await snapshot(seeded)).toEqual(before);
+    }
+  });
+
+  it("refuse resolutions for a task cancelled by someone else between the check and the lock", async () => {
+    const { app, seeded, key } = await setup();
+    for (const t of ["LK-1", "LK-2", "LK-3"]) await seeded.add(t);
+    await seeded.relate("LK-1", "LK-2");
+    await seeded.relate("LK-2", "LK-3");
+    const motivo = "Se cancela mientras otro la estaba cancelando.";
+    // B reads LK-2 open and checks it; A cancels LK-1 with LK-2 and LK-3 and
+    // commits before B takes its locks.
+    const loadGraph = graphs.loadGraph;
+    const aDone = Promise.withResolvers<void>();
+    let held = false;
+    vi.spyOn(graphs, "loadGraph").mockImplementation(async (...args) => {
+      const graph = await loadGraph(...args);
+      if (!held && args[1] === seeded.ids.get("LK-2")) {
+        held = true;
+        await aDone.promise;
+      }
+      return graph;
+    });
+
+    const b = cancel(
+      app,
+      seeded.ids.get("LK-2")!,
+      { motivo, resoluciones: [{ tarea: "LK-3", accion: "quitar" }] },
+      { "x-api-key": key },
+    );
+    await vi.waitFor(() => expect(held).toBe(true));
+    const a = await cancel(
+      app,
+      seeded.ids.get("LK-1")!,
+      {
+        motivo,
+        resoluciones: [
+          { tarea: "LK-2", accion: "cancelar" },
+          { tarea: "LK-3", accion: "cancelar" },
+        ],
+      },
+      { "x-api-key": key },
+    );
+    expect(a.status).toBe(200);
+    const afterA = await snapshot(seeded);
+    aDone.resolve();
+    const lost = await b;
+
+    expect(lost.status).toBe(409);
+    expect(lost.body.details!.problemas).toEqual([
+      {
+        tarea: "LK-2",
+        problema: "cadena_cambiada",
+        detalle: expect.stringContaining("Ya está cancelada"),
+      },
+    ]);
+    expect(schemaErrors("error_dependencias", lost.body)).toBeNull();
+    expect(await snapshot(seeded)).toEqual(afterA);
+  });
+
+  it("give the loser of a race on overlapping chains a 409, never a 200 that drops its resolutions (20 rounds)", async () => {
+    const { app, seeded, key } = await setup();
+    // Half the rounds hold both callers after their first read, so both pass
+    // the check and meet at the locks; the rest race freely.
+    const loadGraph = graphs.loadGraph;
+    let barrier: { reads: number; both: PromiseWithResolvers<void> } | null =
+      null;
+    vi.spyOn(graphs, "loadGraph").mockImplementation(async (...args) => {
+      const graph = await loadGraph(...args);
+      const held = barrier;
+      if (held && held.reads < 2) {
+        if (++held.reads === 2) held.both.resolve();
+        await held.both.promise;
+      }
+      return graph;
+    });
+    const motivo = "Dos cancelaciones a la vez sobre cadenas solapadas.";
+    const isCancelled = async (t: string) =>
+      (await seeded.task(t)).status === "cancelled";
+
+    for (let round = 0; round < 20; round++) {
+      // A cancels R (X and its dependents too, Y released); B cancels X,
+      // which hangs from R, releasing its dependents.
+      const k = (n: number) => `RC-${round * 10 + n}`;
+      const [r, x, y, ...ds] = [1, 2, 3, 4, 5, 6].map(k);
+      for (const t of [r, x, y, ...ds]) await seeded.add(t!);
+      await seeded.relate(r!, x!);
+      await seeded.relate(r!, y!);
+      for (const d of ds) await seeded.relate(x!, d);
+      const roundIds = [r, x, y, ...ds].map((t) => seeded.ids.get(t!)!);
+      barrier =
+        round % 2 === 0 ? { reads: 0, both: Promise.withResolvers() } : null;
+
+      const [a, b] = await Promise.all([
+        cancel(
+          app,
+          seeded.ids.get(r!)!,
+          {
+            motivo,
+            resoluciones: [
+              { tarea: x, accion: "cancelar" },
+              { tarea: y, accion: "quitar" },
+              ...ds.map((d) => ({ tarea: d, accion: "cancelar" })),
+            ],
+          },
+          { "x-api-key": key },
+        ),
+        cancel(
+          app,
+          seeded.ids.get(x!)!,
+          {
+            motivo,
+            resoluciones: ds.map((d) => ({ tarea: d, accion: "quitar" })),
+          },
+          { "x-api-key": key },
+        ),
+      ]);
+
+      expect([a.status, b.status].sort(), `round ${round}`).toEqual([200, 409]);
+      const lost = a.status === 409 ? a : b;
+      expect(lost.body.error).toBe("DEPENDENCIAS_SIN_RESOLVER");
+      expect(
+        (lost.body.details!.problemas as { problema: string }[]).some(
+          (p) => p.problema === "cadena_cambiada",
+        ),
+        `round ${round}`,
+      ).toBe(true);
+      expect(schemaErrors("error_dependencias", lost.body)).toBeNull();
+
+      const relations = await db
+        .select()
+        .from(schema.taskRelationTable)
+        .where(inArray(schema.taskRelationTable.sourceTaskId, roundIds));
+      const from = (s: string) =>
+        relations
+          .filter((rel) => rel.sourceTaskId === seeded.ids.get(s))
+          .map((rel) => rel.targetTaskId)
+          .sort();
+      if (a.status === 200) {
+        // A's resolutions applied, none of B's (X's dependents kept their
+        // relation and were cancelled with it).
+        expect(a.body.canceladas).toEqual([r, x, ...ds]);
+        expect(a.body.quitadas).toEqual([y]);
+        for (const t of [r, x, ...ds]) expect(await isCancelled(t!)).toBe(true);
+        expect(await isCancelled(y!)).toBe(false);
+        expect(from(r!)).toEqual([seeded.ids.get(x!)!]);
+        expect(from(x!)).toEqual(ds.map((d) => seeded.ids.get(d)!).sort());
+      } else {
+        // B's resolutions applied, none of A's: R stays open with both.
+        expect(b.body.canceladas).toEqual([x]);
+        expect(b.body.quitadas).toEqual(ds);
+        expect(await isCancelled(x!)).toBe(true);
+        for (const t of [r, y, ...ds])
+          expect(await isCancelled(t!)).toBe(false);
+        expect(from(r!)).toEqual(
+          [seeded.ids.get(x!)!, seeded.ids.get(y!)!].sort(),
+        );
+        expect(from(x!)).toEqual([]);
+      }
+      // Only the winner wrote comments.
+      const written = await db
+        .select({ id: schema.activityTable.id })
+        .from(schema.activityTable)
+        .where(
+          and(
+            eq(schema.activityTable.type, "comment"),
+            inArray(schema.activityTable.taskId, roundIds),
+          ),
+        );
+      const won = a.status === 200 ? a : b;
+      expect(won.body.comentarios).toBeGreaterThan(0);
+      expect(written).toHaveLength(won.body.comentarios as number);
+      // Nothing open hangs from a cancelled task.
+      for (const rel of relations) {
+        const [source] = await db
+          .select({ status: schema.taskTable.status })
+          .from(schema.taskTable)
+          .where(eq(schema.taskTable.id, rel.sourceTaskId));
+        const [target] = await db
+          .select({ status: schema.taskTable.status })
+          .from(schema.taskTable)
+          .where(eq(schema.taskTable.id, rel.targetTaskId));
+        if (source!.status === "cancelled")
+          expect(target!.status, `round ${round}`).toBe("cancelled");
+      }
+    }
   });
 
   it("cancel all of INFRA-381 (28 tasks) in under three seconds", async () => {

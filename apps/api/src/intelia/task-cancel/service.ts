@@ -19,6 +19,7 @@ import type {
   Efectos,
   Graph,
   GraphTask,
+  Problema,
   RawResolution,
 } from "./types";
 
@@ -67,6 +68,38 @@ const alreadyCancelled = (ticket: string): CancelResult => ({
   comentarios: 0,
 });
 
+/**
+ * Resolutions decided on a chain that no longer exists (the root cancelled by
+ * someone else, or nothing left hanging from it): refused with
+ * `cadena_cambiada` instead of silently dropped (§4.3, step 3 of §7).
+ */
+const staleResolutions = (
+  graph: Graph,
+  problemas: Problema[],
+  motivoRecibido: boolean,
+) =>
+  new HTTPException(409, {
+    res: Response.json(
+      dependenciesErrorBody({
+        root: graph.root,
+        chain: buildChain(graph),
+        aplicacion: { pendientes: [], problemas, efectos: NO_EFFECTS },
+        motivoRecibido,
+        conResoluciones: true,
+      }),
+      { status: 409 },
+    ),
+  });
+
+const rootCancelled = (root: GraphTask): Problema[] => [
+  {
+    tarea: root.ticket,
+    problema: "cadena_cambiada",
+    detalle:
+      "Ya está cancelada: otra cancelación se ha aplicado antes que la tuya y tus resoluciones no se han aplicado. Revisa la cadena.",
+  },
+];
+
 /** Same nodes with the same relations and kind (decision 12). */
 function sameChain(a: readonly ChainNode[], b: readonly ChainNode[]) {
   const before = chainFingerprint(a);
@@ -87,7 +120,11 @@ function sameChain(a: readonly ChainNode[], b: readonly ChainNode[]) {
  *   `motivo`, or 409 `DEPENDENCIAS_SIN_RESOLVER` and nothing changes. They are
  *   checked first, and again under the lock of every affected task (taken in
  *   id order, so two overlapping cancellations wait instead of deadlocking):
- *   a chain that changed in between is a 409 with `cadena_cambiada`.
+ *   a chain that changed in between is a 409 with `cadena_cambiada`. A root
+ *   already cancelled (before the call or by the winner of a race) is a 200
+ *   with nothing written, unless `resoluciones` came: they were decided on a
+ *   chain that is gone, so it is that 409 too, as is `resoluciones` for a
+ *   root nothing hangs from any more.
  *
  * `onLocked` runs inside the transaction with the rows locked, before
  * anything is written: a caller's own checks and writes (the rejection of a
@@ -113,9 +150,27 @@ export async function cancelTask({
 }): Promise<CancelResult> {
   const resoluciones = input.resoluciones ?? [];
   const graph = await readGraph(db, taskId, userId);
-  if (isCancelledStatus(graph.root.status) && !onLocked)
+  if (isCancelledStatus(graph.root.status) && !onLocked) {
+    if (resoluciones.length)
+      throw staleResolutions(
+        graph,
+        rootCancelled(graph.root),
+        input.motivo !== undefined,
+      );
     return alreadyCancelled(graph.root.ticket);
+  }
   const chain = buildChain(graph);
+  // What they resolved left the chain before this call: none of it applies.
+  if (chain.length === 0 && resoluciones.length)
+    throw staleResolutions(
+      graph,
+      [...new Set(resoluciones.map((r) => r.tarea))].map((tarea) => ({
+        tarea,
+        problema: "cadena_cambiada",
+        detalle: "Ya no está en la cadena.",
+      })),
+      input.motivo !== undefined,
+    );
   const guard = cancelGuardEnabled();
   const plain = chain.length === 0 || (!guard && resoluciones.length === 0);
 
@@ -191,8 +246,17 @@ export async function cancelTask({
       .for("update");
     const locked = await readGraph(tx, taskId, userId);
     await onLocked?.(tx, locked.root);
-    // Cancelled meanwhile by someone else: nothing left to do.
-    if (isCancelledStatus(locked.root.status)) return null;
+    // Cancelled meanwhile by someone else: nothing left to do, but the
+    // resolutions it brought are refused, not dropped.
+    if (isCancelledStatus(locked.root.status)) {
+      if (resoluciones.length)
+        throw staleResolutions(
+          locked,
+          rootCancelled(locked.root),
+          input.motivo !== undefined,
+        );
+      return null;
+    }
     const now = buildChain(locked);
     // The targets as they are now that they are locked (one may have been
     // cancelled since the check).
