@@ -15884,6 +15884,12 @@
 						"waitsFor": {
 							"type": "string"
 						},
+						"falta": {
+							"type": "string"
+						},
+						"resuelve": {
+							"type": "string"
+						},
 						"worker": {
 							"type": "object",
 							"additionalProperties": false,
@@ -15930,7 +15936,7 @@
 							]
 						}
 					},
-					"required": ["alarm", "waitsFor", "worker"]
+					"required": ["alarm", "waitsFor", "falta", "resuelve", "worker"]
 				},
 				"filterBar": {
 					"type": "object",

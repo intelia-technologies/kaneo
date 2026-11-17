@@ -14,6 +14,8 @@ import {
 } from "vite-plus/test";
 import type { BoardSignalTask, ProjectBoardSignals } from "../api";
 import { BoardSignalChips } from "./board-signal-chips";
+// BC-01's sample, the copy the API tests check byte for byte.
+import sample from "../../../../../../tests/api-integration/contract-samples/bloqueo-capacidad/senales-tablero.json";
 
 const mocks = vi.hoisted(() => ({ signals: vi.fn() }));
 
@@ -170,5 +172,55 @@ describe("BoardSignalChips", () => {
     expect(
       screen.getByRole("img", { name: "Espera a SF-9" }),
     ).toHaveTextContent("SF-9");
+  });
+
+  it("shows BC-01's `falta` and `resuelve` whatever the alarm, without `espera_a`", () => {
+    const charo = sample.tareas.e981dh2i8o6drfb0zed1un93;
+    mocks.signals.mockReturnValue(signals(charo));
+    renderChips();
+    const falta = screen.getByRole("img", {
+      name: "Falta: alta secret:pgro-factory y tupla role:validador",
+    });
+    expect(falta).toHaveAttribute("data-board-signal", "falta");
+    expect(falta).toHaveTextContent(
+      "Falta: alta secret:pgro-factory y tupla role:validador",
+    );
+    expect(
+      screen.getByRole("img", { name: "Resuelve: agent:charo" }),
+    ).toHaveTextContent("Resuelve: agent:charo");
+    // The alarm stays, and no longer repeats `espera_a`.
+    const alarm = document.querySelector('[data-board-signal="alarma"]');
+    expect(alarm?.getAttribute("title")).not.toContain("Espera a");
+    expect(document.body.textContent).not.toContain(charo.espera_a);
+  });
+
+  it("shows `falta` alone when nobody resolves it yet", () => {
+    const { worker: _worker, ...nobody } =
+      sample.tareas.jffo6zykwooqdgjr2hpbfz1p;
+    mocks.signals.mockReturnValue(signals({ ...nobody, alarma: null }));
+    renderChips();
+    expect(
+      screen.getByRole("img", {
+        name: "Falta: Episodio real de primario sin cuota con cambio al siguiente modelo",
+      }),
+    ).toBeInTheDocument();
+    expect(document.querySelector('[data-board-signal="resuelve"]')).toBeNull();
+    expect(document.querySelector('[data-board-signal="espera"]')).toBeNull();
+  });
+
+  it("without `falta`, keeps showing `espera_a` as before", () => {
+    mocks.signals.mockReturnValue(
+      signals({
+        espera_a: "person:jaime",
+        falta: null,
+        resuelve: "agent:charo",
+      }),
+    );
+    renderChips();
+    expect(
+      screen.getByRole("img", { name: "Espera a person:jaime" }),
+    ).toHaveTextContent("person:jaime");
+    expect(document.querySelector('[data-board-signal="falta"]')).toBeNull();
+    expect(document.querySelector('[data-board-signal="resuelve"]')).toBeNull();
   });
 });

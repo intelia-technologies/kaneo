@@ -38,6 +38,8 @@ export default defineConfig({
       "**/package-lock.json",
       // Copies of the CD-01 contract samples (design 82): kept byte for byte.
       "apps/api/src/intelia/task-cancel/fixtures/*.json",
+      // Copies of the BC-01 samples (design 80): a test pins their git blob.
+      "tests/api-integration/contract-samples/bloqueo-capacidad/*.json",
     ],
     overrides: [{ files: ["**/*.{json,jsonc}"], options: { useTabs: true } }],
   },

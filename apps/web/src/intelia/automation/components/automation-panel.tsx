@@ -110,6 +110,13 @@ export function TaskAutomationPanel({ taskId }: { taskId: string }) {
             </p>
           )
         )}
+        {saved?.esperaHasta && (
+          <p className="text-muted-foreground text-xs">
+            {t("intelia:automation.esperaHasta", {
+              date: formatDateTime(saved.esperaHasta),
+            })}
+          </p>
+        )}
 
         <AutomationFields
           value={draft}

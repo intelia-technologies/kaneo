@@ -3809,6 +3809,8 @@
 		"boardSignals": {
 			"alarm": "Alarm on {{date}}",
 			"waitsFor": "Waiting for {{who}}",
+			"falta": "Missing: {{what}}",
+			"resuelve": "Resolves: {{who}}",
 			"worker": {
 				"activo": "Worker alive",
 				"caido": "Worker down: no sign of life in 30 min",

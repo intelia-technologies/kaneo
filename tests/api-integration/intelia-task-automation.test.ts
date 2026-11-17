@@ -33,6 +33,7 @@ import {
   createProjectFixture,
   createWorkspaceMember,
 } from "./helpers/fixtures";
+import { sampleJson } from "./contract-samples/bloqueo-capacidad/bloqueo-capacidad";
 
 type App = ReturnType<typeof createApp>["app"];
 
@@ -815,6 +816,7 @@ describe("API integration: Intelia task automation level", () => {
       "automatica",
       "columnaPrevia",
       "entrega",
+      "esperaHasta",
       "implementador",
       "level",
       "pausaMotivo",
@@ -999,6 +1001,87 @@ describe("API integration: Intelia task automation level", () => {
       });
     });
 
+    it("stores BC-01's `esperaHasta` as bookkeeping, clears it with null, and keeps it when omitted", async () => {
+      const { app, project, roleKey, user } = await setup();
+      const taskId = await createdTaskId(app, project.id);
+      const [before] = await stored(taskId);
+      const sample = sampleJson("automatizacion.json");
+      expect(sample.esperaHasta).toBe("2026-11-30T09:00:00.000Z");
+
+      mockAnonymousSession();
+      const asKey = { "x-api-key": roleKey };
+      const set = await putAutomation(
+        app,
+        taskId,
+        { esperaHasta: sample.esperaHasta },
+        asKey,
+      );
+      expect(set.status).toBe(200);
+      expect(await set.json()).toMatchObject({
+        esperaHasta: sample.esperaHasta,
+        level: before!.level,
+        verification: before!.verification,
+        source: "session",
+        setByUserId: before!.setByUserId,
+      });
+      expect(await changes(taskId)).toHaveLength(1);
+      // The GETs, as the person in Kaneo would read them.
+      mockAuthenticatedSession(user);
+      expect(await read(app, taskId)).toMatchObject({
+        esperaHasta: sample.esperaHasta,
+      });
+      expect(await listed(app, project.id, taskId)).toMatchObject({
+        esperaHasta: sample.esperaHasta,
+      });
+      mockAnonymousSession();
+
+      // Another offset is the same instant; a change elsewhere keeps it.
+      const offset = await putAutomation(
+        app,
+        taskId,
+        { esperaHasta: "2026-11-30T10:00:00+01:00", columnaPrevia: "to-do" },
+        asKey,
+      );
+      expect(await offset.json()).toMatchObject({
+        esperaHasta: sample.esperaHasta,
+        columnaPrevia: "to-do",
+      });
+      const logged = await putAutomation(
+        app,
+        taskId,
+        { automatica: false, pausaMotivo: "movida_a_mano" },
+        asKey,
+      );
+      expect(await logged.json()).toMatchObject({
+        automatica: false,
+        esperaHasta: sample.esperaHasta,
+      });
+
+      // A copy waits for nothing.
+      mockAuthenticatedSession(user);
+      const copy = await app.request(`/api/task/duplicate/${taskId}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      expect(copy.status).toBe(200);
+      const copyId = ((await copy.json()) as { id: string }).id;
+      expect(await read(app, copyId)).toMatchObject({ esperaHasta: null });
+
+      mockAnonymousSession();
+      const cleared = await putAutomation(
+        app,
+        taskId,
+        { esperaHasta: null },
+        asKey,
+      );
+      expect(await cleared.json()).toMatchObject({
+        esperaHasta: null,
+        columnaPrevia: "to-do",
+        pausaMotivo: "movida_a_mano",
+      });
+    });
+
     it.each([
       ["a reason with automatica on", { automatica: true, pausaMotivo: "x" }],
       ["a level against automatica", { level: "manual", automatica: true }],
@@ -1011,6 +1094,8 @@ describe("API integration: Intelia task automation level", () => {
       ["an unknown delivery", { entrega: "merge" }],
       ["a role that is not a graph id", { implementador: "Coder B" }],
       ["a column that is not a slug", { columnaPrevia: "In Progress" }],
+      ["a wait that is not a date-time", { esperaHasta: "2026-11-30" }],
+      ["a wait without offset", { esperaHasta: "2026-11-30T09:00:00" }],
     ])("rejects %s and keeps the stored value", async (_what, body) => {
       const { app, project } = await setup();
       const taskId = await createdTaskId(app, project.id);

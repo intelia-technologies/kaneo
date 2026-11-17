@@ -127,6 +127,13 @@
       "when": 1793860160650,
       "tag": "0018_scope_pause",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794923050834,
+      "tag": "0019_espera_hasta",
+      "breakpoints": true
     }
   ]
 }

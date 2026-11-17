@@ -9,6 +9,13 @@ import {
   createProjectFixture,
   createWorkspaceMember,
 } from "./helpers/fixtures";
+import {
+  gitBlobId,
+  readSample,
+  SAMPLE_BLOBS,
+  type SampleFile,
+  sampleJson,
+} from "./contract-samples/bloqueo-capacidad/bloqueo-capacidad";
 
 type App = {
   request: (path: string, init?: RequestInit) => Response | Promise<Response>;
@@ -120,6 +127,53 @@ describe("/api/intelia/project/{projectId}/board-signals", () => {
       headers: { "x-api-key": dispatcher.key },
     });
     expect(await read.json()).toEqual(second);
+  });
+
+  it.each(Object.entries(SAMPLE_BLOBS))(
+    "%s is BC-01's sample, byte for byte",
+    (file, blob) => {
+      expect(gitBlobId(readSample(file as SampleFile))).toBe(blob);
+    },
+  );
+
+  it("stores and returns BC-01's `falta` and `resuelve`, null or set, next to `espera_a`", async () => {
+    const { app, project, dispatcher } = await setup();
+    const sample = sampleJson("senales-tablero.json");
+    mockAnonymousSession();
+    const written = await put(app, project.id, sample, dispatcher.key);
+    expect(written.status).toBe(200);
+    expect(await written.json()).toEqual(sample);
+    const read = await app.request(path(project.id), {
+      headers: { "x-api-key": dispatcher.key },
+    });
+    const body = (await read.json()) as typeof sample;
+    expect(body).toEqual(sample);
+    expect(body.tareas).toMatchObject({
+      e981dh2i8o6drfb0zed1un93: {
+        falta: "alta secret:pgro-factory y tupla role:validador",
+        resuelve: "agent:charo",
+      },
+      jffo6zykwooqdgjr2hpbfz1p: { resuelve: null },
+    });
+  });
+
+  it("rejects a `falta` or `resuelve` over 280 characters without storing it", async () => {
+    const { app, project, dispatcher } = await setup();
+    mockAnonymousSession();
+    for (const field of ["falta", "resuelve"]) {
+      const body = {
+        ...SIGNALS,
+        tareas: { t2: { ...SIGNALS.tareas.t2, [field]: "x".repeat(281) } },
+      };
+      expect((await put(app, project.id, body, dispatcher.key)).status).toBe(
+        400,
+      );
+    }
+    const edge = {
+      ...SIGNALS,
+      tareas: { t2: { ...SIGNALS.tareas.t2, falta: "x".repeat(280) } },
+    };
+    expect((await put(app, project.id, edge, dispatcher.key)).status).toBe(200);
   });
 
   it("only an API key with task:update writes; a session or a viewer's key cannot", async () => {

@@ -3863,7 +3863,9 @@
 				},
 				"terminado": "Worker finished",
 				"working": "Working now."
-			}
+			},
+			"falta": "Missing: {{what}}",
+			"resuelve": "Resolves: {{who}}"
 		}
 	},
 	"invitations": {

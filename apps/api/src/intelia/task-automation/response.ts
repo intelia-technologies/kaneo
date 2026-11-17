@@ -1,4 +1,4 @@
-import { responseTimestamp, z } from "../../openapi";
+import { nullableResponseTimestamp, responseTimestamp, z } from "../../openapi";
 import {
   AUTOMATION_LEVELS,
   AUTOMATION_SOURCES,
@@ -31,6 +31,10 @@ export const taskAutomationSchema = z
     implementador: z.string().nullable(),
     verificador: z.string().nullable(),
     columnaPrevia: z.string().nullable(),
+    esperaHasta: nullableResponseTimestamp.openapi({
+      description:
+        "Until when the task waits (design 80); null if it does not.",
+    }),
     source,
     setByUserId: z.string().nullable(),
     setByName: z.string().nullable(),

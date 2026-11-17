@@ -183,6 +183,21 @@ export const putAutomationInput = z
       .optional()
       .openapi({ description: VERIFICATION_DESCRIPTION }),
     ...fieldInputs,
+    // Design 80 §4.2.5: written by the gateway's `hasta`, which checks it is
+    // in the future; Kaneo stores what it is given.
+    esperaHasta: z
+      .string()
+      .datetime({ offset: true })
+      .transform((value) => new Date(value))
+      .nullable()
+      .optional()
+      .openapi({
+        type: ["string", "null"],
+        format: "date-time",
+        description:
+          "Until when the task waits (design 80): an ISO date-time with offset; null clears it.",
+        example: "2026-11-30T09:00:00.000Z",
+      }),
     actor: declaredActorInput,
   })
   .superRefine(checkFields);
