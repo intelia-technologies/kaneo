@@ -1,3 +1,4 @@
+import { parseTicket } from "./keys";
 import type { ChainNode, EfectoMover, Efectos, GraphTask } from "./types";
 
 export type CancelComment = { taskId: string; content: string };
@@ -11,8 +12,9 @@ const ROUTINE_PAUSED =
 /**
  * One comment per task touched (§4.6), signed by whoever cancels: the root,
  * each one cancelled in cascade, each one released or moved, and each one of
- * another board, whose owner is named so they review it. A task of a board
- * the canceller does not read appears in the root's comment by board only.
+ * another board, whose owner is named so they review it. The comments on the
+ * root's board name tasks of other boards by board only: anyone reading that
+ * board reads them, whatever the canceller reads.
  */
 export function cancelComments({
   quien,
@@ -31,14 +33,21 @@ export function cancelComments({
   const m = `Motivo: «${motivo}».`;
   const list = (nodes: ChainNode[]) =>
     nodes.map((n) => n.task.ticket).join(", ");
+  // A key of this board as is; one of another board, by its board only.
+  const here = (ticket: string) => {
+    const slug = parseTicket(ticket)?.slug;
+    return slug === root.projectSlug ? ticket : `una tarea de ${slug}`;
+  };
   const mover = (e: EfectoMover) =>
-    `${e.node.task.ticket} (de ${e.de.join(", ")} a ${e.a})`;
-  const otros = efectos.otrosTableros
-    .map((e) =>
-      e.node.oculta
-        ? `una tarea de ${e.node.task.projectSlug}`
-        : e.node.task.ticket,
-    )
+    `${e.node.task.ticket} (de ${e.de.join(", ")} a ${here(e.a)})`;
+  const perBoard = new Map<string, number>();
+  for (const e of efectos.otrosTableros)
+    perBoard.set(
+      e.node.task.projectSlug,
+      (perBoard.get(e.node.task.projectSlug) ?? 0) + 1,
+    );
+  const otros = [...perBoard]
+    .map(([slug, n]) => `${n} ${n === 1 ? "tarea" : "tareas"} de ${slug}`)
     .join(", ");
   const sections = [
     efectos.enCascada.length &&
@@ -92,7 +101,7 @@ export function cancelComments({
   for (const e of efectos.movidas) {
     comments.push({
       taskId: e.node.task.id,
-      content: `${cancelo(e.de)} Decisión: la dependencia pasa de ${e.de.join(", ")} a ${e.a}.`,
+      content: `${cancelo(e.de)} Decisión: la dependencia pasa de ${e.de.join(", ")} a ${here(e.a)}.`,
     });
   }
   for (const e of efectos.otrosTableros) {

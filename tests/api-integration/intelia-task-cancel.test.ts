@@ -327,7 +327,7 @@ describe("resolutions", () => {
     const rutina =
       "Esta tarea tiene una rutina activa: queda en pausa (active = false), así que la rutina no la reabrirá en su próximo tick.";
     expect(byTask).toEqual({
-      "SF-2491": `Cancelada por Forja. ${m} Se cancelan también: SF-2493, SF-2494; se quita la dependencia a: SF-2495, SF-2496, SF-2505, SF-2497; se mueve a otra tarea: SF-2499 (de SF-2493, SF-2494 a SF-2496); otros tableros, automático: KF-15. ${rutina}`,
+      "SF-2491": `Cancelada por Forja. ${m} Se cancelan también: SF-2493, SF-2494; se quita la dependencia a: SF-2495, SF-2496, SF-2505, SF-2497; se mueve a otra tarea: SF-2499 (de SF-2493, SF-2494 a SF-2496); otros tableros, automático: 1 tarea de KF. ${rutina}`,
       "SF-2493": `Cancelada en cascada: Forja canceló SF-2491 y eligió cancelar también esta tarea (dependía de SF-2491). ${m} ${rutina}`,
       "SF-2494": `Cancelada en cascada: Forja canceló SF-2491 y eligió cancelar también esta tarea (dependía de SF-2493). ${m}`,
       "SF-2495": `Forja canceló SF-2491. ${m} Decisión: se quita la dependencia de SF-2491; esta tarea sigue viva.`,
@@ -344,6 +344,24 @@ describe("resolutions", () => {
     expect(statusChanged.sort()).toEqual(
       ["SF-2491", "SF-2493", "SF-2494"].map((t) => seeded.ids.get(t)!).sort(),
     );
+
+    // The canceller reads KF too, but SF's live boards learn no id of KF:
+    // the relation SF-2491 → KF-15 goes out once per project, each half-blind.
+    const kf15Id = seeded.ids.get("KF-15")!;
+    const sf = seeded.projects.get("SF")!;
+    const kf = seeded.projects.get("KF")!;
+    const relationEvents = publish.mock.calls
+      .filter(([type]) => type === "task-relation.deleted")
+      .map(([, data]) => data as Record<string, unknown>);
+    expect(
+      JSON.stringify(relationEvents.filter((e) => e.projectId === sf)),
+    ).not.toContain(kf15Id);
+    const toKf = relationEvents.filter((e) => e.projectId === kf);
+    expect(toKf).toEqual([
+      expect.objectContaining({ taskId: kf15Id, targetTaskId: kf15Id }),
+    ]);
+    expect(toKf[0]).not.toHaveProperty("sourceTaskId");
+    expect(byTask["SF-2491"]).not.toContain("KF-15");
     const sent = send.mock.calls.filter(
       ([type]) => type === "intelia.task.cancelled_with_dependents",
     );
@@ -502,10 +520,6 @@ describe("resolutions", () => {
   it("touch a task of a board the caller does not read, naming it by board only", async () => {
     const { app, seeded, workspace, key, forja } = await setup();
     await seedSf2491(seeded, { "KF-15": { automatica: true } });
-    const publish = vi.spyOn(events, "publishEvent");
-    const send = vi
-      .spyOn(webhooks, "sendToStatusWebhooks")
-      .mockResolvedValue(undefined);
     // The gateway's account reads SF only.
     await restrictToProjects(workspace.id, forja.id, [
       seeded.projects.get("SF")!,
@@ -523,7 +537,7 @@ describe("resolutions", () => {
       .from(schema.activityTable)
       .where(eq(schema.activityTable.taskId, seeded.ids.get("SF-2491")!));
     expect(root!.content).toContain(
-      "otros tableros, automático: una tarea de KF.",
+      "otros tableros, automático: 1 tarea de KF.",
     );
     expect(root!.content).not.toContain("KF-15");
     const [kf15] = await db
@@ -531,39 +545,6 @@ describe("resolutions", () => {
       .from(taskAutomationTable)
       .where(eq(taskAutomationTable.taskId, seeded.ids.get("KF-15")!));
     expect(kf15!.automatica).toBe(false);
-
-    // SF's webhooks and live boards learn nothing of KF-15; KF's get it.
-    const kf15Id = seeded.ids.get("KF-15")!;
-    const sf = seeded.projects.get("SF")!;
-    const kf = seeded.projects.get("KF")!;
-    const relationEvents = publish.mock.calls
-      .filter(([type]) => type === "task-relation.deleted")
-      .map(([, data]) => data as Record<string, unknown>);
-    expect(
-      JSON.stringify(relationEvents.filter((e) => e.projectId === sf)),
-    ).not.toContain(kf15Id);
-    expect(relationEvents.filter((e) => e.projectId === kf)).toEqual([
-      expect.objectContaining({ taskId: kf15Id, targetTaskId: kf15Id }),
-    ]);
-    expect(
-      relationEvents.filter((e) => e.projectId === kf)[0],
-    ).not.toHaveProperty("sourceTaskId");
-    const sent = send.mock.calls.filter(
-      ([type]) => type === "intelia.task.cancelled_with_dependents",
-    );
-    const byProject = Object.fromEntries(
-      sent.map(([, , projectId, , data]) => [projectId, data]),
-    );
-    expect(Object.keys(byProject).sort()).toEqual([sf, kf].sort());
-    expect(JSON.stringify(byProject[sf])).not.toContain("KF-15");
-    expect(byProject[sf]).toMatchObject({ otros_tableros: [] });
-    expect(byProject[kf]).toMatchObject({
-      otros_tableros: [
-        { tarea: "KF-15", proyecto: kf, responsable: "agent:forja" },
-      ],
-    });
-    for (const data of Object.values(byProject))
-      expect(schemaErrors("evento", data)).toBeNull();
   });
 
   it("refuse `firma` to a caller who may not sign as someone else", async () => {

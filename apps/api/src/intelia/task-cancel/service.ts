@@ -216,12 +216,7 @@ export async function cancelTask({
   if (!done) return alreadyCancelled(graph.root.ticket);
   const { applied, efectos, root } = done;
 
-  const hidden = new Set(
-    efectos.otrosTableros
-      .filter((e) => e.node.oculta)
-      .map((e) => e.node.task.id),
-  );
-  await publishApplied(applied, userId, quien, hidden);
+  await publishApplied(applied, userId, quien);
   const result: CancelResult = {
     canceladas: [root.ticket, ...efectos.enCascada.map((n) => n.task.ticket)],
     quitadas: efectos.quitadas.map((e) => e.node.task.ticket),
@@ -238,26 +233,20 @@ export async function cancelTask({
     comentarios: applied.comments.length,
   };
   if (efectos !== NO_EFFECTS) {
-    void notifyCancelledWithDependents(
-      root,
-      userId,
-      {
-        raiz: root.ticket,
-        actor: input.actor ?? `kaneo:${userId}`,
-        motivo: input.motivo!,
-        canceladas: result.canceladas,
-        quitadas: result.quitadas,
-        movidas: result.movidas,
-        en: new Date().toISOString(),
-      },
-      efectos.otrosTableros.map((e) => ({
-        taskId: e.node.task.id,
-        oculta: e.node.oculta,
+    void notifyCancelledWithDependents(root, userId, {
+      raiz: root.ticket,
+      actor: input.actor ?? `kaneo:${userId}`,
+      motivo: input.motivo!,
+      canceladas: result.canceladas,
+      quitadas: result.quitadas,
+      movidas: result.movidas,
+      otros_tableros: efectos.otrosTableros.map((e) => ({
         tarea: e.node.task.ticket,
         proyecto: e.node.task.projectId,
         responsable: e.node.task.responsable,
       })),
-    ).catch((error) =>
+      en: new Date().toISOString(),
+    }).catch((error) =>
       console.error("intelia.task.cancelled_with_dependents delivery failed", {
         error: error instanceof Error ? error.message : String(error),
         taskId: root.id,
@@ -269,16 +258,11 @@ export async function cancelTask({
 
 /**
  * The events of everything committed: the same ones each change sends alone.
- * A relation to a task the canceller does not read (`hidden`) goes out twice,
- * to each end's project, each without the other end's id: WebSocket clients
- * of a project only learn ids of that project.
+ * A relation between two projects goes out twice, to each end's project, each
+ * without the other end's id: the live boards of a project only learn ids of
+ * that project, whatever the canceller reads.
  */
-async function publishApplied(
-  applied: Applied,
-  userId: string,
-  quien: string,
-  hidden: ReadonlySet<string>,
-) {
+async function publishApplied(applied: Applied, userId: string, quien: string) {
   if (applied.createdColumn)
     await publishEvent("project.updated", {
       projectId: applied.cancelled[0]!.after.projectId,
@@ -309,7 +293,7 @@ async function publishApplied(
   ] as const)
     for (const relation of relations) {
       const { sourceTaskId, targetTaskId, ...rest } = relation;
-      if (!hidden.has(targetTaskId)) {
+      if (projectOf.get(sourceTaskId) === projectOf.get(targetTaskId)) {
         await publishEvent(event, {
           ...relation,
           taskId: sourceTaskId,
