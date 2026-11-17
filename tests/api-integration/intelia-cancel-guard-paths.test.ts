@@ -239,6 +239,30 @@ describe("guard on: a task with open dependents", () => {
     expect(schemaErrors("error_dependencias", res.body)).toBeNull();
     expect(await snapshot()).toEqual(before);
   });
+
+  // A closed root (cancelled before the guard, or done) keeps its relations
+  // too: deleting it would drop them silently.
+  for (const estado of ["cancelled", "done"])
+    for (const [name, call] of Object.entries(deletePaths))
+      it(`${name} of a ${estado} task with an open dependent answers 409, and the relation stays`, async () => {
+        const { app, seeded } = await setup();
+        await cancelledColumns(seeded);
+        await seeded.add("SF-1", { estado });
+        await seeded.add("SF-2");
+        await seeded.relate("SF-1", "SF-2");
+        const before = await snapshot();
+
+        const res = await call(app, seeded, "SF-1");
+
+        expect(res.status).toBe(409);
+        expect(schemaErrors("error_dependencias", res.body)).toBeNull();
+        expect(res.body.details).toMatchObject({
+          tarea: { ticket: "SF-1" },
+          pendientes: ["SF-2"],
+        });
+        expect(res.body.message).toContain("está cerrada");
+        expect(await snapshot()).toEqual(before);
+      });
 });
 
 describe("guard on: without open dependents, as before", () => {
@@ -270,17 +294,6 @@ describe("guard on: without open dependents, as before", () => {
       expect(res.status).toBe(200);
       expect(await statusOf(seeded, "SF-1")).toEqual([null]);
     });
-
-  it("deleting a done task with open dependents is allowed: they were already fulfilled", async () => {
-    const { app, seeded } = await setup();
-    await seeded.add("SF-1", { estado: "done" });
-    await seeded.add("SF-2");
-    await seeded.relate("SF-1", "SF-2");
-
-    const res = await deletePaths["DELETE /task/{id}"]!(app, seeded, "SF-1");
-
-    expect(res.status).toBe(200);
-  });
 
   it("a rejected request without dependents is cancelled, without a comment", async () => {
     const { app, seeded, workspace } = await setup();

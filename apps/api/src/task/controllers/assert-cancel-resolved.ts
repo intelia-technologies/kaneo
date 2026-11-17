@@ -47,10 +47,10 @@ export async function assertCancelResolved(
 
 /**
  * Deleting a task drops its relations with it (FK cascade), so a task with
- * open dependents gets the same 409 and must be cancelled first (decision
- * 24). The tasks deleted together count as one batch. A closed task is left
- * out: a done one already fulfilled its dependents, and a cancelled one went
- * through the guard, or predates it.
+ * open dependents gets the same 409 (decision 24), whatever its status: an
+ * open one must be cancelled first, and a closed one (done, or cancelled
+ * before the guard) keeps its relations until they are removed or moved
+ * explicitly. The tasks deleted together count as one batch.
  */
 export async function assertDeleteResolved(
   tx: TaskTransaction,
@@ -58,8 +58,7 @@ export async function assertDeleteResolved(
   userId: string,
 ) {
   if (!cancelGuardEnabled()) return;
-  const roots = tasks.filter((task) => !CLOSED.includes(task.status));
-  await assertChainsInside(tx, roots, userId, "delete");
+  await assertChainsInside(tx, tasks, userId, "delete");
 }
 
 async function assertChainsInside(
@@ -92,6 +91,7 @@ async function assertChainsInside(
     body: DependenciesError;
     ticket: string;
     visible: boolean;
+    closed: boolean;
   }[] = [];
   for (const { id } of withDependents) {
     const graph = await loadGraph(tx, id, userId);
@@ -111,6 +111,7 @@ async function assertChainsInside(
     outside.push({
       ticket: graph.root.ticket,
       visible: graph.root.visible,
+      closed: CLOSED.includes(graph.root.status),
       body: dependenciesErrorBody({
         root: graph.root,
         chain,
@@ -125,10 +126,14 @@ async function assertChainsInside(
   outside.sort((a, b) => compareTickets(a.ticket, b.ticket));
   const [first, ...others] = outside;
   const body = first!.body;
+  // A closed task cannot go through `/cancel` again: its dependencies are
+  // removed or moved one by one (`a_mano`), then it can be deleted.
   let message =
-    kind === "delete"
-      ? `${first!.ticket} tiene tareas abiertas que dependen de ella fuera de esta operación: borrarla quitaría esas dependencias sin decidir nada. Cancélala antes, diciendo qué pasa con cada una con \`resoluciones\` y un \`motivo\`, y después bórrala.`
-      : body.message;
+    kind === "cancel"
+      ? body.message
+      : first!.closed
+        ? `${first!.ticket} está cerrada, pero tiene tareas abiertas que dependen de ella fuera de esta operación: borrarla quitaría esas dependencias sin decidir nada. Quita o mueve antes cada dependencia (kaneo.remove_dependency, y kaneo.add_dependency para moverla) y después bórrala.`
+        : `${first!.ticket} tiene tareas abiertas que dependen de ella fuera de esta operación: borrarla quitaría esas dependencias sin decidir nada. Cancélala antes, diciendo qué pasa con cada una con \`resoluciones\` y un \`motivo\`, y después bórrala.`;
   const named = others.filter((o) => o.visible).map((o) => o.ticket);
   if (others.length)
     message += ` En esta operación, también tienen dependientes fuera de ella: ${named.length ? named.join(", ") : "otras tareas"}${named.length < others.length ? ` y ${others.length - named.length} más` : ""}. No ha cambiado nada.`;
