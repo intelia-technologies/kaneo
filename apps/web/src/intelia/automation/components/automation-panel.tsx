@@ -110,13 +110,15 @@ export function TaskAutomationPanel({ taskId }: { taskId: string }) {
             </p>
           )
         )}
-        {saved?.esperaHasta && (
-          <p className="text-muted-foreground text-xs">
-            {t("intelia:automation.esperaHasta", {
-              date: formatDateTime(saved.esperaHasta),
-            })}
-          </p>
-        )}
+        {/* A past date no longer holds the task: the dispatcher lets it go. */}
+        {saved?.esperaHasta &&
+          new Date(saved.esperaHasta).getTime() > Date.now() && (
+            <p className="text-muted-foreground text-xs">
+              {t("intelia:automation.esperaHasta", {
+                date: formatDateTime(saved.esperaHasta),
+              })}
+            </p>
+          )}
 
         <AutomationFields
           value={draft}

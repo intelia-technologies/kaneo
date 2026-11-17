@@ -236,8 +236,8 @@ export function listProjectAutomation(projectId: string) {
  * together. The patch is resolved against the stored value
  * (`resolveAutomation`; a 400 rolls the caller back). A write that leaves the
  * logged fields as they were is not a change: nothing is logged, the author
- * stays and it returns null; new bookkeeping (roles, `columnaPrevia`) is still
- * stored. Otherwise it returns the logged change.
+ * stays and it returns null; new bookkeeping (roles, `columnaPrevia`,
+ * `esperaHasta`) is still stored. Otherwise it returns the logged change.
  */
 export async function writeAutomation(
   tx: Transaction,

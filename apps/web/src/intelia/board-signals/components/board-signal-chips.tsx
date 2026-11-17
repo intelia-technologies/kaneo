@@ -49,12 +49,14 @@ export function BoardSignalChips({
 
   const fresh = now - new Date(data.calculado_en).getTime() <= WORKER_STALE_MS;
   const worker = fresh ? signal.worker : null;
-  const falta = signal.falta
-    ? t("tasks:boardSignals.falta", { what: signal.falta })
+  const faltaText = signal.falta?.trim();
+  const resuelveText = signal.resuelve?.trim();
+  const falta = faltaText
+    ? t("tasks:boardSignals.falta", { what: faltaText })
     : null;
   const resuelve =
-    falta && signal.resuelve
-      ? t("tasks:boardSignals.resuelve", { who: signal.resuelve })
+    falta && resuelveText
+      ? t("tasks:boardSignals.resuelve", { who: resuelveText })
       : null;
   const waitsFor =
     !falta && signal.espera_a

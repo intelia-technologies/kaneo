@@ -208,19 +208,24 @@ describe("BoardSignalChips", () => {
     expect(document.querySelector('[data-board-signal="espera"]')).toBeNull();
   });
 
-  it("without `falta`, keeps showing `espera_a` as before", () => {
-    mocks.signals.mockReturnValue(
-      signals({
-        espera_a: "person:jaime",
-        falta: null,
-        resuelve: "agent:charo",
-      }),
-    );
-    renderChips();
-    expect(
-      screen.getByRole("img", { name: "Espera a person:jaime" }),
-    ).toHaveTextContent("person:jaime");
-    expect(document.querySelector('[data-board-signal="falta"]')).toBeNull();
-    expect(document.querySelector('[data-board-signal="resuelve"]')).toBeNull();
-  });
+  it.each([null, "   "])(
+    "without `falta` (%j), keeps showing `espera_a` as before",
+    (falta) => {
+      mocks.signals.mockReturnValue(
+        signals({
+          espera_a: "person:jaime",
+          falta,
+          resuelve: "agent:charo",
+        }),
+      );
+      renderChips();
+      expect(
+        screen.getByRole("img", { name: "Espera a person:jaime" }),
+      ).toHaveTextContent("person:jaime");
+      expect(document.querySelector('[data-board-signal="falta"]')).toBeNull();
+      expect(
+        document.querySelector('[data-board-signal="resuelve"]'),
+      ).toBeNull();
+    },
+  );
 });
