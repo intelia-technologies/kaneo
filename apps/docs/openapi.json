@@ -10207,6 +10207,355 @@
           "changedAt"
         ]
       },
+      "CancelTaskResult": {
+        "type": "object",
+        "properties": {
+          "canceladas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every task cancelled, the root first."
+          },
+          "quitadas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "movidas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "tarea": {
+                  "type": "string"
+                },
+                "de": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Cancelled tasks it depended on."
+                },
+                "a": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tarea",
+                "de",
+                "a"
+              ]
+            }
+          },
+          "otros_tableros": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "tarea": {
+                      "type": "string"
+                    },
+                    "responsable": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "tarea",
+                    "responsable"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "oculta": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "tablero": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "oculta",
+                    "tablero"
+                  ]
+                }
+              ]
+            }
+          },
+          "comentarios": {
+            "type": "integer",
+            "description": "Comments written."
+          }
+        },
+        "required": [
+          "canceladas",
+          "quitadas",
+          "movidas",
+          "otros_tableros",
+          "comentarios"
+        ]
+      },
+      "DependenciesUnresolvedError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "DEPENDENCIAS_SIN_RESOLVER"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "properties": {
+              "tarea": {
+                "type": "object",
+                "properties": {
+                  "ticket": {
+                    "type": "string"
+                  },
+                  "titulo": {
+                    "type": "string"
+                  },
+                  "tablero": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ticket",
+                  "titulo",
+                  "tablero"
+                ]
+              },
+              "motivo": {
+                "type": "object",
+                "properties": {
+                  "requerido": {
+                    "type": "boolean"
+                  },
+                  "recibido": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "requerido",
+                  "recibido"
+                ]
+              },
+              "total": {
+                "type": "integer"
+              },
+              "truncada": {
+                "type": "boolean"
+              },
+              "cadena": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "tipo": {
+                      "type": "string",
+                      "enum": [
+                        "decidir",
+                        "otro_tablero",
+                        "oculta"
+                      ]
+                    },
+                    "ticket": {
+                      "type": "string"
+                    },
+                    "titulo": {
+                      "type": "string"
+                    },
+                    "tablero": {
+                      "type": "string"
+                    },
+                    "estado": {
+                      "type": "string"
+                    },
+                    "nivel": {
+                      "type": "integer"
+                    },
+                    "depende_de": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ticket": {
+                            "type": "string"
+                          },
+                          "relacion": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ticket",
+                          "relacion"
+                        ]
+                      }
+                    },
+                    "solo_si_cancelas": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "responsable": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "opciones": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "cancelar",
+                          "quitar",
+                          "mover"
+                        ]
+                      }
+                    },
+                    "cuelgan": {
+                      "type": "integer"
+                    },
+                    "asignado": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "automatica": {
+                      "type": "boolean"
+                    },
+                    "rutina_activa": {
+                      "type": "boolean"
+                    },
+                    "en_curso": {
+                      "type": "boolean"
+                    },
+                    "automatico": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "tipo",
+                    "tablero",
+                    "nivel",
+                    "solo_si_cancelas"
+                  ],
+                  "description": "A task of the chain. `oculta` (a project the caller does not read) has only `tipo`, `tablero`, `nivel` and `solo_si_cancelas`."
+                }
+              },
+              "pendientes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "problemas": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "tarea": {
+                      "type": "string"
+                    },
+                    "problema": {
+                      "type": "string"
+                    },
+                    "detalle": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "tarea",
+                    "problema",
+                    "detalle"
+                  ]
+                }
+              },
+              "opciones": {
+                "type": "object",
+                "properties": {
+                  "cancelar": {
+                    "type": "string"
+                  },
+                  "quitar": {
+                    "type": "string"
+                  },
+                  "mover": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "cancelar",
+                  "quitar",
+                  "mover"
+                ]
+              },
+              "otros_tableros": {
+                "type": "string"
+              },
+              "ejemplo_resoluciones": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "tarea": {
+                      "type": "string"
+                    },
+                    "accion": {
+                      "type": "string"
+                    },
+                    "a": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "tarea",
+                    "accion"
+                  ]
+                }
+              },
+              "a_mano": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "tarea",
+              "motivo",
+              "total",
+              "truncada",
+              "cadena",
+              "pendientes",
+              "problemas",
+              "opciones",
+              "otros_tableros",
+              "ejemplo_resoluciones",
+              "a_mano"
+            ]
+          }
+        },
+        "required": [
+          "error",
+          "message",
+          "details"
+        ]
+      },
       "InteliaMoveTaskResult": {
         "type": "object",
         "properties": {
@@ -38832,6 +39181,160 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/ApiKeyRateLimited"
+          }
+        }
+      }
+    },
+    "/intelia/task/{taskId}/cancel": {
+      "post": {
+        "operationId": "cancelTaskWithDependents",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Cancel a task deciding what happens to its dependents",
+        "description": "Cancels the task and, in the same transaction, applies `resoluciones` to every open task hanging from it (design 82 §4.3): `cancelar` (cancelled too, then its own dependents are decided), `quitar` (the dependency goes, the task stays) or `mover` (the dependency passes to task `a`). Dependents of other projects are not decided: their dependency is removed, their automation turned off with a `pausaMotivo`, and they get a comment naming their owner. Every task cancelled has its routine paused, and every task touched gets a comment signed with `firma`. Without open dependents it cancels as before (with a comment if `motivo` comes); a task already cancelled stays as it is (200, nothing written). With open dependents the resolutions must cover the chain exactly and bring a `motivo`, or 409 `DEPENDENCIAS_SIN_RESOLVER` with the chain, what is pending and what is wrong, and nothing changes; a chain that changed meanwhile gives `cadena_cambiada`. While `INTELIA_CANCEL_GUARD` is off, a call without `resoluciones` cancels as before even with dependents. Afterwards: `task.status_changed` per cancelled task, the relation and automation events, and `intelia.task.cancelled_with_dependents`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "taskId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "motivo": {
+                    "type": "string",
+                    "minLength": 10,
+                    "maxLength": 1000,
+                    "pattern": "\\S",
+                    "description": "Why it is cancelled. Required (10 to 1000 characters) when the task has open dependents; without them it only becomes a comment."
+                  },
+                  "resoluciones": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "tarea": {
+                          "type": "string",
+                          "pattern": "^[A-Z][A-Z0-9]*-\\d+$",
+                          "description": "Key of the dependent (`SF-2493`)."
+                        },
+                        "accion": {
+                          "type": "string",
+                          "description": "`cancelar`, `quitar` or `mover`."
+                        },
+                        "a": {
+                          "type": "string",
+                          "pattern": "^[A-Z][A-Z0-9]*-\\d+$",
+                          "description": "Only with `mover`: key of the task the dependency moves to."
+                        }
+                      },
+                      "required": [
+                        "tarea",
+                        "accion"
+                      ]
+                    },
+                    "maxItems": 1000,
+                    "description": "One per dependent of the chain in play: they must cover it exactly (decision 12), or nothing is applied."
+                  },
+                  "actor": {
+                    "type": "string",
+                    "pattern": "^[a-z]+:[A-Za-z0-9._-]{1,120}$",
+                    "description": "Graph id the caller acts for (`agent:forja`), for the comments and the event. Informative; only with an API key."
+                  },
+                  "firma": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Name the comments are signed with (`externalUserName`), as the gateway signs its comments. Needs workspace:manage_settings, like importing an external author in `POST /comment`."
+                  },
+                  "lote": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "minItems": 1,
+                    "maxItems": 1000,
+                    "description": "Ids or keys of the batch this cancellation belongs to (decision 18): its dependents in the batch count as `cancelar`."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What was cancelled, released, moved and touched",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelTaskResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body, or `actor` from a session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project, missing task:update, or `firma` without workspace:manage_settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Open dependents without a complete resolution or a `motivo` (`DEPENDENCIAS_SIN_RESOLVER`); nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DependenciesUnresolvedError"
                 }
               }
             }

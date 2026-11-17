@@ -200,20 +200,24 @@ async function deliverWebhookEvent(
   }
 }
 
-export async function sendEvent(
-  config: GenericWebhookConfig,
+/**
+ * The generic webhook's envelope for a task event, or null without the task.
+ * Intelia fork: shared with the dispatcher's own destination
+ * (`intelia/webhooks.ts`), so both carry the same body.
+ */
+export async function genericWebhookPayload(
   eventName: string,
   taskId: string,
   projectId: string,
   userId: string | null,
   data: Record<string, unknown>,
-): Promise<boolean> {
+): Promise<Record<string, unknown> | null> {
   const task = await getTaskData(taskId, projectId);
-  if (!task) return false;
+  if (!task) return null;
 
   const actor = await getActor(userId);
 
-  return deliverWebhookEvent(config, eventName, taskId, projectId, {
+  return {
     event: eventName,
     timestamp: new Date().toISOString(),
     integration: {
@@ -235,7 +239,26 @@ export async function sendEvent(
     },
     actor,
     data,
-  });
+  };
+}
+
+export async function sendEvent(
+  config: GenericWebhookConfig,
+  eventName: string,
+  taskId: string,
+  projectId: string,
+  userId: string | null,
+  data: Record<string, unknown>,
+): Promise<boolean> {
+  const payload = await genericWebhookPayload(
+    eventName,
+    taskId,
+    projectId,
+    userId,
+    data,
+  );
+  if (!payload) return false;
+  return deliverWebhookEvent(config, eventName, taskId, projectId, payload);
 }
 
 export async function sendDueDateReminder(
