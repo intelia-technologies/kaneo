@@ -14,13 +14,15 @@ export type ScopePauseChange = InferResponseType<
   200
 >[number];
 
-// Only the active pauses: the notices and the chips show what holds now.
-export async function getActiveScopePauses(
+// `activa` for the notices and the chips (what holds now); `todas` adds the
+// resumed ones, for the log of a scope's past pauses.
+export async function getScopePauses(
   workspaceId: string,
+  estado: "activa" | "todas",
 ): Promise<ScopePause[]> {
   const response = await client.intelia.workspace[":workspaceId"][
     "scope-pauses"
-  ].$get({ param: { workspaceId }, query: { estado: "activa" } });
+  ].$get({ param: { workspaceId }, query: { estado } });
   if (!response.ok) throw await HttpError.fromResponse(response);
   return (await response.json()).pausas;
 }
@@ -38,8 +40,20 @@ export async function getScopePauseHistory(
 export const SCOPE_PAUSE_QUERY_ROOT = "intelia-scope-pause";
 export const activeScopePausesKey = (workspaceId: string) =>
   [SCOPE_PAUSE_QUERY_ROOT, "active", workspaceId] as const;
+export const allScopePausesKey = (workspaceId: string) =>
+  [SCOPE_PAUSE_QUERY_ROOT, "all", workspaceId] as const;
 export const scopePauseHistoryKey = (pauseId: string) =>
   [SCOPE_PAUSE_QUERY_ROOT, "history", pauseId] as const;
+
+// Every pause, resumed ones included: read only while the log is open, so
+// the board never loads the workspace's past pauses.
+export function useAllScopePauses(workspaceId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: allScopePausesKey(workspaceId),
+    queryFn: () => getScopePauses(workspaceId, "todas"),
+    enabled: enabled && !!workspaceId,
+  });
+}
 
 // The factory's gateway writes the pauses and Kaneo publishes no event for
 // them (design 81 §4.1), so the board asks again at the pace of the other
@@ -62,7 +76,7 @@ function sharedIndex(pauses: ScopePause[]): ScopePauseIndex {
 export function useActiveScopePauses(workspaceId: string | undefined) {
   return useQuery({
     queryKey: activeScopePausesKey(workspaceId ?? ""),
-    queryFn: () => getActiveScopePauses(workspaceId ?? ""),
+    queryFn: () => getScopePauses(workspaceId ?? "", "activa"),
     enabled: !!workspaceId,
     refetchInterval: REFRESH_MS,
     select: sharedIndex,

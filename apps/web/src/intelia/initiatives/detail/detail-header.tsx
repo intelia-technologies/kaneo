@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { formatDateMedium } from "@/lib/format";
 import { InitiativePauseNotice } from "@/intelia/scope-pause/components/initiative-pause-notice";
+import { ScopePauseLog } from "@/intelia/scope-pause/components/scope-pause-log";
 import type { InitiativeDetail } from "../api";
 import { DesignLink } from "../components/design-link";
 import { ProgressFigures } from "../components/initiative-progress";
@@ -111,6 +112,11 @@ export function DetailHeader({
               {t("intelia:initiatives.detail.noDesign")}
             </span>
           )}
+
+          <ScopePauseLog
+            workspaceId={workspaceId}
+            scope={{ type: "initiative", initiativeId: initiative.id }}
+          />
 
           <Button
             variant="outline"

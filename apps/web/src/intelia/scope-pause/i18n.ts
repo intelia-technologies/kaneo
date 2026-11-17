@@ -21,6 +21,9 @@ const en = {
       loading: "Loading history…",
       loadError: "Failed to load the history",
       empty: "No changes recorded",
+      noPauses: "Never paused",
+      activePause: "Paused since {{from}}",
+      resumedPause: "Paused from {{from}} to {{to}}",
       kind: {
         created: "Paused",
         updated: "Changed",
@@ -61,6 +64,9 @@ const es = {
       loading: "Cargando el historial…",
       loadError: "No se ha podido cargar el historial",
       empty: "Sin cambios registrados",
+      noPauses: "Nunca ha estado en pausa",
+      activePause: "En pausa desde el {{from}}",
+      resumedPause: "En pausa del {{from}} al {{to}}",
       kind: {
         created: "Pausada",
         updated: "Cambiada",

@@ -62,6 +62,10 @@ vi.mock("@/intelia/scope-pause/components/initiative-pause-notice", () => ({
   InitiativePauseNotice: () => null,
 }));
 
+vi.mock("@/intelia/scope-pause/components/scope-pause-log", () => ({
+  ScopePauseLog: () => null,
+}));
+
 vi.mock("@/components/task/task-details-sheet", () => ({
   default: ({
     taskId,

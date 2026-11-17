@@ -38,3 +38,19 @@ export function pausesCoveringTask(
     ? [projectPause, ...initiativePauses]
     : [...initiativePauses];
 }
+
+export type PauseScope =
+  | { type: "project"; projectId: string }
+  | { type: "initiative"; initiativeId: string };
+
+/** The scope's own pauses, active and resumed, in the list's order. */
+export function pausesOfScope(
+  pauses: readonly ScopePause[],
+  scope: PauseScope,
+): ScopePause[] {
+  return pauses.filter((pause) =>
+    scope.type === "project"
+      ? pause.initiativeId === null && pause.projectId === scope.projectId
+      : pause.initiativeId === scope.initiativeId,
+  );
+}

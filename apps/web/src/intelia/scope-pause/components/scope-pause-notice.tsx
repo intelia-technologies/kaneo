@@ -1,20 +1,13 @@
-import { ChevronDownIcon, PauseCircle } from "lucide-react";
-import { useState } from "react";
+import { PauseCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import {
-  Collapsible,
-  CollapsiblePanel,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { cn } from "@/lib/cn";
 import { formatDateTime } from "@/lib/format";
 import type { ScopePause } from "../api";
 import { formatReviewDate, pauseAuthor } from "../pause-text";
-import { ScopePauseHistory } from "./scope-pause-history";
 import "../i18n";
 
 // Design 81 §4.1: on the paused scope, who paused it and when, why, and the
-// date to review it, with the pause's history on demand.
+// date to review it. Its history is in `ScopePauseLog`, next to it.
 export function ScopePauseNotice({
   pause,
   className,
@@ -23,7 +16,6 @@ export function ScopePauseNotice({
   className?: string;
 }) {
   const { t } = useTranslation();
-  const [historyOpen, setHistoryOpen] = useState(false);
   const who =
     pauseAuthor(pause.pausedByName, pause.pausedByActor) ??
     t("intelia:scopePause.unknownAuthor");
@@ -69,21 +61,6 @@ export function ScopePauseNotice({
       <p className="text-muted-foreground text-xs">
         {t("intelia:scopePause.notice.explanation")}
       </p>
-      <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
-        <CollapsibleTrigger className="flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground">
-          {t("intelia:scopePause.history.title")}
-          <ChevronDownIcon
-            aria-hidden="true"
-            className={cn(
-              "size-3.5 transition-transform duration-200",
-              historyOpen && "rotate-180",
-            )}
-          />
-        </CollapsibleTrigger>
-        <CollapsiblePanel className="pt-1.5">
-          {historyOpen && <ScopePauseHistory pauseId={pause.id} />}
-        </CollapsiblePanel>
-      </Collapsible>
     </section>
   );
 }
