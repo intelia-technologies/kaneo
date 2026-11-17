@@ -35,7 +35,7 @@ describe("ProjectPauseNotice", () => {
 
     render(<ProjectPauseNotice workspaceId="ws" projectId="p-sf" />);
 
-    const notice = screen.getByRole("status", {
+    const notice = screen.getByRole("region", {
       name: "This project is paused",
     });
     expect(notice).toHaveTextContent("Paused by agent:forja on");
@@ -51,7 +51,7 @@ describe("ProjectPauseNotice", () => {
 
     render(<ProjectPauseNotice workspaceId="ws" projectId="p-sf" />);
 
-    expect(screen.getByRole("status")).toHaveTextContent("Paused by Jaime on");
+    expect(screen.getByRole("region")).toHaveTextContent("Paused by Jaime on");
   });
 
   it("shows nothing when the project is not paused", () => {
@@ -126,7 +126,7 @@ describe("InitiativePauseNotice", () => {
 
     render(<InitiativePauseNotice workspaceId="ws" initiativeId="ini-81" />);
 
-    const notice = screen.getByRole("status", {
+    const notice = screen.getByRole("region", {
       name: "This initiative is paused",
     });
     expect(notice).toHaveTextContent("Paused by Dédalo on");

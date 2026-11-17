@@ -30,7 +30,6 @@ export function ScopePauseNotice({
 
   return (
     <section
-      role="status"
       aria-label={t(`intelia:scopePause.notice.${pause.scopeType}`)}
       data-scope-pause-notice={pause.scopeType}
       className={cn(

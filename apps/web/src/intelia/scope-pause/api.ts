@@ -2,7 +2,7 @@ import { client } from "@kaneo/libs";
 import { useQuery } from "@tanstack/react-query";
 import type { InferResponseType } from "hono/client";
 import { HttpError } from "@/lib/http-error";
-import { indexPauses } from "./pause-index";
+import { indexPauses, type ScopePauseIndex } from "./pause-index";
 
 type ScopePauseList = InferResponseType<
   (typeof client)["intelia"]["workspace"][":workspaceId"]["scope-pauses"]["$get"],
@@ -46,16 +46,26 @@ export const scopePauseHistoryKey = (pauseId: string) =>
 // factory signals.
 const REFRESH_MS = 2 * 60 * 1000;
 
-// One request per workspace for the whole board; `indexPauses` is a stable
-// reference, so the index is rebuilt only when the list changes and each card
-// looks its task up instead of scanning every pause.
+// One request per workspace for the whole board. Every card is an observer
+// and `select` runs per observer, so the index is built once per list and
+// shared: each card looks its task up instead of scanning every pause.
+const indexes = new WeakMap<ScopePause[], ScopePauseIndex>();
+function sharedIndex(pauses: ScopePause[]): ScopePauseIndex {
+  let index = indexes.get(pauses);
+  if (!index) {
+    index = indexPauses(pauses);
+    indexes.set(pauses, index);
+  }
+  return index;
+}
+
 export function useActiveScopePauses(workspaceId: string | undefined) {
   return useQuery({
     queryKey: activeScopePausesKey(workspaceId ?? ""),
     queryFn: () => getActiveScopePauses(workspaceId ?? ""),
     enabled: !!workspaceId,
     refetchInterval: REFRESH_MS,
-    select: indexPauses,
+    select: sharedIndex,
   });
 }
 
