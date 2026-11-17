@@ -113,7 +113,9 @@ describe("ProjectPauseNotice", () => {
       expect.stringMatching(
         /^Pausedagent:forjaAPI key.*Reason:Primera razónReview on:Nov 18, 2026$/,
       ),
-      expect.stringMatching(/^ChangedJaime.*Review on:Nov 18, 2026→Nov 20, 2026$/),
+      expect.stringMatching(
+        /^ChangedJaime.*Review on:Nov 18, 2026→Nov 20, 2026$/,
+      ),
     ]);
   });
 });

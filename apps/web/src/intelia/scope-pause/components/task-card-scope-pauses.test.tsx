@@ -25,7 +25,10 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function renderCard(task: { id: string; projectId: string }, ...pauses: ScopePause[]) {
+function renderCard(
+  task: { id: string; projectId: string },
+  ...pauses: ScopePause[]
+) {
   mocks.pauses.mockReturnValue({ data: indexPauses(pauses) });
   return render(<TaskCardScopePauses task={task} />);
 }

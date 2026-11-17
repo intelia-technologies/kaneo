@@ -34,5 +34,7 @@ export function pausesCoveringTask(
 ): ScopePause[] {
   const projectPause = index.byProject.get(task.projectId);
   const initiativePauses = index.byTask.get(task.id) ?? [];
-  return projectPause ? [projectPause, ...initiativePauses] : [...initiativePauses];
+  return projectPause
+    ? [projectPause, ...initiativePauses]
+    : [...initiativePauses];
 }

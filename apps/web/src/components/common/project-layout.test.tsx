@@ -55,6 +55,9 @@ vi.mock("@/components/shared/modals/create-project-modal", () => ({
   default: () => null,
 }));
 vi.mock("@/components/page-title", () => ({ default: () => null }));
+vi.mock("@/intelia/scope-pause/components/project-pause-notice", () => ({
+  ProjectPauseNotice: () => null,
+}));
 
 afterEach(cleanup);
 
