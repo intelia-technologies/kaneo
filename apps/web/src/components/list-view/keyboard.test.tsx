@@ -23,7 +23,10 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 vi.mock("@/hooks/mutations/task/use-update-task", () => ({
-  useUpdateTask: () => ({ mutate: mocks.mutate }),
+  useUpdateTask: () => ({
+    mutate: mocks.mutate,
+    mutateAsync: async (task: unknown) => mocks.mutate(task),
+  }),
 }));
 vi.mock("@/store/project", () => ({
   default: () => ({ setProject: mocks.setProject }),

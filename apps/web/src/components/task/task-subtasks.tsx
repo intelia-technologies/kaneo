@@ -29,6 +29,7 @@ import { useTaskInitiative } from "@/intelia/initiatives/api";
 import "@/intelia/initiatives/i18n";
 import { isRequestedStatus } from "@/intelia/requests/status";
 import { toast } from "@/lib/toast";
+import { notifyDeleteBlocked } from "@/intelia/cancel-with-dependents/entry/notify-delete-blocked";
 import queryClient from "@/query-client";
 import type Task from "@/types/task";
 import { SectionAddButton } from "./sections/section-add-button";
@@ -328,6 +329,13 @@ export default function TaskSubtasks({
       });
       toast.success(t("tasks:subtasks.deleteSuccess"), { icon: Trash2Icon });
     } catch (error) {
+      if (
+        notifyDeleteBlocked(
+          error,
+          () => subtasks.find((item) => item.task.id === deleteTaskId)?.task,
+        )
+      )
+        return;
       toast.error(
         error instanceof Error
           ? error.message

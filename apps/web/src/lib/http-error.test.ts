@@ -161,4 +161,22 @@ describe("HttpError.fromResponse", () => {
       i18n.removeResourceBundle("en-US", "common");
     }
   });
+
+  it("keeps the whole JSON body, which a 409 of design 82 needs for its chain", async () => {
+    const body = {
+      error: "DEPENDENCIAS_SIN_RESOLVER",
+      message: "KF-1 tiene 2 tareas abiertas",
+      details: { cadena: [{ ticket: "KF-2" }] },
+    };
+    const error = await HttpError.fromResponse(
+      new Response(JSON.stringify(body), { status: 409 }),
+    );
+
+    expect(error.message).toBe("KF-1 tiene 2 tareas abiertas");
+    expect(error.body).toEqual(body);
+    expect(
+      (await HttpError.fromResponse(new Response("not json", { status: 409 })))
+        .body,
+    ).toBeUndefined();
+  });
 });

@@ -4,12 +4,12 @@ import { HttpError } from "@/lib/http-error";
 import { invalidateMyWork } from "@/lib/invalidate-my-work";
 import { isPerTaskRelationQuery } from "@/lib/relation-query-keys";
 import {
-  errorErrorDependenciasSinResolver,
   rutaCancelarTarea,
   type ErrorDependenciasSinResolver,
   type PeticionCancelar,
   type ResultadoCancelar,
 } from "./contract/cancelar-con-dependientes";
+import { dependenciesErrorOf } from "./entry/dependencies-error";
 
 export type CancelOutcome =
   | { status: "cancelled"; result: ResultadoCancelar }
@@ -31,26 +31,12 @@ export async function cancelTaskWithDependents(
     body: JSON.stringify(body),
   });
 
-  if (response.status === 409) {
-    const text = await response.text().catch(() => "");
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      parsed = undefined;
-    }
-    if (errorErrorDependenciasSinResolver(parsed) === null) {
-      return {
-        status: "unresolved",
-        error: parsed as ErrorDependenciasSinResolver,
-      };
-    }
-    throw await HttpError.fromResponse({
-      status: response.status,
-      text: async () => text,
-    });
+  if (!response.ok) {
+    const error = await HttpError.fromResponse(response);
+    const unresolved = dependenciesErrorOf(error);
+    if (unresolved) return { status: "unresolved", error: unresolved };
+    throw error;
   }
-  if (!response.ok) throw await HttpError.fromResponse(response);
   return {
     status: "cancelled",
     result: (await response.json()) as ResultadoCancelar,

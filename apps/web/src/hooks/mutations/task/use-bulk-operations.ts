@@ -2,7 +2,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { archiveTasks } from "@/intelia/archive/archive-tasks";
 import { invalidateMyWork } from "@/lib/invalidate-my-work";
 import bulkOperation from "@/fetchers/task/bulk-operation";
-import deleteTask from "@/fetchers/task/delete-task";
 import { removeTasksFromRelations } from "./remove-task-from-relations";
 
 export function useBulkOperations() {
@@ -15,8 +14,11 @@ export function useBulkOperations() {
   };
 
   const bulkDelete = useMutation({
+    // One request, so the batch is deleted whole or not at all: with the
+    // cancel guard on, a task with open dependents goes only with them
+    // (design 82, decision 18).
     mutationFn: async (taskIds: string[]) => {
-      await Promise.all(taskIds.map((id) => deleteTask(id)));
+      await bulkOperation({ taskIds, operation: "delete" });
     },
     onSuccess: (_, taskIds) => {
       removeTasksFromRelations(queryClientRef, taskIds);

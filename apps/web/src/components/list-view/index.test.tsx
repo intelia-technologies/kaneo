@@ -50,7 +50,10 @@ vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({ preloadRoute: () => Promise.resolve() }),
 }));
 vi.mock("@/hooks/mutations/task/use-update-task", () => ({
-  useUpdateTask: () => ({ mutate: m.mutate }),
+  useUpdateTask: () => ({
+    mutate: m.mutate,
+    mutateAsync: async (task: unknown) => m.mutate(task),
+  }),
 }));
 vi.mock("@/intelia/archive/use-archive-tasks", () => ({
   useArchiveTasks: () => ({ mutate: m.archiveTasks }),

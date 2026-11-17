@@ -21,7 +21,10 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 vi.mock("@/hooks/mutations/task/use-update-task", () => ({
-  useUpdateTask: () => ({ mutate: vi.fn() }),
+  useUpdateTask: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(async () => {}),
+  }),
 }));
 vi.mock("@/hooks/use-keyboard-shortcuts", () => ({
   useRegisterShortcuts: vi.fn(),

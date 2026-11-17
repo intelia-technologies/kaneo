@@ -28,5 +28,12 @@
 		}
 	},
 	"include": ["src", "../../i18n"],
-	"exclude": ["../api/**/*", "../docs/**/*", "../../packages/**/*"]
+	"exclude": [
+		"../api/**/*",
+		"../docs/**/*",
+		"../../packages/**/*",
+		"src/**/*.integration.tsx",
+		"src/**/*.integration.test.ts",
+		"src/**/*.integration.test.tsx"
+	]
 }

@@ -25,6 +25,7 @@ import { isKeyboardFocus } from "@/lib/is-keyboard-focus";
 import { isOwnDomEvent } from "@/lib/is-own-dom-event";
 import { isTaskCompleted } from "@/lib/due-date-status";
 import { toast } from "@/lib/toast";
+import { notifyDeleteBlocked } from "@/intelia/cancel-with-dependents/entry/notify-delete-blocked";
 import useBulkSelectionStore from "@/store/bulk-selection";
 import useProjectStore from "@/store/project";
 import type Task from "@/types/task";
@@ -197,6 +198,7 @@ function TaskRow({
       await deleteTask(task.id);
       toast.success(t("tasks:delete.success"), { icon: Trash2Icon });
     } catch (error) {
+      if (notifyDeleteBlocked(error, () => task)) return;
       toast.error(
         error instanceof Error ? error.message : t("tasks:delete.error"),
       );

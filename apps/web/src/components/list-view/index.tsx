@@ -40,6 +40,7 @@ import { ArchiveTasksModal } from "../shared/modals/archive-tasks-modal";
 import CreateTaskModal from "../shared/modals/create-task-modal";
 import ListColumnSection from "./list-column-section";
 import { useArchiveTasks } from "@/intelia/archive/use-archive-tasks";
+import { openCancelPanel } from "@/intelia/cancel-with-dependents/entry/cancel-panel-store";
 
 type ListViewProps = {
   project: ProjectWithTasks;
@@ -69,7 +70,7 @@ function ListView({
     (state) => state.setAvailableTasks,
   );
   const clearFocus = useBulkSelectionStore((state) => state.clearFocus);
-  const { mutate: updateTask } = useUpdateTask();
+  const { mutate: updateTask, mutateAsync: updateTaskAsync } = useUpdateTask();
   const { mutate: archiveTasks } = useArchiveTasks();
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
@@ -227,6 +228,15 @@ function ListView({
     }
   };
 
+  // The row goes back where it was (the other rows' position updates refresh
+  // the board); a drop into Cancelled of a task with open dependents opens
+  // panel D instead (design 82).
+  const moveFailed = (error: unknown, taskId: string) => {
+    setProject(project);
+    if (!openCancelPanel(error, taskId))
+      toast.error(t("tasks:board.reorderFailed"));
+  };
+
   const moveTask = (activeTaskId: string, overId: string) => {
     if (disableDragDrop || !project?.columns) return;
 
@@ -279,11 +289,18 @@ function ListView({
         destinationColumn.tasks.splice(destinationIndex, 0, task);
 
         destinationColumn.tasks.forEach((t, index) => {
-          updateTask({
+          const moved = {
             ...t,
             status: destinationColumn.slug,
             position: index,
-          });
+          };
+          // `mutate` callbacks fire only for the last call of a batch: the
+          // moved row's own failure needs its own promise.
+          if (t.id === activeTaskId)
+            updateTaskAsync(moved).catch((error: unknown) =>
+              moveFailed(error, activeTaskId),
+            );
+          else updateTask(moved);
         });
 
         sourceColumn.tasks.forEach((t, index) => {

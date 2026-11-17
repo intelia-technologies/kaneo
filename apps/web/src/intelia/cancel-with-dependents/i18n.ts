@@ -100,6 +100,10 @@ const en = {
       submitting: "Cancelling…",
     },
     error: "Could not cancel: {{message}}",
+    done_one: "{{count}} task cancelled",
+    done_other: "{{count}} tasks cancelled",
+    cancelFirst: "Cancel first",
+    deleteBlocked: "This task cannot be deleted yet",
   },
 };
 
@@ -204,6 +208,10 @@ const es = {
       submitting: "Cancelando…",
     },
     error: "No se ha podido cancelar: {{message}}",
+    done_one: "{{count}} tarea cancelada",
+    done_other: "{{count}} tareas canceladas",
+    cancelFirst: "Cancelar primero",
+    deleteBlocked: "Esta tarea aún no se puede borrar",
   },
 };
 
