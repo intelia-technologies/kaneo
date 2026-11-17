@@ -37609,13 +37609,11 @@
                 "properties": {
                   "motivo": {
                     "type": "string",
-                    "maxLength": 2000,
                     "description": "Why the scope is paused, 3 to 500 characters after trimming. Otherwise 400 PAUSA_MOTIVO_REQUERIDO.",
                     "example": "Esperando la decisión de Jaime sobre el alcance"
                   },
                   "revisarEl": {
                     "type": "string",
-                    "maxLength": 40,
                     "description": "Date to review the pause (YYYY-MM-DD), after today in Europe/Madrid. Missing or not a date: 400 PAUSA_REVISAR_EL_REQUERIDA; today or earlier: 400 PAUSA_REVISAR_EL_PASADA. The pause never lifts itself.",
                     "example": "2026-11-20"
                   },
@@ -37725,13 +37723,11 @@
                 "properties": {
                   "motivo": {
                     "type": "string",
-                    "maxLength": 2000,
                     "description": "Why the scope is paused, 3 to 500 characters after trimming. Otherwise 400 PAUSA_MOTIVO_REQUERIDO.",
                     "example": "Esperando la decisión de Jaime sobre el alcance"
                   },
                   "revisarEl": {
                     "type": "string",
-                    "maxLength": 40,
                     "description": "Date to review the pause (YYYY-MM-DD), after today in Europe/Madrid. Missing or not a date: 400 PAUSA_REVISAR_EL_REQUERIDA; today or earlier: 400 PAUSA_REVISAR_EL_PASADA. The pause never lifts itself.",
                     "example": "2026-11-20"
                   },
@@ -37841,13 +37837,11 @@
                 "properties": {
                   "motivo": {
                     "type": "string",
-                    "maxLength": 2000,
                     "description": "Why the scope is paused, 3 to 500 characters after trimming. Otherwise 400 PAUSA_MOTIVO_REQUERIDO.",
                     "example": "Esperando la decisión de Jaime sobre el alcance"
                   },
                   "revisarEl": {
                     "type": "string",
-                    "maxLength": 40,
                     "description": "Date to review the pause (YYYY-MM-DD), after today in Europe/Madrid. Missing or not a date: 400 PAUSA_REVISAR_EL_REQUERIDA; today or earlier: 400 PAUSA_REVISAR_EL_PASADA. The pause never lifts itself.",
                     "example": "2026-11-20"
                   },
@@ -38073,11 +38067,11 @@
                   "format": "date-time"
                 }
               ],
-              "description": "With estado=todas, leaves out the pauses resumed before this date or instant. Active pauses are always listed.",
+              "description": "With estado=todas, leaves out the pauses resumed before this date (midnight UTC) or instant. Active pauses are always listed; ignored with estado=activa.",
               "example": "2026-10-18"
             },
             "required": false,
-            "description": "With estado=todas, leaves out the pauses resumed before this date or instant. Active pauses are always listed.",
+            "description": "With estado=todas, leaves out the pauses resumed before this date (midnight UTC) or instant. Active pauses are always listed; ignored with estado=activa.",
             "name": "desde",
             "in": "query"
           }
@@ -38172,7 +38166,7 @@
             }
           },
           "401": {
-            "description": "Missing or invalid credentials",
+            "description": "No session or API key",
             "content": {
               "application/json": {
                 "schema": {

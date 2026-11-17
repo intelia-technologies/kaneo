@@ -202,6 +202,7 @@ describe("API integration: Intelia scope pauses", () => {
       code: "PAUSA_YA_ACTIVA",
       pause: { id: pause.id, motivo: "Esperando la decisión de alcance" },
     });
+    expectContractPause(conflict.pause);
     expect(await db.select().from(scopePauseTable)).toHaveLength(1);
   });
 
@@ -237,6 +238,9 @@ describe("API integration: Intelia scope pauses", () => {
     const { app, sf } = await setup();
     const cases: Array<[Json, string]> = [
       [{ motivo: undefined }, "PAUSA_MOTIVO_REQUERIDO"],
+      [{ motivo: null }, "PAUSA_MOTIVO_REQUERIDO"],
+      [{ motivo: 1234 }, "PAUSA_MOTIVO_REQUERIDO"],
+      [{ revisarEl: 20261120 }, "PAUSA_REVISAR_EL_REQUERIDA"],
       [{ motivo: "  no " }, "PAUSA_MOTIVO_REQUERIDO"],
       [{ motivo: "x".repeat(501) }, "PAUSA_MOTIVO_REQUERIDO"],
       [{ revisarEl: undefined }, "PAUSA_REVISAR_EL_REQUERIDA"],
@@ -383,10 +387,12 @@ describe("API integration: Intelia scope pauses", () => {
       headers,
     );
     expect(updated.status).toBe(200);
-    expect(await updated.json()).toMatchObject({
+    const updatedBody = await updated.json();
+    expect(updatedBody).toMatchObject({
       motivo: "Ensayo del diseño 81",
       revisarEl: day(4),
     });
+    expectContractPause(updatedBody);
     // A PATCH that changes nothing leaves no row.
     await call(
       app,

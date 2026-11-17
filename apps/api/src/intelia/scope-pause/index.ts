@@ -184,6 +184,7 @@ const historyRouteDef = createRoute({
   request: { params: pauseIdParam },
   responses: {
     200: jsonResponse("The pause's changes", scopePauseChangeListSchema),
+    401: errorResponse("No session or API key"),
     403: errorResponse("No access to the project or missing read permission"),
     404: errorResponse("Pause not found"),
   },
