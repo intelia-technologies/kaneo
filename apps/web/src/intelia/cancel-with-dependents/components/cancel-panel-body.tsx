@@ -24,7 +24,7 @@ import { GraphLegend } from "./graph-legend";
 import { NodeMenu, type NodeMenuAction } from "./node-menu";
 import { OtherBoardsNotice } from "./other-boards-notice";
 import { PanelFooter } from "./panel-footer";
-import { ServerProblems } from "./server-problems";
+import { ProblemsList } from "./problems-list";
 import "../i18n";
 
 export function CancelPanelBody({
@@ -131,7 +131,8 @@ export function CancelPanelBody({
             })}
           </p>
         )}
-        <ServerProblems problemas={details.problemas} />
+        <ProblemsList problemas={details.problemas} source="server" />
+        <ProblemsList problemas={state.problemas} source="local" />
 
         <ChainGraph
           graph={graph}

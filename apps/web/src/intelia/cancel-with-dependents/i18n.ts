@@ -83,7 +83,8 @@ const en = {
         "Each affected task gets a comment with who, why and the choice.",
     },
     problems: {
-      title: "The server rejected part of the decisions",
+      serverTitle: "The server rejected part of the decisions",
+      localTitle: "These decisions do not hold",
       changed:
         "The chain changed since you opened it. New or changed tasks are marked; your decisions that still hold are kept.",
     },
@@ -186,7 +187,8 @@ const es = {
         "Cada tarea afectada recibe un comentario con quién, el motivo y lo elegido.",
     },
     problems: {
-      title: "El servidor ha rechazado parte de las decisiones",
+      serverTitle: "El servidor ha rechazado parte de las decisiones",
+      localTitle: "Estas decisiones no valen",
       changed:
         "La cadena ha cambiado desde que la abriste. Las tareas nuevas o cambiadas van marcadas; se conservan tus decisiones que siguen valiendo.",
     },

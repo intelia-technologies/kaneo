@@ -3,13 +3,17 @@ import type { ProblemaResolucion } from "../contract/cancelar-con-dependientes";
 import "../i18n";
 
 /**
- * What the fork rejected in the last `409`. `falta` is left out: the footer
- * already counts what is pending.
+ * Decisions that do not hold: the ones the fork rejected in the last `409`
+ * (`source: "server"`) or the ones the contract already rejects here, such as
+ * a `mover` that would create a cycle (`source: "local"`). `falta` is left
+ * out: the footer already counts what is pending.
  */
-export function ServerProblems({
+export function ProblemsList({
   problemas,
+  source,
 }: {
   problemas: readonly ProblemaResolucion[];
+  source: "server" | "local";
 }) {
   const { t } = useTranslation();
   const p = "intelia:cancelWithDependents.problems";
@@ -22,7 +26,7 @@ export function ServerProblems({
       role="alert"
       className="rounded-lg border border-destructive/50 bg-destructive/5 p-3 text-sm"
     >
-      <h3 className="mb-1 font-medium">{t(`${p}.title`)}</h3>
+      <h3 className="mb-1 font-medium">{t(`${p}.${source}Title`)}</h3>
       {changed && <p className="mb-1 text-xs">{t(`${p}.changed`)}</p>}
       <ul className="flex flex-col gap-0.5 text-xs">
         {shown.map((x) => (

@@ -32,7 +32,9 @@ export function useCancelPanel({
   const [targetTitles, setTargetTitles] = useState<ReadonlyMap<string, string>>(
     new Map(),
   );
-  const mutation = useCancelTaskWithDependents(taskId);
+  // On the mutation, not on `mutate`: it still runs if the panel is closed
+  // while the request is in flight.
+  const mutation = useCancelTaskWithDependents(taskId, { onCancelled });
 
   const state = useMemo(
     () => evaluateDecisions(details, decisions),
@@ -52,21 +54,17 @@ export function useCancelPanel({
       { motivo: reason, resoluciones: state.resoluciones },
       {
         onSuccess: (outcome) => {
-          if (outcome.status === "cancelled") {
-            onCancelled(outcome.result);
-            return;
-          }
+          if (outcome.status !== "unresolved") return;
           // The chain changed (or something was rejected): redraw with the
-          // new one and keep what still holds.
+          // new one and keep what still holds, including any decision taken
+          // while the request was in flight.
+          const previous = details.cadena;
           const next = outcome.error.details;
-          const reconciled = reconcileDecisions(
-            decisions,
-            details.cadena,
-            next,
-          );
           setDetails(next);
-          setDecisions(reconciled.decisions);
-          setChanged(reconciled.changed);
+          setDecisions(
+            (prev) => reconcileDecisions(prev, previous, next).decisions,
+          );
+          setChanged(reconcileDecisions({}, previous, next).changed);
           setSelected(null);
         },
       },

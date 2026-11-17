@@ -29,6 +29,9 @@ export function EffectsSummary({ state }: { state: DecisionState }) {
   return (
     <section aria-label={t(`${p}.title`)} className="flex flex-col gap-2">
       <h3 className="font-medium text-sm">{t(`${p}.title`)}</h3>
+      {state.resoluciones.length === 0 && (
+        <p className="text-muted-foreground text-xs">{t(`${p}.nothing`)}</p>
+      )}
       <dl className="flex flex-col gap-1.5 text-xs">
         {groups.map((group) => (
           <div key={group.key}>

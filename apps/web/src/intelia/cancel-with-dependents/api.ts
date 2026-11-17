@@ -57,7 +57,10 @@ export async function cancelTaskWithDependents(
   };
 }
 
-export function useCancelTaskWithDependents(taskId: string) {
+export function useCancelTaskWithDependents(
+  taskId: string,
+  { onCancelled }: { onCancelled?: (result: ResultadoCancelar) => void } = {},
+) {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -73,6 +76,7 @@ export function useCancelTaskWithDependents(taskId: string) {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ predicate: isPerTaskRelationQuery });
+      onCancelled?.(outcome.result);
     },
   });
 }

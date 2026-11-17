@@ -255,6 +255,38 @@ describe("CancelWithDependentsPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("explains a «Mover a…» that would create a cycle and leaves it pending", () => {
+    search.results = [
+      {
+        id: "t-2494",
+        type: "task",
+        title: "[PZ-07] Despachador: fusión",
+        projectSlug: "SF",
+        projectName: "Software Factory",
+        taskNumber: 2494,
+        status: "to-do",
+      },
+    ];
+    renderPanel();
+
+    openNode("SF-2493");
+    fireEvent.click(screen.getByRole("button", { name: /Mover a…/ }));
+    fireEvent.change(
+      screen.getByLabelText("Tarea a la que pasa la dependencia"),
+      { target: { value: "PZ-07" } },
+    );
+    fireEvent.click(
+      screen.getByText("Software Factory").closest("button") as HTMLElement,
+    );
+
+    // SF-2494 already depends on SF-2493.
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Estas decisiones no valen");
+    expect(alert).toHaveTextContent("crearía un ciclo");
+    expect(kindOf("SF-2493")).toBe("pendiente");
+    expect(screen.getByText("Faltan 3 por decidir")).toBeInTheDocument();
+  });
+
   it("sends the decisions and reports the cancellation", async () => {
     reply(200, sampleResultSf2491);
     const { onCancelled } = renderPanel();

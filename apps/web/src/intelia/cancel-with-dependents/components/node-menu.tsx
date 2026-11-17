@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import type { NodoDecidir } from "../contract/cancelar-con-dependientes";
@@ -30,6 +30,10 @@ export function NodeMenu({
   const { t } = useTranslation();
   const p = "intelia:cancelWithDependents.menu";
   const [moving, setMoving] = useState(false);
+  // The menu opens below the graph: take focus there so keyboard and screen
+  // reader users land on the options of the node they just picked.
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => sectionRef.current?.focus(), []);
   const can = (accion: NodoDecidir["opciones"][number]) =>
     node.opciones.includes(accion);
 
@@ -47,8 +51,10 @@ export function NodeMenu({
 
   return (
     <section
+      ref={sectionRef}
+      tabIndex={-1}
       aria-label={t(`${p}.title`, { ticket: node.ticket })}
-      className="flex flex-col gap-2 rounded-lg border bg-card p-3"
+      className="flex flex-col gap-2 rounded-lg border bg-card p-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <header className="flex items-start justify-between gap-2">
         <p className="min-w-0 text-sm">
