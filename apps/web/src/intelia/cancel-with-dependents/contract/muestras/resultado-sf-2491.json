@@ -1,0 +1,34 @@
+{
+  "tipo": "resultado",
+  "nota": "200 de esa petición: las cuatro clases de efecto (canceladas, quitadas, movidas y otro tablero, KF-15). Un comentario en la raíz y en cada afectada: 9.",
+  "valor": {
+    "canceladas": [
+      "SF-2491",
+      "SF-2493",
+      "SF-2494"
+    ],
+    "quitadas": [
+      "SF-2495",
+      "SF-2496",
+      "SF-2505",
+      "SF-2497"
+    ],
+    "movidas": [
+      {
+        "tarea": "SF-2499",
+        "de": [
+          "SF-2493",
+          "SF-2494"
+        ],
+        "a": "SF-2496"
+      }
+    ],
+    "otros_tableros": [
+      {
+        "tarea": "KF-15",
+        "responsable": "agent:forja"
+      }
+    ],
+    "comentarios": 9
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "tipo": "peticion",
+  "nota": "Cuerpo de POST /api/intelia/task/{SF-2491}/cancel que resuelve la cadena entera: cancela SF-2493 y SF-2494, quita la dependencia a cuatro y mueve la de SF-2499 a SF-2496.",
+  "valor": {
+    "motivo": "Se parte el diseño de la pausa de ámbito en dos fases.",
+    "resoluciones": [
+      {
+        "tarea": "SF-2493",
+        "accion": "cancelar"
+      },
+      {
+        "tarea": "SF-2495",
+        "accion": "quitar"
+      },
+      {
+        "tarea": "SF-2496",
+        "accion": "quitar"
+      },
+      {
+        "tarea": "SF-2494",
+        "accion": "cancelar"
+      },
+      {
+        "tarea": "SF-2505",
+        "accion": "quitar"
+      },
+      {
+        "tarea": "SF-2497",
+        "accion": "quitar"
+      },
+      {
+        "tarea": "SF-2499",
+        "accion": "mover",
+        "a": "SF-2496"
+      }
+    ],
+    "actor": "agent:forja",
+    "firma": "Forja"
+  }
+}

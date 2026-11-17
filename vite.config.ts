@@ -20,6 +20,9 @@ const ignorePatterns = [
   "**/openapi.json",
   "**/drizzle/meta/**",
   "**/drizzle-intelia/meta/**",
+  // Verbatim copy of the CD-01 contract and samples from software-factory;
+  // a test pins their sha256, so formatting them would break the copy.
+  "**/intelia/cancel-with-dependents/contract/**",
 ];
 
 export default defineConfig({

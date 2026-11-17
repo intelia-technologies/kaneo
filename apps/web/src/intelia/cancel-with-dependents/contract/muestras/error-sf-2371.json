@@ -1,0 +1,201 @@
+{
+  "tipo": "error_dependencias",
+  "nota": "409 de la primera llamada para cancelar SF-2371 ([OI-10k]). Fuente: lectura de Dédalo con kaneo.get_task el 17-nov hacia las 09:00Z (comentario j9benkn94wpn57rby0vrjy97 en SF-2510): 11 tareas cuelgan de SF-2371 y 12 relaciones. Con las reglas de §4.1 la cadena son 7 nodos (3 de SF y 4 de INFRA): SF-2340, SF-1642 e INFRA-650 cuelgan solo de INFRA-649, que es de otro tablero, y no entran; la relación INFRA-649 → SF-1641 no sale en depende_de porque INFRA-649 no se cancela. Los campos de SF-2073, SF-1641 y SF-2341 que no venían en esa lectura (asignado, automática, en curso) son de la lectura de role:coder de ese día. Los títulos de INFRA-507, INFRA-525 e INFRA-649 vienen recortados en esa fuente y se copian tal cual.",
+  "valor": {
+    "error": "DEPENDENCIAS_SIN_RESOLVER",
+    "message": "SF-2371 tiene 7 tareas abiertas que pueden verse afectadas (3 de este tablero, 4 de otro). Para cancelarla, di qué pasa con cada una de las pendientes con `resoluciones` y escribe un `motivo`.",
+    "details": {
+      "tarea": {
+        "ticket": "SF-2371",
+        "titulo": "[OI-10k] Cuenta de Kaneo `role-operador-infra` en producción",
+        "tablero": "SF"
+      },
+      "motivo": {
+        "requerido": true,
+        "recibido": false
+      },
+      "total": 7,
+      "truncada": false,
+      "cadena": [
+        {
+          "ticket": "SF-2073",
+          "titulo": "[OI-10] Alta en producción del operador de infraestructura",
+          "tablero": "SF",
+          "estado": "planned",
+          "nivel": 1,
+          "depende_de": [
+            {
+              "ticket": "SF-2371",
+              "relacion": "qhvn3dpy4j9ebi2l83qfpy12"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 6,
+          "responsable": "agent:forja",
+          "asignado": "Charo (Responsable de Recursos Cognitivos)",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "INFRA-507",
+          "titulo": "[DISCO-VPS-VAL] Validar que el disco de dokploy-vps no crece más de 1",
+          "tablero": "INFRA",
+          "estado": "blocked",
+          "nivel": 2,
+          "depende_de": [
+            {
+              "ticket": "SF-2073",
+              "relacion": "la1lkbjev2m3nceixvtg7128"
+            }
+          ],
+          "tipo": "otro_tablero",
+          "solo_si_cancelas": [
+            "SF-2073"
+          ],
+          "responsable": "agent:pasquale",
+          "automatico": "Se quita la dependencia, se apaga su automática y se avisa a agent:pasquale"
+        },
+        {
+          "ticket": "INFRA-525",
+          "titulo": "[BACKUPS-VPS] Copias locales de dokploy-vps sin copia externa comproba",
+          "tablero": "INFRA",
+          "estado": "blocked",
+          "nivel": 2,
+          "depende_de": [
+            {
+              "ticket": "SF-2073",
+              "relacion": "zift9q15qvwewdyx3g1f1naf"
+            }
+          ],
+          "tipo": "otro_tablero",
+          "solo_si_cancelas": [
+            "SF-2073"
+          ],
+          "responsable": "agent:pasquale",
+          "automatico": "Se quita la dependencia, se apaga su automática y se avisa a agent:pasquale"
+        },
+        {
+          "ticket": "INFRA-617",
+          "titulo": "[DISCO-VPS] Lectura única de ocupación raíz por operador-infra",
+          "tablero": "INFRA",
+          "estado": "blocked",
+          "nivel": 2,
+          "depende_de": [
+            {
+              "ticket": "SF-2073",
+              "relacion": "tfm6m4ibxal99nfjsy0xcahm"
+            },
+            {
+              "ticket": "SF-2371",
+              "relacion": "s07ild3cp6v7qodxy6swo2du"
+            }
+          ],
+          "tipo": "otro_tablero",
+          "solo_si_cancelas": [],
+          "responsable": "agent:pasquale",
+          "automatico": "Se quita la dependencia, se apaga su automática y se avisa a agent:pasquale"
+        },
+        {
+          "ticket": "INFRA-649",
+          "titulo": "[OI-11b] Encender los grupos 2 a 5 de INFRA al operador de infraestruc",
+          "tablero": "INFRA",
+          "estado": "blocked",
+          "nivel": 2,
+          "depende_de": [
+            {
+              "ticket": "SF-2073",
+              "relacion": "f18w1mbjw4an2sdioqzjnqj8"
+            }
+          ],
+          "tipo": "otro_tablero",
+          "solo_si_cancelas": [
+            "SF-2073"
+          ],
+          "responsable": "agent:pasquale",
+          "automatico": "Se quita la dependencia, se apaga su automática y se avisa a agent:pasquale"
+        },
+        {
+          "ticket": "SF-1641",
+          "titulo": "[OI-12] Validar en producción",
+          "tablero": "SF",
+          "estado": "planned",
+          "nivel": 2,
+          "depende_de": [
+            {
+              "ticket": "SF-2073",
+              "relacion": "tdvbh1nu6vod9d50w0qsuu33"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-2073"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 1,
+          "responsable": "agent:forja",
+          "asignado": "validador",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        },
+        {
+          "ticket": "SF-2341",
+          "titulo": "[OI-RETRO] Retrospectiva de la iniciativa del diseño 61",
+          "tablero": "SF",
+          "estado": "planned",
+          "nivel": 3,
+          "depende_de": [
+            {
+              "ticket": "SF-1641",
+              "relacion": "bsh8u3kalv2jgsbukne4oj3i"
+            }
+          ],
+          "tipo": "decidir",
+          "solo_si_cancelas": [
+            "SF-1641"
+          ],
+          "opciones": [
+            "cancelar",
+            "quitar",
+            "mover"
+          ],
+          "cuelgan": 0,
+          "responsable": "agent:forja",
+          "asignado": "Dédalo",
+          "automatica": true,
+          "rutina_activa": false,
+          "en_curso": false
+        }
+      ],
+      "pendientes": [
+        "SF-2073"
+      ],
+      "problemas": [],
+      "opciones": {
+        "cancelar": "La cancela también, con el mismo motivo. Después hay que resolver lo que cuelga de ella (sus nodos con solo_si_cancelas).",
+        "quitar": "Le quita la dependencia; sigue viva y lo que cuelga de ella no se toca.",
+        "mover": "Su dependencia pasa a la tarea `a` (por ejemplo, la tarea en la que se partió esta). Lo que cuelga de ella no se toca."
+      },
+      "otros_tableros": "No se deciden: al cancelar se les quita la dependencia, se les apaga la automática y se avisa a su responsable.",
+      "ejemplo_resoluciones": [
+        {
+          "tarea": "SF-2073",
+          "accion": "elige: cancelar | quitar | mover",
+          "a": "solo con mover: clave de la tarea"
+        }
+      ],
+      "a_mano": "También puedes resolverlo en varias llamadas: kaneo.remove_dependency {relationId} para quitar; remove_dependency y kaneo.add_dependency {taskId, dependsOnTaskId: a} para mover; y cancelar de abajo arriba. Después cancela SF-2371."
+    }
+  }
+}
