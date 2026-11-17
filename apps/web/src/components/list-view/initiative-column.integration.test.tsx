@@ -3,6 +3,7 @@
 // board's own read: the list makes exactly the API requests it makes with the
 // column hidden (the list before the column existed), and the board itself
 // is still read in its two pages of 100.
+import { setTimeout as delay } from "node:timers/promises";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cleanup, screen, waitFor } from "@testing-library/react";
 import { type ReactNode, useEffect } from "react";
@@ -166,8 +167,16 @@ async function loadList(showInitiative: boolean) {
       expect(document.querySelectorAll("[data-task-id]")).toHaveLength(TASKS),
     { timeout: 30_000 },
   );
-  // Let any request a row starts after mounting go out and settle.
-  await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+  // Let every request the list or a row starts after mounting go out and
+  // settle: nothing in flight, and the log unchanged for half a second.
+  let seen = -1;
+  while (seen !== requests.length) {
+    seen = requests.length;
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0), {
+      timeout: 10_000,
+    });
+    await delay(500);
+  }
   const made = [...requests].sort();
   cleanup();
   useProjectStore.setState({ project: undefined });
