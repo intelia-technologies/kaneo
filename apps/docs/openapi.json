@@ -7732,7 +7732,23 @@
               "null"
             ],
             "maxLength": 280,
-            "description": "Who or what a blocked task waits for (a person, a task, a real test or a date)."
+            "description": "Who or what a blocked task waits for (a person, a task, a real test or a date). Kept as a copy of `falta` (with «<resuelve>: » ahead) for older readers."
+          },
+          "falta": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 280,
+            "description": "The exact means a blocked task lacks (a permission, a tool, a credential, a person's step). Absent from older writers."
+          },
+          "resuelve": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 280,
+            "description": "Who can provide what is missing: a graph id (person:…, agent:… or role:…). Absent from older writers."
           },
           "worker": {
             "type": [
@@ -10291,6 +10307,14 @@
               "null"
             ]
           },
+          "esperaHasta": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Until when the task waits (design 80); null if it does not."
+          },
           "source": {
             "type": "string",
             "enum": [
@@ -10336,6 +10360,7 @@
           "implementador",
           "verificador",
           "columnaPrevia",
+          "esperaHasta",
           "source",
           "setByUserId",
           "setByName",
@@ -38847,7 +38872,7 @@
           "Task Automation"
         ],
         "summary": "Get task automation level",
-        "description": "The task's automation (design 48 §3.2: `automatica`, `pausaMotivo`, verification, `entrega`, roles and `columnaPrevia`, plus the former level), with who set it and when.",
+        "description": "The task's automation (design 48 §3.2: `automatica`, `pausaMotivo`, verification, `entrega`, roles and `columnaPrevia`, plus the former level; design 80: `esperaHasta`), with who set it and when.",
         "parameters": [
           {
             "schema": {
@@ -38910,7 +38935,7 @@
           "Task Automation"
         ],
         "summary": "Set task automation level",
-        "description": "Change any subset of the task's automation; what is omitted stays and null clears an optional field. Changes of `automatica`, `pausaMotivo`, verification, `entrega` or the level go to the change log and out as `task.automation_changed`; the roles and `columnaPrevia` are stored without either. `automatica` and the level are tied (manual is no); `pausaMotivo` only with `automatica: false`, and it clears when `automatica` changes. The first write needs the verification and `automatica` or `level`. A person's session or an account's API key, with task:update. Kaneo does not check who may change it beyond that: the factory's gateway does, before calling (design 18 §5). With an API key, `actor` names who the caller acts for (informative, logged as given). `completa` requires verification.",
+        "description": "Change any subset of the task's automation; what is omitted stays and null clears an optional field. Changes of `automatica`, `pausaMotivo`, verification, `entrega` or the level go to the change log and out as `task.automation_changed`; the roles, `columnaPrevia` and `esperaHasta` are stored without either. `automatica` and the level are tied (manual is no); `pausaMotivo` only with `automatica: false`, and it clears when `automatica` changes. The first write needs the verification and `automatica` or `level`. A person's session or an account's API key, with task:update. Kaneo does not check who may change it beyond that: the factory's gateway does, before calling (design 18 §5). With an API key, `actor` names who the caller acts for (informative, logged as given). `completa` requires verification.",
         "parameters": [
           {
             "schema": {
@@ -39007,6 +39032,15 @@
                     "pattern": "^[a-z0-9-]+$",
                     "description": "Column slug a task in Queued or Blocked came from.",
                     "example": "in-progress"
+                  },
+                  "esperaHasta": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time",
+                    "description": "Until when the task waits (design 80): an ISO date-time with offset; null clears it.",
+                    "example": "2026-11-30T09:00:00.000Z"
                   },
                   "actor": {
                     "type": "string",

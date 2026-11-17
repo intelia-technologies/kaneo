@@ -34,7 +34,7 @@ const getAutomationRoute = createRoute({
   tags: ["Task Automation"],
   summary: "Get task automation level",
   description:
-    "The task's automation (design 48 §3.2: `automatica`, `pausaMotivo`, verification, `entrega`, roles and `columnaPrevia`, plus the former level), with who set it and when.",
+    "The task's automation (design 48 §3.2: `automatica`, `pausaMotivo`, verification, `entrega`, roles and `columnaPrevia`, plus the former level; design 80: `esperaHasta`), with who set it and when.",
   middleware: [
     workspaceAccess.fromTaskId("taskId"),
     requireWorkspacePermission({ task: ["read"] }),
@@ -54,7 +54,7 @@ const putAutomationRoute = createRoute({
   tags: ["Task Automation"],
   summary: "Set task automation level",
   description:
-    "Change any subset of the task's automation; what is omitted stays and null clears an optional field. Changes of `automatica`, `pausaMotivo`, verification, `entrega` or the level go to the change log and out as `task.automation_changed`; the roles and `columnaPrevia` are stored without either. `automatica` and the level are tied (manual is no); `pausaMotivo` only with `automatica: false`, and it clears when `automatica` changes. The first write needs the verification and `automatica` or `level`. A person's session or an account's API key, with task:update. Kaneo does not check who may change it beyond that: the factory's gateway does, before calling (design 18 §5). With an API key, `actor` names who the caller acts for (informative, logged as given). `completa` requires verification.",
+    "Change any subset of the task's automation; what is omitted stays and null clears an optional field. Changes of `automatica`, `pausaMotivo`, verification, `entrega` or the level go to the change log and out as `task.automation_changed`; the roles, `columnaPrevia` and `esperaHasta` are stored without either. `automatica` and the level are tied (manual is no); `pausaMotivo` only with `automatica: false`, and it clears when `automatica` changes. The first write needs the verification and `automatica` or `level`. A person's session or an account's API key, with task:update. Kaneo does not check who may change it beyond that: the factory's gateway does, before calling (design 18 §5). With an API key, `actor` names who the caller acts for (informative, logged as given). `completa` requires verification.",
   middleware: [
     workspaceAccess.fromTaskId("taskId"),
     requireWorkspacePermission({ task: ["update"] }),

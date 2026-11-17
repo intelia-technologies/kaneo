@@ -1,4 +1,4 @@
-import { AlarmClock, Bot, BotOff, Hourglass } from "lucide-react";
+import { AlarmClock, Bot, BotOff, Hourglass, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { taskChipClass } from "@/components/task-chips/task-chip-class";
 import { cn } from "@/lib/cn";
@@ -33,7 +33,9 @@ const dateTime = (iso: string) =>
 
 // Design 32 §4: on the card, whether the task's worker is alive or down, and
 // its alarm (or, without one, who it waits for), as the factory last reported
-// them. Nothing for tasks it said nothing about.
+// them. Design 80 §4.4: what a blocked task lacks and who resolves it, shown
+// whatever the alarm; a dispatcher that does not send `falta` yet keeps the
+// former `espera_a`. Nothing for tasks it said nothing about.
 export function BoardSignalChips({
   task,
 }: {
@@ -47,9 +49,19 @@ export function BoardSignalChips({
 
   const fresh = now - new Date(data.calculado_en).getTime() <= WORKER_STALE_MS;
   const worker = fresh ? signal.worker : null;
-  const waitsFor = signal.espera_a
-    ? t("tasks:boardSignals.waitsFor", { who: signal.espera_a })
+  const faltaText = signal.falta?.trim();
+  const resuelveText = signal.resuelve?.trim();
+  const falta = faltaText
+    ? t("tasks:boardSignals.falta", { what: faltaText })
     : null;
+  const resuelve =
+    falta && resuelveText
+      ? t("tasks:boardSignals.resuelve", { who: resuelveText })
+      : null;
+  const waitsFor =
+    !falta && signal.espera_a
+      ? t("tasks:boardSignals.waitsFor", { who: signal.espera_a })
+      : null;
 
   return (
     <>
@@ -113,6 +125,30 @@ export function BoardSignalChips({
             <span className="max-w-28 truncate">{signal.espera_a}</span>
           </span>
         )
+      )}
+      {falta && (
+        <span
+          role="img"
+          data-board-signal="falta"
+          aria-label={falta}
+          title={falta}
+          className={chipClass}
+        >
+          <Hourglass aria-hidden="true" className="text-chip-icon" />
+          <span className="max-w-40 truncate">{falta}</span>
+        </span>
+      )}
+      {resuelve && (
+        <span
+          role="img"
+          data-board-signal="resuelve"
+          aria-label={resuelve}
+          title={resuelve}
+          className={chipClass}
+        >
+          <UserRound aria-hidden="true" className="text-chip-icon" />
+          <span className="max-w-32 truncate">{resuelve}</span>
+        </span>
       )}
     </>
   );

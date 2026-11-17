@@ -28,14 +28,17 @@ export type AutomationValue = {
   implementador: string | null;
   verificador: string | null;
   columnaPrevia: string | null;
+  // Design 80 §4.1: until when the task waits.
+  esperaHasta: Date | null;
 };
 
 /** A write: any subset; omitted fields stay, null clears an optional one. */
 export type AutomationPatch = Partial<AutomationValue>;
 
 // The fields that make a change: logged, signed and sent as
-// `task.automation_changed`. The roles and `columnaPrevia` are the
-// dispatcher's bookkeeping: stored as they come, without a log row or event.
+// `task.automation_changed`. The roles, `columnaPrevia` and `esperaHasta` are
+// the dispatcher's bookkeeping: stored as they come, without a log row or
+// event.
 const LOGGED_FIELDS = [
   "level",
   "verification",
@@ -48,6 +51,7 @@ const BOOKKEEPING_FIELDS = [
   "implementador",
   "verificador",
   "columnaPrevia",
+  "esperaHasta",
 ] as const satisfies readonly (keyof AutomationValue)[];
 
 function invalid(path: string, message: string) {
@@ -104,19 +108,31 @@ export function resolveAutomation(
   if (automatica && pausaMotivo !== null) {
     throw invalid("pausaMotivo", PAUSE_NEEDS_MANUAL);
   }
-  const kept = (field: (typeof BOOKKEEPING_FIELDS)[number] | "entrega") =>
-    patch[field] !== undefined ? patch[field] : (current?.[field] ?? null);
+  const kept = <F extends (typeof BOOKKEEPING_FIELDS)[number] | "entrega">(
+    field: F,
+  ) =>
+    (patch[field] !== undefined
+      ? patch[field]
+      : (current?.[field] ?? null)) as AutomationValue[F];
   return {
     level,
     verification,
     automatica,
     pausaMotivo,
-    entrega: kept("entrega") as DeliveryKind | null,
+    entrega: kept("entrega"),
     responsable: kept("responsable"),
     implementador: kept("implementador"),
     verificador: kept("verificador"),
     columnaPrevia: kept("columnaPrevia"),
+    esperaHasta: kept("esperaHasta"),
   };
+}
+
+// Field equality; dates by instant, since each read builds a new Date.
+function sameField(a: unknown, b: unknown) {
+  return a instanceof Date && b instanceof Date
+    ? a.getTime() === b.getTime()
+    : a === b;
 }
 
 /** The stored value of a `task_automation` row. */
@@ -131,6 +147,7 @@ export function automationValueOf(row: AutomationValue): AutomationValue {
     implementador: row.implementador,
     verificador: row.verificador,
     columnaPrevia: row.columnaPrevia,
+    esperaHasta: row.esperaHasta,
   };
 }
 
@@ -219,8 +236,8 @@ export function listProjectAutomation(projectId: string) {
  * together. The patch is resolved against the stored value
  * (`resolveAutomation`; a 400 rolls the caller back). A write that leaves the
  * logged fields as they were is not a change: nothing is logged, the author
- * stays and it returns null; new bookkeeping (roles, `columnaPrevia`) is still
- * stored. Otherwise it returns the logged change.
+ * stays and it returns null; new bookkeeping (roles, `columnaPrevia`,
+ * `esperaHasta`) is still stored. Otherwise it returns the logged change.
  */
 export async function writeAutomation(
   tx: Transaction,
@@ -246,7 +263,7 @@ export async function writeAutomationAs(
   const current = stored ? automationValueOf(stored) : null;
   const value = resolveAutomation(current, patch);
   if (current && LOGGED_FIELDS.every((f) => current[f] === value[f])) {
-    if (BOOKKEEPING_FIELDS.some((f) => current[f] !== value[f])) {
+    if (BOOKKEEPING_FIELDS.some((f) => !sameField(current[f], value[f]))) {
       const bookkeeping = Object.fromEntries(
         BOOKKEEPING_FIELDS.map((f) => [f, value[f]]),
       );

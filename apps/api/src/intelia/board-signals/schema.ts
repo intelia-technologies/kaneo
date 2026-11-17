@@ -35,7 +35,17 @@ const taskSignal = z
       .openapi({ description: "The task's next alarm, if any." }),
     espera_a: z.string().max(MAX_TEXT).nullable().openapi({
       description:
-        "Who or what a blocked task waits for (a person, a task, a real test or a date).",
+        "Who or what a blocked task waits for (a person, a task, a real test or a date). Kept as a copy of `falta` (with «<resuelve>: » ahead) for older readers.",
+    }),
+    // Design 80 §4.4: optional, so a dispatcher that does not send them yet
+    // keeps writing as before.
+    falta: z.string().max(MAX_TEXT).nullable().optional().openapi({
+      description:
+        "The exact means a blocked task lacks (a permission, a tool, a credential, a person's step). Absent from older writers.",
+    }),
+    resuelve: z.string().max(MAX_TEXT).nullable().optional().openapi({
+      description:
+        "Who can provide what is missing: a graph id (person:…, agent:… or role:…). Absent from older writers.",
     }),
     worker: z
       .object({

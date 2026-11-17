@@ -1,0 +1,38 @@
+{
+  "calculado_en": "2026-11-17T06:50:00.000Z",
+  "columnas": {
+    "blocked": {
+      "media_s": 182340,
+      "tareas": 56,
+      "ambito": "proyecto"
+    }
+  },
+  "tareas": {
+    "e981dh2i8o6drfb0zed1un93": {
+      "alarma": {
+        "cuando": "2026-11-17T09:45:49.581Z",
+        "motivo": null
+      },
+      "espera_a": "agent:charo: alta secret:pgro-factory y tupla role:validador",
+      "falta": "alta secret:pgro-factory y tupla role:validador",
+      "resuelve": "agent:charo",
+      "worker": null
+    },
+    "jffo6zykwooqdgjr2hpbfz1p": {
+      "alarma": {
+        "cuando": "2026-11-17T10:00:00.000Z",
+        "motivo": "Blocked sin resuelve"
+      },
+      "espera_a": "Episodio real de primario sin cuota con cambio al siguiente modelo",
+      "falta": "Episodio real de primario sin cuota con cambio al siguiente modelo",
+      "resuelve": null,
+      "worker": {
+        "estado": "terminado",
+        "instancia": "agent:coder-0f3a9b12",
+        "rol": "role:coder",
+        "ultima_senal": "2026-11-17T06:10:00.000Z",
+        "trabajando": false
+      }
+    }
+  }
+}

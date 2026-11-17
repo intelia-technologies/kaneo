@@ -120,6 +120,36 @@ describe("TaskAutomationPanel", () => {
     expect(document.body.textContent).not.toMatch(/levels?\b|arranque/i);
   });
 
+  it("shows until when the task waits, and nothing once it has passed or without a date", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-17T12:00:00.000Z"));
+    try {
+      const esperaHasta = "2026-11-30T09:00:00.000Z";
+      const waits = `intelia:automation.esperaHasta ${JSON.stringify({ date: esperaHasta })}`;
+      mocks.automation.mockReturnValue({
+        data: { ...saved, esperaHasta },
+        isError: false,
+      });
+      render(<TaskAutomationPanel taskId="task-1" />);
+      expect(screen.getByText(waits)).toBeTruthy();
+      cleanup();
+
+      for (const none of [null, "2026-11-17T11:59:00.000Z"]) {
+        mocks.automation.mockReturnValue({
+          data: { ...saved, esperaHasta: none },
+          isError: false,
+        });
+        render(<TaskAutomationPanel taskId="task-1" />);
+        expect(document.body.textContent).not.toContain(
+          "intelia:automation.esperaHasta",
+        );
+        cleanup();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("shows a paused task with its reason", () => {
     mocks.automation.mockReturnValue({
       data: { ...saved, automatica: false, pausaMotivo: "movida_a_mano" },

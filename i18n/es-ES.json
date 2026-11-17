@@ -3881,6 +3881,8 @@
 		"boardSignals": {
 			"alarm": "Alarma el {{date}}",
 			"waitsFor": "Espera a {{who}}",
+			"falta": "Falta: {{what}}",
+			"resuelve": "Resuelve: {{who}}",
 			"worker": {
 				"activo": "Worker vivo",
 				"caido": "Worker caído: sin señal de vida en 30 min",

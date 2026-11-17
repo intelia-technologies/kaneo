@@ -231,6 +231,12 @@ export const taskAutomationTable = inteliaSchema.table(
     verificador: text("verificador"),
     // Column slug a task in Queued or Blocked came from.
     columnaPrevia: text("columna_previa"),
+    // Design 80 §4.1: until when the task waits; the dispatcher keeps it out of
+    // To do until then.
+    esperaHasta: timestamp("espera_hasta", {
+      withTimezone: true,
+      mode: "date",
+    }),
   },
   () => [
     check("task_automation_level_check", levelCheck("level")),
