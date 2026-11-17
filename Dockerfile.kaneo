@@ -86,6 +86,10 @@ COPY packages/typescript-config ./packages/typescript-config
 COPY packages/libs ./packages/libs
 COPY packages/permissions ./packages/permissions
 COPY packages/editor ./packages/editor
+# apps/web/vite.config.ts names @kaneo/importers#build and @kaneo/mcp#build (integration
+# tests); Vite+ resolves the whole task graph on every run, so their manifests must exist.
+COPY packages/importers/package.json ./packages/importers/
+COPY packages/mcp/package.json ./packages/mcp/
 COPY i18n ./i18n
 COPY apps/web ./apps/web
 
