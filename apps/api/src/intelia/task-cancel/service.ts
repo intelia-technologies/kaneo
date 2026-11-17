@@ -1,8 +1,7 @@
-import { inArray } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { HTTPException } from "hono/http-exception";
 import db from "../../database";
 import { taskTable } from "../../database/schema";
-import { ApiError } from "../../errors/api-error";
 import { publishEvent } from "../../events";
 import { publishTaskMutation } from "../../task/controllers/task-mutation-effects";
 import { notifyAutomationChanged } from "../task-automation/event";
@@ -50,13 +49,17 @@ async function readGraph(
 ) {
   const graph = await loadGraph(ex, taskId, userId);
   if (!graph) throw new HTTPException(404, { message: "Task not found" });
-  if (isCancelledStatus(graph.root.status))
-    throw new ApiError(409, {
-      message: "The task is already cancelled",
-      code: "TASK_ALREADY_CANCELLED",
-    });
   return graph;
 }
+
+/** An already cancelled task stays as it is: a retry changes nothing, like today. */
+const alreadyCancelled = (ticket: string): CancelResult => ({
+  canceladas: [ticket],
+  quitadas: [],
+  movidas: [],
+  otros_tableros: [],
+  comentarios: 0,
+});
 
 /** Same nodes with the same relations and kind (decision 12). */
 function sameChain(a: readonly ChainNode[], b: readonly ChainNode[]) {
@@ -97,34 +100,33 @@ export async function cancelTask({
 }): Promise<CancelResult> {
   const resoluciones = input.resoluciones ?? [];
   const graph = await readGraph(db, taskId, userId);
+  if (isCancelledStatus(graph.root.status))
+    return alreadyCancelled(graph.root.ticket);
   const chain = buildChain(graph);
   const guard = cancelGuardEnabled();
   const plain = chain.length === 0 || (!guard && resoluciones.length === 0);
 
   const movers = resoluciones.filter((r) => r.accion === "mover" && r.a);
-  const targets = await loadTargets(
-    db,
-    workspaceId,
-    [...new Set(movers.map((r) => r.a!))],
-    userId,
-  );
+  const moverTargets = [...new Set(movers.map((r) => r.a!))];
   const ctx: ResolveContext = {
     root: graph.root.ticket,
     lote: input.lote ? new Set(input.lote) : undefined,
-    targets,
   };
   // Resolves against `nodes`; anything left to decide or wrong is the 409.
   const check = async (
+    ex: typeof db | Transaction,
     current: Graph,
     nodes: ChainNode[],
+    targets: ResolveContext["targets"],
     previous?: ChainNode[],
   ) => {
     const moverIds = nodes
       .filter((n) => movers.some((r) => r.tarea === n.task.ticket))
       .map((n) => n.task.id);
-    const edges = moverIds.length ? await loadForwardEdges(db, moverIds) : [];
+    const edges = moverIds.length ? await loadForwardEdges(ex, moverIds) : [];
     const aplicacion = applyResolutions(nodes, resoluciones, {
       ...ctx,
+      targets,
       previous,
       edges,
     });
@@ -147,10 +149,22 @@ export async function cancelTask({
       });
     return aplicacion.efectos;
   };
-  if (!plain) await check(graph, chain);
+  const targets = await loadTargets(db, workspaceId, moverTargets, userId);
+  if (!plain) await check(db, graph, chain, targets);
 
   const quien = input.firma ?? input.actor ?? userName ?? userId;
-  const { applied, efectos, root } = await db.transaction(async (tx) => {
+  const done = await db.transaction(async (tx) => {
+    // The automation writers' lock first, then the rows, both in id order:
+    // `setAutomation` takes them in that order too, so neither waits on the
+    // other in a cycle.
+    const otherBoards = chain
+      .filter((n) => n.tipo === "otro_tablero")
+      .map((n) => n.task.id)
+      .sort();
+    for (const id of otherBoards)
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`intelia.task_automation:${id}`}))`,
+      );
     const lockIds = new Set([
       graph.root.id,
       ...chain.map((n) => n.task.id),
@@ -163,14 +177,26 @@ export async function cancelTask({
       .orderBy(taskTable.id)
       .for("update");
     const locked = await readGraph(tx, taskId, userId);
+    // Cancelled meanwhile by someone else: nothing left to do.
+    if (isCancelledStatus(locked.root.status)) return null;
     const now = buildChain(locked);
+    // The targets as they are now that they are locked (one may have been
+    // cancelled since the check).
+    const lockedTargets = await loadTargets(
+      tx,
+      workspaceId,
+      moverTargets,
+      userId,
+    );
     let efectos = NO_EFFECTS;
     // With nothing hanging any more it cancels as before; otherwise a chain
     // nobody saw is never applied: the check reports what changed.
     if (now.length > 0 && (!plain || guard))
       efectos = await check(
+        tx,
         locked,
         now,
+        lockedTargets,
         sameChain(chain, now) ? undefined : chain,
       );
     const applied = await applyCancellation(tx, {
@@ -181,10 +207,12 @@ export async function cancelTask({
       userId,
       firma: input.firma,
       writer,
-      targets,
+      targets: lockedTargets,
     });
     return { applied, efectos, root: locked.root };
   });
+  if (!done) return alreadyCancelled(graph.root.ticket);
+  const { applied, efectos, root } = done;
 
   await publishApplied(applied, userId, quien);
   const result: CancelResult = {

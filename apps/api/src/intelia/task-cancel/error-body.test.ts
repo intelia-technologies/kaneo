@@ -167,4 +167,21 @@ describe("resolutions with problems", () => {
       "SF-2498",
     ]);
   });
+
+  it("treat a hidden task as a target that does not exist, naming nothing of it", () => {
+    const graph = graphFromSample(readFixture<SampleError>("error-sf-2491"));
+    graph.tasks.get("KF-15")!.visible = false;
+    const chain = buildChain(graph);
+    const { problemas, pendientes } = applyResolutions(
+      chain,
+      [{ tarea: "SF-2493", accion: "mover", a: "KF-15" }],
+      { root: "SF-2491", targets: new Map([["KF-15", null]]), edges: [] },
+    );
+    expect(problemas).toContainEqual({
+      tarea: "SF-2493",
+      problema: "a_no_existe",
+      detalle: "KF-15 no existe.",
+    });
+    expect(pendientes.map((n) => n.task.ticket)).toContain("SF-2493");
+  });
 });

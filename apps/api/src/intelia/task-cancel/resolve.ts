@@ -175,7 +175,10 @@ export function applyResolutions(
       );
   }
 
-  const deMover = moverProblems(efectos, byTicket, canceladas, ctx);
+  // A hidden task is not a target the caller can name: it does not exist for
+  // them (decision 15), and no problem text may confirm it.
+  const visibles = new Map([...byTicket].filter(([, n]) => !n.oculta));
+  const deMover = moverProblems(efectos, visibles, canceladas, ctx);
   problemas.push(...deMover);
   const invalid = new Set(deMover.map((p) => p.tarea));
   efectos.movidas = efectos.movidas.filter(

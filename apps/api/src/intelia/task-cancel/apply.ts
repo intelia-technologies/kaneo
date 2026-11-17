@@ -170,9 +170,7 @@ export async function applyCancellation(
   if (motivo !== undefined) {
     for (const e of efectos.otrosTableros) {
       const task = e.node.task;
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${`intelia.task_automation:${task.id}`}))`,
-      );
+      // Its `intelia.task_automation` lock is already held (service.ts).
       const [current] = await tx
         .select({ automatica: taskAutomationTable.automatica })
         .from(taskAutomationTable)

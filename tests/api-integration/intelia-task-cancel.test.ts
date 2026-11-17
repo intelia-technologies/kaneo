@@ -63,7 +63,7 @@ async function setup() {
   const { key } = await auth.api.createApiKey({
     body: { userId: forja.id, name: "forja" },
   });
-  return { app: createApp().app, owner, workspace, seeded, key };
+  return { app: createApp().app, owner, workspace, seeded, key, forja };
 }
 
 async function cancel(
@@ -440,6 +440,18 @@ describe("resolutions", () => {
     await seeded.relate("OV-1", "OV-4");
     await seeded.relate("OV-2", "OV-5");
     const motivo = "Dos cancelaciones a la vez sobre la misma rama.";
+    // Both pass their check before either takes its locks: they meet there.
+    const loadGraph = graphs.loadGraph;
+    let checked = 0;
+    const bothChecked = Promise.withResolvers<void>();
+    vi.spyOn(graphs, "loadGraph").mockImplementation(async (...args) => {
+      const graph = await loadGraph(...args);
+      if (checked < 2) {
+        if (++checked === 2) bothChecked.resolve();
+        await bothChecked.promise;
+      }
+      return graph;
+    });
 
     const results = await Promise.all([
       cancel(
@@ -470,18 +482,66 @@ describe("resolutions", () => {
 
     expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
     const lost = results.find((r) => r.status === 409)!;
-    // Its chain lost OV-3 under the lock (cadena_cambiada) or, if it read it
-    // after the winner committed, OV-3 is no longer in it (sobra).
-    expect(lost.body.error).toBe("DEPENDENCIAS_SIN_RESOLVER");
-    expect(
-      (
-        lost.body.details!.problemas as { tarea: string; problema: string }[]
-      ).filter((p) => p.tarea === "OV-3"),
-    ).not.toEqual([]);
+    // Its chain lost OV-3 under the lock.
+    expect(lost.body.details!.problemas).toContainEqual({
+      tarea: "OV-3",
+      problema: "cadena_cambiada",
+      detalle: "Ya no está en la cadena.",
+    });
+    expect(schemaErrors("error_dependencias", lost.body)).toBeNull();
     const winner = results.find((r) => r.status === 200)!.body
       .canceladas as string[];
     const loser = ["OV-1", "OV-2"].find((t) => !winner.includes(t))!;
     expect((await seeded.task(loser)).status).toBe("to-do");
+  });
+
+  it("touch a task of a board the caller does not read, naming it by board only", async () => {
+    const { app, seeded, workspace, key, forja } = await setup();
+    await seedSf2491(seeded, { "KF-15": { automatica: true } });
+    // The gateway's account reads SF only.
+    await restrictToProjects(workspace.id, forja.id, [
+      seeded.projects.get("SF")!,
+    ]);
+
+    const res = await cancel(app, seeded.ids.get("SF-2491")!, peticion, {
+      "x-api-key": key,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.otros_tableros).toEqual([{ oculta: true, tablero: "KF" }]);
+    expect(schemaErrors("resultado", res.body)).toBeNull();
+    const [root] = await db
+      .select({ content: schema.activityTable.content })
+      .from(schema.activityTable)
+      .where(eq(schema.activityTable.taskId, seeded.ids.get("SF-2491")!));
+    expect(root!.content).toContain(
+      "otros tableros, automático: una tarea de KF.",
+    );
+    expect(root!.content).not.toContain("KF-15");
+    const [kf15] = await db
+      .select({ automatica: taskAutomationTable.automatica })
+      .from(taskAutomationTable)
+      .where(eq(taskAutomationTable.taskId, seeded.ids.get("KF-15")!));
+    expect(kf15!.automatica).toBe(false);
+  });
+
+  it("leave an already cancelled task as it is", async () => {
+    const { app, seeded } = await setup();
+    await seeded.add("DONE-1", { estado: "cancelled" });
+    await seeded.add("DONE-2");
+    await seeded.relate("DONE-1", "DONE-2");
+
+    const res = await cancel(app, seeded.ids.get("DONE-1")!, {});
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      canceladas: ["DONE-1"],
+      quitadas: [],
+      movidas: [],
+      otros_tableros: [],
+      comentarios: 0,
+    });
+    expect((await snapshot(seeded)).relations).toHaveLength(1);
   });
 
   it("cancel all of INFRA-381 (28 tasks) in under three seconds", async () => {
