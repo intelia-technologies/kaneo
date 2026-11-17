@@ -842,12 +842,8 @@ export const scopePauseTable = inteliaSchema.table(
     id: text("id")
       .$defaultFn(() => createId())
       .primaryKey(),
-    workspaceId: text("workspace_id")
-      .notNull()
-      .references(() => workspaceTable.id, {
-        onDelete: "cascade",
-        onUpdate: "cascade",
-      }),
+    // No workspace column: the pause follows its home project (or the
+    // initiative's), so moving a project to another workspace moves its pauses.
     scopeType: text("scope_type").$type<ScopePauseType>().notNull(),
     projectId: text("project_id").references(() => projectTable.id, {
       onDelete: "cascade",
@@ -859,18 +855,14 @@ export const scopePauseTable = inteliaSchema.table(
     }),
     motivo: text("motivo").notNull(),
     revisarEl: date("revisar_el", { mode: "string" }).notNull(),
-    pausedByUserId: text("paused_by_user_id").references(() => userTable.id, {
-      onDelete: "set null",
-      onUpdate: "cascade",
-    }),
+    // Who paused and resumed, kept without a foreign key: the history must
+    // still name its author after the Kaneo user is deleted.
+    pausedByUserId: text("paused_by_user_id"),
     pausedByActor: text("paused_by_actor"),
     pausedAt: timestamp("paused_at", { mode: "date" })
       .default(utcNow)
       .notNull(),
-    resumedByUserId: text("resumed_by_user_id").references(() => userTable.id, {
-      onDelete: "set null",
-      onUpdate: "cascade",
-    }),
+    resumedByUserId: text("resumed_by_user_id"),
     resumedByActor: text("resumed_by_actor"),
     resumedAt: timestamp("resumed_at", { mode: "date" }),
     notaReanudar: text("nota_reanudar"),
@@ -882,7 +874,7 @@ export const scopePauseTable = inteliaSchema.table(
     uniqueIndex("scope_pause_active_initiative_idx")
       .on(table.initiativeId)
       .where(sql`"resumed_at" IS NULL AND "initiative_id" IS NOT NULL`),
-    index("scope_pause_workspace_idx").on(table.workspaceId, table.resumedAt),
+    index("scope_pause_resumed_at_idx").on(table.resumedAt),
     check("scope_pause_type_check", inCheck("scope_type", SCOPE_PAUSE_TYPES)),
     check(
       "scope_pause_scope_check",
@@ -911,10 +903,8 @@ export const scopePauseChangeTable = inteliaSchema.table(
     kind: text("kind").$type<ScopePauseChangeKind>().notNull(),
     previous: jsonb("previous").$type<Record<string, unknown>>(),
     value: jsonb("value").$type<Record<string, unknown>>().notNull(),
-    changedByUserId: text("changed_by_user_id").references(() => userTable.id, {
-      onDelete: "set null",
-      onUpdate: "cascade",
-    }),
+    // Without a foreign key, like the pause's authors.
+    changedByUserId: text("changed_by_user_id"),
     changedByActor: text("changed_by_actor"),
     source: text("source").$type<ScopePauseChangeSource>().notNull(),
     changedAt: timestamp("changed_at", { mode: "date" })

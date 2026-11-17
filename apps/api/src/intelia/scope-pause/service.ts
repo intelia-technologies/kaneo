@@ -125,7 +125,6 @@ export async function createPause(
         const [pause] = await tx
           .insert(scopePauseTable)
           .values({
-            workspaceId: reader.workspaceId,
             scopeType: scope.type,
             projectId: scope.type === "project" ? scope.projectId : null,
             initiativeId:

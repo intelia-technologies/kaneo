@@ -52,6 +52,7 @@ export async function readPauses(
       initiativeName: initiativeTable.name,
       projectName: projectTable.name,
       homeProjectId: projectTable.id,
+      workspaceId: projectTable.workspaceId,
       pausedByName: pausedBy.name,
       resumedByName: resumedBy.name,
     })
@@ -63,13 +64,9 @@ export async function readPauses(
     .innerJoin(projectTable, eq(projectTable.id, homeProjectId))
     .leftJoin(pausedBy, eq(pausedBy.id, scopePauseTable.pausedByUserId))
     .leftJoin(resumedBy, eq(resumedBy.id, scopePauseTable.resumedByUserId))
-    .where(
-      and(
-        eq(scopePauseTable.workspaceId, reader.workspaceId),
-        inArray(projectTable.id, projectIds),
-        where,
-      ),
-    )
+    // The readable projects are all in the reader's workspace, so this also
+    // keeps out other workspaces' pauses (the workspace is the home project's).
+    .where(and(inArray(projectTable.id, projectIds), where))
     .orderBy(asc(scopePauseTable.pausedAt), asc(scopePauseTable.id));
 
   const initiativeIds = rows.flatMap((row) =>
@@ -104,11 +101,12 @@ export async function readPauses(
       initiativeName,
       projectName,
       homeProjectId,
+      workspaceId,
       pausedByName,
       resumedByName,
     }) => ({
       id: pause.id,
-      workspaceId: pause.workspaceId,
+      workspaceId,
       scopeType: pause.scopeType,
       projectId: homeProjectId,
       initiativeId: pause.initiativeId,

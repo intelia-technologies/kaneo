@@ -275,12 +275,15 @@ describe("API integration: routines in a paused scope", () => {
     expect(await runsOf(routine.id)).toMatchObject([
       { result: "saltada_pausa", scopePauseId: paused.id },
     ]);
-    expect(await serviceComments(task.id)).toEqual([
+    // The initiative lives in another project: the comment, readable by
+    // anyone who reads the task, names neither the initiative nor its reason.
+    const comments = await serviceComments(task.id);
+    expect(comments).toEqual([
       {
-        content:
-          "Rutina saltada: en pausa por la iniciativa «Pausa D81» (Revisión de alcance)",
+        content: "Rutina saltada: en pausa por su iniciativa, de otro proyecto",
       },
     ]);
+    expect(JSON.stringify(comments)).not.toMatch(/Pausa D81|Revisión/);
     await quietWindow();
     expect(events).not.toContain("intelia.routine_skipped");
   });

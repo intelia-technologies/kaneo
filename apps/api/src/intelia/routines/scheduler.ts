@@ -195,14 +195,18 @@ async function runRoutine(
     await notifyRoutineSkipped(routine, task.projectId, run.id, next);
   }
   if (pause && run) {
-    await commentPauseSkipOnce(routine, pause, run.id);
+    await commentPauseSkipOnce(routine, task.projectId, pause, run.id);
   }
   return result;
 }
 
 // One comment per routine and pause: only on the first run that pause skips.
+// The comment is visible to whoever reads the task, so it names the scope and
+// its reason only when the pause belongs to the task's own project; a pause of
+// an initiative of another project may be unreadable to them.
 async function commentPauseSkipOnce(
   routine: DueRoutine,
+  taskProjectId: string,
   pause: CoveringPause,
   runId: string,
 ) {
@@ -218,15 +222,15 @@ async function commentPauseSkipOnce(
     )
     .limit(1);
   if (earlier) return;
-  const scope =
-    pause.scopeType === "project"
-      ? `el proyecto «${pause.scopeName}»`
-      : `la iniciativa «${pause.scopeName}»`;
-  await createComment(
-    routine.taskId,
-    ROUTINE_SERVICE_ID,
-    `Rutina saltada: en pausa por ${scope} (${pause.motivo})`,
-  );
+  let text = "Rutina saltada: en pausa por su iniciativa, de otro proyecto";
+  if (pause.homeProjectId === taskProjectId) {
+    const scope =
+      pause.scopeType === "project"
+        ? `el proyecto «${pause.scopeName}»`
+        : `la iniciativa «${pause.scopeName}»`;
+    text = `Rutina saltada: en pausa por ${scope} (${pause.motivo})`;
+  }
+  await createComment(routine.taskId, ROUTINE_SERVICE_ID, text);
 }
 
 // Body documented in README-INTELIA.md.

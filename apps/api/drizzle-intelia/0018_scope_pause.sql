@@ -1,9 +1,11 @@
 -- Design 81 §4.1 (PZ-03, KF-15): pause of a project or an initiative, its
 -- change log, and the run of a routine skipped by it. New tables and one
--- nullable column; existing data untouched.
+-- nullable column; existing data untouched. No workspace column: a pause
+-- follows its home project when the project moves to another workspace. The
+-- authors' user ids have no foreign key, so the history keeps naming them
+-- after the Kaneo user is deleted.
 CREATE TABLE "intelia"."scope_pause" (
 	"id" text PRIMARY KEY NOT NULL,
-	"workspace_id" text NOT NULL,
 	"scope_type" text NOT NULL,
 	"project_id" text,
 	"initiative_id" text,
@@ -35,16 +37,12 @@ CREATE TABLE "intelia"."scope_pause_change" (
 	CONSTRAINT "scope_pause_change_source_check" CHECK ("source" in ('session', 'api_key'))
 );
 --> statement-breakpoint
-ALTER TABLE "intelia"."scope_pause" ADD CONSTRAINT "scope_pause_workspace_id_workspace_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspace"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "intelia"."scope_pause" ADD CONSTRAINT "scope_pause_project_id_project_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."project"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "intelia"."scope_pause" ADD CONSTRAINT "scope_pause_initiative_id_initiative_id_fk" FOREIGN KEY ("initiative_id") REFERENCES "intelia"."initiative"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "intelia"."scope_pause" ADD CONSTRAINT "scope_pause_paused_by_user_id_user_id_fk" FOREIGN KEY ("paused_by_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "intelia"."scope_pause" ADD CONSTRAINT "scope_pause_resumed_by_user_id_user_id_fk" FOREIGN KEY ("resumed_by_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "intelia"."scope_pause_change" ADD CONSTRAINT "scope_pause_change_pause_id_scope_pause_id_fk" FOREIGN KEY ("pause_id") REFERENCES "intelia"."scope_pause"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "intelia"."scope_pause_change" ADD CONSTRAINT "scope_pause_change_changed_by_user_id_user_id_fk" FOREIGN KEY ("changed_by_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE cascade;--> statement-breakpoint
 CREATE UNIQUE INDEX "scope_pause_active_project_idx" ON "intelia"."scope_pause" USING btree ("project_id") WHERE "resumed_at" IS NULL AND "project_id" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "scope_pause_active_initiative_idx" ON "intelia"."scope_pause" USING btree ("initiative_id") WHERE "resumed_at" IS NULL AND "initiative_id" IS NOT NULL;--> statement-breakpoint
-CREATE INDEX "scope_pause_workspace_idx" ON "intelia"."scope_pause" USING btree ("workspace_id","resumed_at");--> statement-breakpoint
+CREATE INDEX "scope_pause_resumed_at_idx" ON "intelia"."scope_pause" USING btree ("resumed_at");--> statement-breakpoint
 CREATE INDEX "scope_pause_change_pause_id_idx" ON "intelia"."scope_pause_change" USING btree ("pause_id","changed_at");--> statement-breakpoint
 ALTER TABLE "intelia"."routine_run" ADD COLUMN "scope_pause_id" text;--> statement-breakpoint
 ALTER TABLE "intelia"."routine_run" ADD CONSTRAINT "routine_run_scope_pause_id_scope_pause_id_fk" FOREIGN KEY ("scope_pause_id") REFERENCES "intelia"."scope_pause"("id") ON DELETE set null ON UPDATE cascade;

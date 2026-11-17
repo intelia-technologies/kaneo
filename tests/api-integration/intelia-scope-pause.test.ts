@@ -3,6 +3,7 @@
 // through the factory's contract (PZ-01), copied in contract-samples.
 import { readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
+import moveProject from "../../apps/api/src/project/controllers/move-project";
 import {
   afterEach,
   beforeEach,
@@ -491,6 +492,86 @@ describe("API integration: Intelia scope pauses", () => {
     expect(history.status).toBe(403);
   });
 
+  it("keeps naming who paused and resumed after that Kaneo user is deleted", async () => {
+    const { app, sf, user: owner, workspace } = await setup();
+    const member = await addWorkspaceMember(workspace.id, "admin");
+    vi.restoreAllMocks();
+    mockAuthenticatedSession(member);
+    const pause = (await (await pauseProject(app, sf.id)).json()) as Json;
+    await call(app, "POST", `/scope-pause/${pause.id}/resume`, {});
+    vi.restoreAllMocks();
+    mockAuthenticatedSession(owner);
+    await pauseProject(app, sf.id);
+
+    await db.delete(schema.userTable).where(eq(schema.userTable.id, member.id));
+
+    const all = await listPauses(app, workspace.id, "?estado=todas");
+    expect(all.pausas[0]).toMatchObject({
+      id: pause.id,
+      pausedByUserId: member.id,
+      pausedByName: null,
+      pausedByActor: null,
+      resumedByUserId: member.id,
+    });
+    expect(traducirPausasVigentesFork(all)).toMatchObject({ ok: true });
+    const history = await (
+      await call(app, "GET", `/scope-pause/${pause.id}/history`)
+    ).json();
+    expect(history).toMatchObject([
+      { kind: "created", userId: member.id, userName: null },
+      { kind: "resumed", userId: member.id, userName: null },
+    ]);
+    expect(traducirHistorialPausaFork(history)).toMatchObject({ ok: true });
+  });
+
+  it("moves a project's pauses and its initiatives' with the project to another workspace", async () => {
+    const { app, sf, user, workspace } = await setup();
+    const initiative = await seedInitiative(sf.id, "Viajera");
+    const projectPause = (await (
+      await pauseProject(app, sf.id)
+    ).json()) as Json;
+    const initiativePause = (await (
+      await pauseInitiative(app, initiative.id)
+    ).json()) as Json;
+    const [target] = await db
+      .insert(schema.workspaceTable)
+      .values({
+        id: `workspace-target-${initiative.id}`,
+        name: "Destino",
+        slug: `destino-${initiative.id}`,
+        createdAt: new Date(),
+      })
+      .returning();
+    await db.insert(schema.workspaceUserTable).values({
+      workspaceId: target!.id,
+      userId: user.id,
+      role: "owner",
+      joinedAt: new Date(),
+    });
+
+    await moveProject(sf.id, workspace.id, target!.id, user.id);
+
+    expect((await listPauses(app, workspace.id)).pausas).toEqual([]);
+    const moved = await listPauses(app, target!.id);
+    expect(moved.pausas.map((p) => p.id)).toEqual([
+      projectPause.id,
+      initiativePause.id,
+    ]);
+    expect(moved.pausas.every((p) => p.workspaceId === target!.id)).toBe(true);
+
+    // Deleting the old workspace leaves the moved project's pauses alone.
+    await db
+      .delete(schema.workspaceTable)
+      .where(eq(schema.workspaceTable.id, workspace.id));
+    expect(await db.select().from(scopePauseTable)).toHaveLength(2);
+    const history = await call(
+      app,
+      "GET",
+      `/scope-pause/${projectPause.id}/history`,
+    );
+    expect(history.status).toBe(200);
+  });
+
   it("does not show another workspace's pauses", async () => {
     const { app, sf } = await setup();
     await pauseProject(app, sf.id);
@@ -545,7 +626,6 @@ describe("API integration: Intelia scope pauses", () => {
     );
     await db.insert(scopePauseTable).values([
       ...projects.map((project) => ({
-        workspaceId: workspace.id,
         scopeType: "project" as const,
         projectId: project.id,
         motivo: "Carga",
@@ -553,7 +633,6 @@ describe("API integration: Intelia scope pauses", () => {
         pausedByUserId: user.id,
       })),
       ...initiatives.map((initiative) => ({
-        workspaceId: workspace.id,
         scopeType: "initiative" as const,
         initiativeId: initiative.id,
         motivo: "Carga",

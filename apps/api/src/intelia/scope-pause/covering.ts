@@ -11,6 +11,8 @@ export type CoveringPause = {
   id: string;
   scopeType: "project" | "initiative";
   scopeName: string;
+  /** The paused project, or the initiative's home project. */
+  homeProjectId: string;
   motivo: string;
 };
 
@@ -27,6 +29,8 @@ export async function activePauseCovering(
       id: scopePauseTable.id,
       scopeType: scopePauseTable.scopeType,
       projectName: projectTable.name,
+      pausedProjectId: scopePauseTable.projectId,
+      initiativeProjectId: initiativeTable.projectId,
       initiativeName: initiativeTable.name,
       motivo: scopePauseTable.motivo,
     })
@@ -58,6 +62,7 @@ export async function activePauseCovering(
     id: pause.id,
     scopeType: pause.scopeType,
     scopeName: pause.projectName ?? pause.initiativeName ?? "",
+    homeProjectId: pause.pausedProjectId ?? pause.initiativeProjectId ?? "",
     motivo: pause.motivo,
   };
 }
