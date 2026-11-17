@@ -28,6 +28,8 @@ import { cn } from "@/lib/cn";
 import { getProjectUnavailableReason } from "@/lib/project-unavailable-reason";
 import { useBackgroundStore } from "@/store/background";
 import { useUserPreferencesStore } from "@/store/user-preferences";
+import { ProjectPauseNotice } from "@/intelia/scope-pause/components/project-pause-notice";
+import { ScopePauseLog } from "@/intelia/scope-pause/components/scope-pause-log";
 import ProjectUnavailable from "./project-unavailable";
 
 type ProjectLayoutProps = {
@@ -161,12 +163,17 @@ export default function ProjectLayout({
             )}
             {summary}
             <div className="ml-auto flex shrink-0 items-center gap-1">
+              <ScopePauseLog
+                workspaceId={workspaceId}
+                scope={{ type: "project", projectId }}
+              />
               {toolbar}
             </div>
           </div>
           <div className={cn({ "bg-card/80 backdrop-blur": !!background })}>
             {filterBar}
           </div>
+          <ProjectPauseNotice workspaceId={workspaceId} projectId={projectId} />
         </TooltipProvider>
       )}
 

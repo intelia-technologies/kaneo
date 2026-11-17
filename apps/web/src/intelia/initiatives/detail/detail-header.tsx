@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { formatDateMedium } from "@/lib/format";
+import { InitiativePauseNotice } from "@/intelia/scope-pause/components/initiative-pause-notice";
+import { ScopePauseLog } from "@/intelia/scope-pause/components/scope-pause-log";
 import type { InitiativeDetail } from "../api";
 import { DesignLink } from "../components/design-link";
 import { ProgressFigures } from "../components/initiative-progress";
@@ -111,6 +113,11 @@ export function DetailHeader({
             </span>
           )}
 
+          <ScopePauseLog
+            workspaceId={workspaceId}
+            scope={{ type: "initiative", initiativeId: initiative.id }}
+          />
+
           <Button
             variant="outline"
             size="sm"
@@ -126,6 +133,11 @@ export function DetailHeader({
         <span aria-hidden="true">·</span>
         <span>{planText}</span>
       </div>
+
+      <InitiativePauseNotice
+        workspaceId={workspaceId}
+        initiativeId={initiative.id}
+      />
 
       <EditInitiativeDialog
         open={editDialogOpen}
