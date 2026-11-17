@@ -179,7 +179,10 @@ async function getTasksPage(
         userTable.name,
         userTable.image,
         sql`(select type from intelia.task_classification where task_id = ${taskTable.id})`,
-        sql`(select initiative_id from intelia.task_initiative where task_id = ${taskTable.id})`,
+        boardTaskInitiative({
+          workspaceId: project.workspaceId,
+          publicOnly: true,
+        }),
         sql`exists (
           select 1 from custom_field_value v
           join custom_field_definition d on d.id = v.field_id

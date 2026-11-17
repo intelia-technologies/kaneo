@@ -348,6 +348,7 @@ export function useInitiativePlan(
 }
 
 export function useUpdateInitiative() {
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateInitiatives();
   return useMutation({
     mutationFn: ({
@@ -357,6 +358,12 @@ export function useUpdateInitiative() {
       initiativeId: string;
       input: InitiativeUpdate;
     }) => patchInitiative(initiativeId, input),
-    onSettled: invalidate,
+    onSettled: (_data, _error, { input }) => {
+      // A new name shows in the lists' «Iniciativa» column (KF-23) of any
+      // project with its tasks; only boards on screen refetch.
+      if (input.name !== undefined)
+        void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      return invalidate();
+    },
   });
 }
