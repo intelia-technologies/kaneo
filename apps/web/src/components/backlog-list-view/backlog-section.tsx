@@ -7,8 +7,10 @@ import { AnimatePresence, motion } from "motion/react";
 import { ChevronRight, type Clock, Plus } from "lucide-react";
 import { memo, type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ListColumnsHeader } from "@/intelia/wait/components/list-columns-header";
 import { cn } from "@/lib/cn";
 import { EASE_OUT } from "@/lib/motion";
+import { useUserPreferencesStore } from "@/store/user-preferences";
 import type Task from "@/types/task";
 import BacklogTaskRow from "./backlog-task-row";
 
@@ -36,6 +38,9 @@ const BacklogSection = memo(function BacklogSection({
 }) {
   const { t } = useTranslation();
   const [animateExpand, setAnimateExpand] = useState(false);
+  const showInitiative = useUserPreferencesStore(
+    (state) => state.showInitiative,
+  );
   const { setNodeRef } = useDroppable({
     id: sectionId,
     data: {
@@ -107,6 +112,9 @@ const BacklogSection = memo(function BacklogSection({
               "transition-[translate,opacity] duration-150 ease-out starting:-translate-y-1 starting:opacity-0 motion-reduce:starting:translate-y-0",
           )}
         >
+          {tasks.length > 0 && (
+            <ListColumnsHeader showInitiative={showInitiative} />
+          )}
           <SortableContext items={tasks} strategy={verticalListSortingStrategy}>
             <AnimatePresence initial={false} mode="popLayout">
               {tasks.map((task) => (

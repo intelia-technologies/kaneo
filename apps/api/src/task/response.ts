@@ -47,6 +47,20 @@ export const taskSchema = z
   })
   .openapi("Task");
 
+// Intelia fork (KF-23): the initiative shown in the list's «Iniciativa» column.
+const boardTaskInitiativeSchema = z
+  .object({
+    id: z.string(),
+    projectId: z.string().openapi({
+      description:
+        "The initiative's project, which may differ from the task's (design 52 §3.1).",
+    }),
+    name: z.string().nullable().openapi({
+      description: "Null when the caller cannot read the initiative's project.",
+    }),
+  })
+  .openapi("BoardTaskInitiative");
+
 export const taskWithAssigneeSchema = taskSchema
   .extend({
     type: z
@@ -83,6 +97,10 @@ export const taskWithAssigneeSchema = taskSchema
     blockersSummary: blockersSummarySchema.optional().openapi({
       description:
         "Why the task waits (design 55 §3.1). Included by GET /task/{id}; omitted elsewhere.",
+    }),
+    initiative: boardTaskInitiativeSchema.nullable().optional().openapi({
+      description:
+        "The task's initiative, or null without one. Included by the board view only.",
     }),
     assigneeName: z.string().nullable(),
     assigneeId: z.string().nullable(),
@@ -156,6 +174,10 @@ export const boardTaskSchema = z
     assigneeId: z.string().nullable(),
     assigneeImage: z.string().nullable(),
     projectId: z.string(),
+    initiative: boardTaskInitiativeSchema.nullable().openapi({
+      description:
+        "The task's initiative, or null without one (Intelia fork, KF-23). Public boards show only initiatives of public projects.",
+    }),
     subtaskCounts: z
       .object({
         completed: z.number().int().nonnegative(),

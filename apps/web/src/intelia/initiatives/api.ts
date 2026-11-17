@@ -206,6 +206,7 @@ export function useInvalidateInitiatives() {
 }
 
 export function useSetTaskInitiative() {
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateInitiatives();
   return useMutation({
     mutationFn: ({
@@ -214,8 +215,15 @@ export function useSetTaskInitiative() {
     }: {
       taskId: string;
       initiativeId: string;
+      projectId: string | undefined;
     }) => putTaskInitiative(taskId, initiativeId),
-    onSettled: invalidate,
+    onSettled: (_data, _error, { projectId }) => {
+      // The list's «Iniciativa» column comes from the board read (KF-23),
+      // and the change raises no task event.
+      if (projectId)
+        void queryClient.invalidateQueries({ queryKey: ["tasks", projectId] });
+      return invalidate();
+    },
   });
 }
 
@@ -340,6 +348,7 @@ export function useInitiativePlan(
 }
 
 export function useUpdateInitiative() {
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateInitiatives();
   return useMutation({
     mutationFn: ({
@@ -349,6 +358,12 @@ export function useUpdateInitiative() {
       initiativeId: string;
       input: InitiativeUpdate;
     }) => patchInitiative(initiativeId, input),
-    onSettled: invalidate,
+    onSettled: (_data, _error, { input }) => {
+      // A new name shows in the lists' «Iniciativa» column (KF-23) of any
+      // project with its tasks; only boards on screen refetch.
+      if (input.name !== undefined)
+        void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      return invalidate();
+    },
   });
 }

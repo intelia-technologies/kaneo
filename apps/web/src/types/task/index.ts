@@ -23,6 +23,12 @@ type TaskCustomFieldValue = {
   value: string | null;
 };
 
+export type TaskInitiativeRef = {
+  id: string;
+  projectId: string;
+  name: string | null;
+};
+
 type Task = {
   id: string;
   title: string;
@@ -49,6 +55,9 @@ type Task = {
   // Intelia (design 53 §3.2): archived, apart from the status.
   archivedAt?: string | null;
   blockersSummary?: BlockersSummary;
+  // Intelia (KF-23): the board's initiative of the task; its name is null
+  // when the reader cannot read the initiative's project.
+  initiative?: TaskInitiativeRef | null;
   subtaskCounts?: { completed: number; total: number };
   labels?: TaskLabel[];
   externalLinks?: TaskExternalLink[];

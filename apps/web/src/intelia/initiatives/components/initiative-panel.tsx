@@ -94,7 +94,7 @@ export function TaskInitiativePanel({
     setPendingInitiativeId(nextInitiativeId);
 
     setInitiative.mutate(
-      { taskId, initiativeId: nextInitiativeId },
+      { taskId, initiativeId: nextInitiativeId, projectId },
       {
         onSuccess: () => {
           setPendingInitiativeId(null);

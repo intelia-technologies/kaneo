@@ -316,6 +316,9 @@
           "projectId": {
             "type": "string"
           },
+          "initiative": {
+            "$ref": "#/components/schemas/BoardTaskInitiative"
+          },
           "subtaskCounts": {
             "type": "object",
             "properties": {
@@ -369,6 +372,7 @@
           "assigneeId",
           "assigneeImage",
           "projectId",
+          "initiative",
           "subtaskCounts",
           "labels",
           "externalLinks"
@@ -640,6 +644,34 @@
           "timeZone"
         ],
         "description": "When a task with this rule moves into a final column, the next task is created with its dates moved forward by one interval from the completed task's due date."
+      },
+      "BoardTaskInitiative": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "The initiative's project, which may differ from the task's (design 52 §3.1)."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null when the caller cannot read the initiative's project."
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "name"
+        ],
+        "description": "The task's initiative, or null without one (Intelia fork, KF-23). Public boards show only initiatives of public projects."
       },
       "TaskLabel": {
         "type": "object",
@@ -2110,6 +2142,34 @@
                     "description": "Why the task waits (design 55 §3.1). Included by GET /task/{id}; omitted elsewhere."
                   }
                 ]
+              },
+              "initiative": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "projectId": {
+                    "type": "string",
+                    "description": "The initiative's project, which may differ from the task's (design 52 §3.1)."
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Null when the caller cannot read the initiative's project."
+                  }
+                },
+                "required": [
+                  "id",
+                  "projectId",
+                  "name"
+                ],
+                "description": "The task's initiative, or null without one. Included by the board view only."
               },
               "assigneeName": {
                 "type": [

@@ -1,8 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { Toggle } from "@/components/ui/toggle";
 import { useUserPreferencesStore } from "@/store/user-preferences";
+import "@/intelia/initiatives/i18n";
 
-export function CardFieldToggles() {
+export function CardFieldToggles({ layout }: { layout: "cards" | "rows" }) {
   const { t } = useTranslation();
   const preferences = useUserPreferencesStore();
 
@@ -49,6 +50,17 @@ export function CardFieldToggles() {
       pressed: preferences.showStatusAge,
       onPressedChange: preferences.setShowStatusAge,
     },
+    // Intelia (KF-23): the list's «Iniciativa» column; cards have none.
+    ...(layout === "rows"
+      ? [
+          {
+            id: "initiative",
+            label: t("intelia:initiative.title"),
+            pressed: preferences.showInitiative,
+            onPressedChange: preferences.setShowInitiative,
+          },
+        ]
+      : []),
   ];
 
   return (
