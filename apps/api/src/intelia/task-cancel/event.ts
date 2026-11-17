@@ -1,4 +1,4 @@
-import { sendToStatusWebhooks } from "../webhooks";
+import { sendToDispatcher } from "../webhooks";
 
 export const CANCELLED_WITH_DEPENDENTS_EVENT =
   "intelia.task.cancelled_with_dependents";
@@ -19,16 +19,16 @@ export type CancelledWithDependents = {
 };
 
 /**
- * `intelia.task.cancelled_with_dependents` (§4.6) once committed, through the
- * root project's webhooks, like `task.automation_changed`. Body documented in
- * README-INTELIA.md.
+ * `intelia.task.cancelled_with_dependents` (§4.6, decision 25) once committed:
+ * only to the dispatcher, never through a project's webhooks, because it names
+ * tasks of other boards. Body documented in README-INTELIA.md.
  */
-export function notifyCancelledWithDependents(
+export async function notifyCancelledWithDependents(
   root: { id: string; projectId: string },
   userId: string,
   data: CancelledWithDependents,
 ) {
-  return sendToStatusWebhooks(
+  await sendToDispatcher(
     CANCELLED_WITH_DEPENDENTS_EVENT,
     root.id,
     root.projectId,

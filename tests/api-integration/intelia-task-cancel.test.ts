@@ -2,6 +2,9 @@
 // the 409 against the CD-01 samples and their esquema.json, the resolutions
 // applied in one transaction, the race guards, the sizes of the real chains
 // and the guard switch (INTELIA_CANCEL_GUARD).
+import { createHmac } from "node:crypto";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { eq, inArray } from "drizzle-orm";
 import {
   afterEach,
@@ -50,6 +53,34 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
+
+// The dispatcher's `/webhooks/kaneo`, as the only destination of the event.
+async function dispatcher() {
+  const received: { signature: string | undefined; body: string }[] = [];
+  const arrived = Promise.withResolvers<void>();
+  const server = createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => {
+      received.push({
+        signature: req.headers["x-kaneo-signature"] as string | undefined,
+        body,
+      });
+      res.end("ok");
+      arrived.resolve();
+    });
+  });
+  const listening = Promise.withResolvers<void>();
+  server.listen(0, "127.0.0.1", () => listening.resolve());
+  await listening.promise;
+  const { port } = server.address() as AddressInfo;
+  return {
+    url: `http://127.0.0.1:${port}/webhooks/kaneo`,
+    received,
+    arrived: arrived.promise,
+    close: () => server.close(),
+  };
+}
 
 async function setup() {
   const { user: owner, workspace } = await createWorkspaceMember({
@@ -233,6 +264,9 @@ describe("resolutions", () => {
     const send = vi
       .spyOn(webhooks, "sendToStatusWebhooks")
       .mockResolvedValue(undefined);
+    const receiver = await dispatcher();
+    vi.stubEnv("INTELIA_DESPACHADOR_WEBHOOK_URL", receiver.url);
+    vi.stubEnv("INTELIA_DESPACHADOR_WEBHOOK_SECRET", "secreto-de-prueba");
 
     const started = performance.now();
     const res = await cancel(app, seeded.ids.get("SF-2491")!, peticion, {
@@ -362,17 +396,34 @@ describe("resolutions", () => {
     ]);
     expect(toKf[0]).not.toHaveProperty("sourceTaskId");
     expect(byTask["SF-2491"]).not.toContain("KF-15");
-    const sent = send.mock.calls.filter(
-      ([type]) => type === "intelia.task.cancelled_with_dependents",
+    // The event goes to the dispatcher only, signed; no project's webhooks.
+    expect(
+      send.mock.calls.filter(
+        ([type]) => type === "intelia.task.cancelled_with_dependents",
+      ),
+    ).toEqual([]);
+    await receiver.arrived;
+    receiver.close();
+    expect(receiver.received).toHaveLength(1);
+    const [{ signature, body }] = receiver.received as [
+      { signature: string; body: string },
+    ];
+    expect(signature).toBe(
+      createHmac("sha256", "secreto-de-prueba").update(body).digest("hex"),
     );
-    expect(sent).toHaveLength(1);
-    const [, rootId, projectId, , data] = sent[0]!;
-    expect([rootId, projectId]).toEqual([
+    const envelope = JSON.parse(body) as {
+      event: string;
+      project: { id: string };
+      task: { id: string };
+      data: Body;
+    };
+    expect(envelope.event).toBe("intelia.task.cancelled_with_dependents");
+    expect([envelope.task.id, envelope.project.id]).toEqual([
       seeded.ids.get("SF-2491"),
       seeded.projects.get("SF"),
     ]);
     const { valor: evento } = readFixture<{ valor: Body }>("evento-sf-2491");
-    expect(data).toEqual({
+    expect(envelope.data).toEqual({
       ...evento,
       otros_tableros: [
         {
@@ -383,10 +434,38 @@ describe("resolutions", () => {
       ],
       en: expect.any(String),
     });
-    expect(schemaErrors("evento", data)).toBeNull();
+    expect(schemaErrors("evento", envelope.data)).toBeNull();
     expect(
       send.mock.calls.filter(([type]) => type === "task.automation_changed"),
     ).toHaveLength(1);
+  });
+
+  it("send the event nowhere without the dispatcher's variables, and log it", async () => {
+    const { app, seeded, key } = await setup();
+    await seedSf2491(seeded);
+    vi.stubEnv("INTELIA_DESPACHADOR_WEBHOOK_URL", "");
+    vi.stubEnv("INTELIA_DESPACHADOR_WEBHOOK_SECRET", "");
+    const send = vi
+      .spyOn(webhooks, "sendToStatusWebhooks")
+      .mockResolvedValue(undefined);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await cancel(app, seeded.ids.get("SF-2491")!, peticion, {
+      "x-api-key": key,
+    });
+
+    expect(res.status).toBe(200);
+    expect(
+      send.mock.calls.filter(
+        ([type]) => type === "intelia.task.cancelled_with_dependents",
+      ),
+    ).toEqual([]);
+    expect(error).toHaveBeenCalledWith(
+      "dispatcher webhook not configured: event not sent",
+      expect.objectContaining({
+        eventName: "intelia.task.cancelled_with_dependents",
+      }),
+    );
   });
 
   it("leave nothing changed when the last step fails", async () => {
