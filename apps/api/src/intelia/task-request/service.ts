@@ -1,23 +1,18 @@
-import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import db from "../../database";
 import {
-  columnTable,
   projectTable,
   taskTable,
   userTable,
   workspaceUserTable,
 } from "../../database/schema";
 import { ApiError } from "../../errors/api-error";
-import { publishEvent } from "../../events";
 import {
   dispatchNotification,
   persistNotification,
 } from "../../notification/controllers/create-notification";
-import { publishTaskMutation } from "../../task/controllers/task-mutation-effects";
-import { withLockedTask } from "../../task/controllers/with-locked-task";
 import { CANCELLED } from "../initiatives/service";
 import { taskRequestTable } from "../schema";
-import { isRequestedStatus } from "./status";
 
 export type RequesterWriter = {
   userId: string;
@@ -28,10 +23,6 @@ const notFound = () =>
   new ApiError(404, { message: "Task not found", code: "NOT_FOUND" });
 
 export const isCancelledStatus = (status: string) => CANCELLED.has(status);
-
-// The final column a rejection creates where the project has none.
-const CANCELLED_COLUMN_SLUG = "cancelled";
-const CANCELLED_COLUMN_NAME = "Cancelled";
 
 /** The task's requester, or null; for members of the task's project. */
 export async function getTaskRequester(taskId: string) {
@@ -204,87 +195,4 @@ export async function syncTaskRequest({ taskId }: { taskId: string }) {
     );
   });
   if (notification) await dispatchNotification(notification);
-}
-
-/**
- * Rejects a request still in «Pedida»: moves the task to its project's
- * cancelled column and keeps the reason for the requester's notice. A
- * project without one (the default board has none) gets a final «Cancelled»
- * column, last. The check and the move run under the task's row lock, the
- * one every status change takes, so a task moved out of «Pedida» meanwhile
- * is not cancelled.
- */
-export async function rejectTaskRequest(
-  taskId: string,
-  reason: string,
-  currentUserId: string,
-) {
-  let createdColumn = false;
-  const { before, after } = await withLockedTask(taskId, async (tx, task) => {
-    const [request] = await tx
-      .select({ closedAt: taskRequestTable.closedAt })
-      .from(taskRequestTable)
-      .where(eq(taskRequestTable.taskId, taskId))
-      .limit(1);
-    if (!request) {
-      throw new ApiError(409, {
-        message: "The task has no requester",
-        code: "TASK_NOT_REQUESTED",
-      });
-    }
-    if (!isRequestedStatus(task.status)) {
-      throw new ApiError(409, {
-        message: "Only a task in «Pedida» can be rejected",
-        code: "TASK_NOT_PENDING_REQUEST",
-      });
-    }
-    // The lock create-column takes: no concurrent column gets the slug.
-    await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(1525, hashtext(${task.projectId}))`,
-    );
-    const columns = await tx
-      .select({
-        id: columnTable.id,
-        slug: columnTable.slug,
-        position: columnTable.position,
-      })
-      .from(columnTable)
-      .where(eq(columnTable.projectId, task.projectId))
-      .orderBy(asc(columnTable.position));
-    let cancelled: { id: string; slug: string } | undefined = columns.find(
-      (column) => isCancelledStatus(column.slug),
-    );
-    if (!cancelled) {
-      [cancelled] = await tx
-        .insert(columnTable)
-        .values({
-          projectId: task.projectId,
-          name: CANCELLED_COLUMN_NAME,
-          slug: CANCELLED_COLUMN_SLUG,
-          position: Math.max(-1, ...columns.map((c) => c.position)) + 1,
-          isFinal: true,
-        })
-        .returning({ id: columnTable.id, slug: columnTable.slug });
-      createdColumn = true;
-    }
-    await tx
-      .update(taskRequestTable)
-      .set({ pendingReason: reason })
-      .where(eq(taskRequestTable.taskId, taskId));
-    const [updated] = await tx
-      .update(taskTable)
-      .set({ status: cancelled!.slug, columnId: cancelled!.id })
-      .where(eq(taskTable.id, taskId))
-      .returning();
-    return updated!;
-  });
-  if (createdColumn)
-    await publishEvent("project.updated", { projectId: after.projectId });
-  // The same events as any status change (activity, webhooks, live boards).
-  await publishTaskMutation(before, after, currentUserId, {
-    fields: ["status"],
-  });
-  // The status event closes it too; whichever runs first sends the notice.
-  await syncTaskRequest({ taskId });
-  return getTaskRequester(taskId);
 }

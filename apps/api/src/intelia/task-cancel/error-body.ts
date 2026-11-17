@@ -16,6 +16,8 @@ const OPCIONES = {
 const OTROS_TABLEROS =
   "No se deciden: al cancelar se les quita la dependencia, se les apaga la automática y se avisa a su responsable.";
 
+export type DependenciesError = ReturnType<typeof dependenciesErrorBody>;
+
 /**
  * `409 DEPENDENCIAS_SIN_RESOLVER` (§4.2) for the chain as it is now and what
  * the resolutions left. Nothing is preselected in `ejemplo_resoluciones`.

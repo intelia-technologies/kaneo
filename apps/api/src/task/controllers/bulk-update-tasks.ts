@@ -32,6 +32,10 @@ import {
   assertValidTaskStatus,
 } from "../validate-task-fields";
 import { assertNoPendingBlockersOnTransition } from "./assert-no-pending-blockers-on-transition";
+import {
+  assertCancelResolved,
+  assertDeleteResolved,
+} from "./assert-cancel-resolved";
 
 type BulkOperation =
   | "updateStatus"
@@ -174,6 +178,7 @@ async function bulkUpdateTasks({
           userId,
           new Map(before.map((task) => [task.id, value])),
         );
+        await assertCancelResolved(tx, before, value, userId);
         const beforeById = new Map(before.map((task) => [task.id, task]));
         const result: Array<{
           id: string;
@@ -356,7 +361,11 @@ async function bulkUpdateTasks({
       const parentProjects = await getSubtaskParentProjects(foundIds);
       const result = await db.transaction(async (tx) => {
         const locked = await tx
-          .select({ id: taskTable.id, projectId: taskTable.projectId })
+          .select({
+            id: taskTable.id,
+            projectId: taskTable.projectId,
+            status: taskTable.status,
+          })
           .from(taskTable)
           .where(inArray(taskTable.id, foundIds))
           .orderBy(asc(taskTable.id))
@@ -373,6 +382,7 @@ async function bulkUpdateTasks({
           throw new HTTPException(409, {
             message: "Tasks changed projects; retry the operation",
           });
+        await assertDeleteResolved(tx, locked, userId);
         const assets = await tx
           .select({ objectKey: assetTable.objectKey })
           .from(assetTable)

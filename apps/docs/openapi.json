@@ -1475,6 +1475,257 @@
           "updatedCount"
         ]
       },
+      "DependenciesUnresolvedError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "enum": [
+              "DEPENDENCIAS_SIN_RESOLVER"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "properties": {
+              "tarea": {
+                "type": "object",
+                "properties": {
+                  "ticket": {
+                    "type": "string"
+                  },
+                  "titulo": {
+                    "type": "string"
+                  },
+                  "tablero": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ticket",
+                  "titulo",
+                  "tablero"
+                ]
+              },
+              "motivo": {
+                "type": "object",
+                "properties": {
+                  "requerido": {
+                    "type": "boolean"
+                  },
+                  "recibido": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "requerido",
+                  "recibido"
+                ]
+              },
+              "total": {
+                "type": "integer"
+              },
+              "truncada": {
+                "type": "boolean"
+              },
+              "cadena": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "tipo": {
+                      "type": "string",
+                      "enum": [
+                        "decidir",
+                        "otro_tablero",
+                        "oculta"
+                      ]
+                    },
+                    "ticket": {
+                      "type": "string"
+                    },
+                    "titulo": {
+                      "type": "string"
+                    },
+                    "tablero": {
+                      "type": "string"
+                    },
+                    "estado": {
+                      "type": "string"
+                    },
+                    "nivel": {
+                      "type": "integer"
+                    },
+                    "depende_de": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ticket": {
+                            "type": "string"
+                          },
+                          "relacion": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ticket",
+                          "relacion"
+                        ]
+                      }
+                    },
+                    "solo_si_cancelas": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "responsable": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "opciones": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "cancelar",
+                          "quitar",
+                          "mover"
+                        ]
+                      }
+                    },
+                    "cuelgan": {
+                      "type": "integer"
+                    },
+                    "asignado": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "automatica": {
+                      "type": "boolean"
+                    },
+                    "rutina_activa": {
+                      "type": "boolean"
+                    },
+                    "en_curso": {
+                      "type": "boolean"
+                    },
+                    "automatico": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "tipo",
+                    "tablero",
+                    "nivel",
+                    "solo_si_cancelas"
+                  ],
+                  "description": "A task of the chain. `oculta` (a project the caller does not read) has only `tipo`, `tablero`, `nivel` and `solo_si_cancelas`."
+                }
+              },
+              "pendientes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "problemas": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "tarea": {
+                      "type": "string"
+                    },
+                    "problema": {
+                      "type": "string"
+                    },
+                    "detalle": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "tarea",
+                    "problema",
+                    "detalle"
+                  ]
+                }
+              },
+              "opciones": {
+                "type": "object",
+                "properties": {
+                  "cancelar": {
+                    "type": "string"
+                  },
+                  "quitar": {
+                    "type": "string"
+                  },
+                  "mover": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "cancelar",
+                  "quitar",
+                  "mover"
+                ]
+              },
+              "otros_tableros": {
+                "type": "string"
+              },
+              "ejemplo_resoluciones": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "tarea": {
+                      "type": "string"
+                    },
+                    "accion": {
+                      "type": "string"
+                    },
+                    "a": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "tarea",
+                    "accion"
+                  ]
+                }
+              },
+              "a_mano": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "tarea",
+              "motivo",
+              "total",
+              "truncada",
+              "cadena",
+              "pendientes",
+              "problemas",
+              "opciones",
+              "otros_tableros",
+              "ejemplo_resoluciones",
+              "a_mano"
+            ]
+          }
+        },
+        "required": [
+          "error",
+          "message",
+          "details"
+        ]
+      },
       "TaskImageUpload": {
         "type": "object",
         "properties": {
@@ -10305,257 +10556,6 @@
           "comentarios"
         ]
       },
-      "DependenciesUnresolvedError": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string",
-            "enum": [
-              "DEPENDENCIAS_SIN_RESOLVER"
-            ]
-          },
-          "message": {
-            "type": "string"
-          },
-          "details": {
-            "type": "object",
-            "properties": {
-              "tarea": {
-                "type": "object",
-                "properties": {
-                  "ticket": {
-                    "type": "string"
-                  },
-                  "titulo": {
-                    "type": "string"
-                  },
-                  "tablero": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "ticket",
-                  "titulo",
-                  "tablero"
-                ]
-              },
-              "motivo": {
-                "type": "object",
-                "properties": {
-                  "requerido": {
-                    "type": "boolean"
-                  },
-                  "recibido": {
-                    "type": "boolean"
-                  }
-                },
-                "required": [
-                  "requerido",
-                  "recibido"
-                ]
-              },
-              "total": {
-                "type": "integer"
-              },
-              "truncada": {
-                "type": "boolean"
-              },
-              "cadena": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "tipo": {
-                      "type": "string",
-                      "enum": [
-                        "decidir",
-                        "otro_tablero",
-                        "oculta"
-                      ]
-                    },
-                    "ticket": {
-                      "type": "string"
-                    },
-                    "titulo": {
-                      "type": "string"
-                    },
-                    "tablero": {
-                      "type": "string"
-                    },
-                    "estado": {
-                      "type": "string"
-                    },
-                    "nivel": {
-                      "type": "integer"
-                    },
-                    "depende_de": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "ticket": {
-                            "type": "string"
-                          },
-                          "relacion": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "ticket",
-                          "relacion"
-                        ]
-                      }
-                    },
-                    "solo_si_cancelas": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "responsable": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "opciones": {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "enum": [
-                          "cancelar",
-                          "quitar",
-                          "mover"
-                        ]
-                      }
-                    },
-                    "cuelgan": {
-                      "type": "integer"
-                    },
-                    "asignado": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
-                    },
-                    "automatica": {
-                      "type": "boolean"
-                    },
-                    "rutina_activa": {
-                      "type": "boolean"
-                    },
-                    "en_curso": {
-                      "type": "boolean"
-                    },
-                    "automatico": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "tipo",
-                    "tablero",
-                    "nivel",
-                    "solo_si_cancelas"
-                  ],
-                  "description": "A task of the chain. `oculta` (a project the caller does not read) has only `tipo`, `tablero`, `nivel` and `solo_si_cancelas`."
-                }
-              },
-              "pendientes": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "problemas": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "tarea": {
-                      "type": "string"
-                    },
-                    "problema": {
-                      "type": "string"
-                    },
-                    "detalle": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "tarea",
-                    "problema",
-                    "detalle"
-                  ]
-                }
-              },
-              "opciones": {
-                "type": "object",
-                "properties": {
-                  "cancelar": {
-                    "type": "string"
-                  },
-                  "quitar": {
-                    "type": "string"
-                  },
-                  "mover": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "cancelar",
-                  "quitar",
-                  "mover"
-                ]
-              },
-              "otros_tableros": {
-                "type": "string"
-              },
-              "ejemplo_resoluciones": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "tarea": {
-                      "type": "string"
-                    },
-                    "accion": {
-                      "type": "string"
-                    },
-                    "a": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "tarea",
-                    "accion"
-                  ]
-                }
-              },
-              "a_mano": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "tarea",
-              "motivo",
-              "total",
-              "truncada",
-              "cadena",
-              "pendientes",
-              "problemas",
-              "opciones",
-              "otros_tableros",
-              "ejemplo_resoluciones",
-              "a_mano"
-            ]
-          }
-        },
-        "required": [
-          "error",
-          "message",
-          "details"
-        ]
-      },
       "InteliaMoveTaskResult": {
         "type": "object",
         "properties": {
@@ -16501,11 +16501,18 @@
             }
           },
           "409": {
-            "description": "Tasks changed projects; retry the operation. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`); nothing changed",
+            "description": "Tasks changed projects; retry the operation. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`). Or, with `INTELIA_CANCEL_GUARD` on, `updateStatus` to a cancelled column or `delete` of a task whose open dependents are not all in the batch (`DEPENDENCIAS_SIN_RESOLVER`, design 82 decision 18: cancel it with `POST /intelia/task/{taskId}/cancel`); nothing changed",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DependenciesUnresolvedError"
+                    }
+                  ]
                 }
               }
             }
@@ -16916,11 +16923,18 @@
             }
           },
           "409": {
-            "description": "Board changed or task moved; refresh before reordering. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`)",
+            "description": "Board changed or task moved; refresh before reordering. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`). Or, with `INTELIA_CANCEL_GUARD` on, a card moved to a cancelled column with open dependents not moved with it (`DEPENDENCIAS_SIN_RESOLVER`); nothing changed",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DependenciesUnresolvedError"
+                    }
+                  ]
                 }
               }
             }
@@ -17863,11 +17877,18 @@
             }
           },
           "409": {
-            "description": "The task changed meanwhile; refresh and retry. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`)",
+            "description": "The task changed meanwhile; refresh and retry. Or `archived` for a task outside a final column (`TASK_NOT_CLOSED`). Or, with `INTELIA_CANCEL_GUARD` on, `status` to a cancelled column with open dependents (`DEPENDENCIAS_SIN_RESOLVER`: cancel it with `POST /intelia/task/{taskId}/cancel`); nothing changed",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DependenciesUnresolvedError"
+                    }
+                  ]
                 }
               }
             }
@@ -17936,11 +17957,18 @@
             }
           },
           "409": {
-            "description": "Task changed projects; retry the operation",
+            "description": "Task changed projects; retry the operation. Or, with `INTELIA_CANCEL_GUARD` on, the task has open dependents (`DEPENDENCIAS_SIN_RESOLVER`): cancel it first with `POST /intelia/task/{taskId}/cancel`; nothing changed",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DependenciesUnresolvedError"
+                    }
+                  ]
                 }
               }
             }
@@ -18516,11 +18544,18 @@
             }
           },
           "409": {
-            "description": "`archived` for a task outside a final column (`TASK_NOT_CLOSED`); nothing changed",
+            "description": "`archived` for a task outside a final column (`TASK_NOT_CLOSED`). Or, with `INTELIA_CANCEL_GUARD` on, a cancelled column for a task with open dependents (`DEPENDENCIAS_SIN_RESOLVER`: cancel it with `POST /intelia/task/{taskId}/cancel`); nothing changed",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DependenciesUnresolvedError"
+                    }
+                  ]
                 }
               }
             }
@@ -39782,7 +39817,7 @@
           "Requests"
         ],
         "summary": "Reject a requested task",
-        "description": "Moves a task in «Pedida» to its project's cancelled column (`cancelled` or `canceled`); a project without one gets a final «Cancelled» column, last. The requester loses access and gets a notice (`task_request_closed`) with the reason, and «My requests» lists it as rejected with that reason. Cancelling the task any other way closes the request too, with no reason.",
+        "description": "Moves a task in «Pedida» to its project's cancelled column (`cancelled` or `canceled`); a project without one gets a final «Cancelled» column, last. The requester loses access and gets a notice (`task_request_closed`) with the reason, and «My requests» lists it as rejected with that reason. Cancelling the task any other way closes the request too, with no reason. A task with open dependents is cancelled as `POST /intelia/task/{taskId}/cancel` does, with `reason` as its `motivo` (design 82): with `INTELIA_CANCEL_GUARD` on, or with `resoluciones`, they must cover its chain (dependents of other boards are handled on their own), or 409 `DEPENDENCIAS_SIN_RESOLVER` and nothing changes; a `reason` outside 10 to 1000 characters then counts as no `motivo`.",
         "parameters": [
           {
             "schema": {
@@ -39805,6 +39840,34 @@
                     "minLength": 1,
                     "maxLength": 2000,
                     "description": "Why the request is rejected; the requester gets it."
+                  },
+                  "resoluciones": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "tarea": {
+                          "type": "string",
+                          "pattern": "^[A-Z][A-Z0-9]*-\\d+$",
+                          "description": "Key of the dependent (`SF-2493`)."
+                        },
+                        "accion": {
+                          "type": "string",
+                          "description": "`cancelar`, `quitar` or `mover`."
+                        },
+                        "a": {
+                          "type": "string",
+                          "pattern": "^[A-Z][A-Z0-9]*-\\d+$",
+                          "description": "Only with `mover`: key of the task the dependency moves to."
+                        }
+                      },
+                      "required": [
+                        "tarea",
+                        "accion"
+                      ]
+                    },
+                    "maxItems": 1000,
+                    "description": "What happens to each open dependent of the task, as in `POST /intelia/task/{taskId}/cancel` (design 82 §4.3), with `reason` as its `motivo`: they must cover its chain exactly, or nothing changes."
                   }
                 },
                 "required": [
@@ -39866,11 +39929,18 @@
             }
           },
           "409": {
-            "description": "The task has no requester (`TASK_NOT_REQUESTED`) or is not in «Pedida» (`TASK_NOT_PENDING_REQUEST`)",
+            "description": "The task has no requester (`TASK_NOT_REQUESTED`) or is not in «Pedida» (`TASK_NOT_PENDING_REQUEST`); or open dependents without a complete resolution (`DEPENDENCIAS_SIN_RESOLVER`). Nothing changed",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DependenciesUnresolvedError"
+                    }
+                  ]
                 }
               }
             }

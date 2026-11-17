@@ -14,7 +14,13 @@ import { notifyCancelledWithDependents } from "./event";
 import { cancelGuardEnabled } from "./guard";
 import { loadForwardEdges, loadGraph, loadTargets } from "./load-graph";
 import { applyResolutions, type ResolveContext } from "./resolve";
-import type { ChainNode, Efectos, Graph, RawResolution } from "./types";
+import type {
+  ChainNode,
+  Efectos,
+  Graph,
+  GraphTask,
+  RawResolution,
+} from "./types";
 
 export type CancelInput = {
   motivo?: string;
@@ -82,6 +88,11 @@ function sameChain(a: readonly ChainNode[], b: readonly ChainNode[]) {
  *   checked first, and again under the lock of every affected task (taken in
  *   id order, so two overlapping cancellations wait instead of deadlocking):
  *   a chain that changed in between is a 409 with `cadena_cambiada`.
+ *
+ * `onLocked` runs inside the transaction with the rows locked, before
+ * anything is written: a caller's own checks and writes (the rejection of a
+ * request) commit or fail with the cancellation. With it, a task already
+ * cancelled is left to `onLocked` to refuse instead of answering as done.
  */
 export async function cancelTask({
   taskId,
@@ -90,6 +101,7 @@ export async function cancelTask({
   userName,
   writer,
   input,
+  onLocked,
 }: {
   taskId: string;
   workspaceId: string;
@@ -97,10 +109,11 @@ export async function cancelTask({
   userName: string | null;
   writer: AutomationWriter;
   input: CancelInput;
+  onLocked?: (tx: Transaction, root: GraphTask) => Promise<void>;
 }): Promise<CancelResult> {
   const resoluciones = input.resoluciones ?? [];
   const graph = await readGraph(db, taskId, userId);
-  if (isCancelledStatus(graph.root.status))
+  if (isCancelledStatus(graph.root.status) && !onLocked)
     return alreadyCancelled(graph.root.ticket);
   const chain = buildChain(graph);
   const guard = cancelGuardEnabled();
@@ -177,6 +190,7 @@ export async function cancelTask({
       .orderBy(taskTable.id)
       .for("update");
     const locked = await readGraph(tx, taskId, userId);
+    await onLocked?.(tx, locked.root);
     // Cancelled meanwhile by someone else: nothing left to do.
     if (isCancelledStatus(locked.root.status)) return null;
     const now = buildChain(locked);
