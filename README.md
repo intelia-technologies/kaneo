@@ -1,3 +1,13 @@
+> [!WARNING]
+> **Repositorio archivado / Archived repository (solo lectura)**
+>
+> Esta copia pública de Intelia ha quedado archivada el 18-11-2026 (`KP-03` / `SF-1888`).
+>
+> - **Proyecto original de Kaneo (upstream):** [https://github.com/usekaneo/kaneo](https://github.com/usekaneo/kaneo) · [https://kaneo.app](https://kaneo.app)
+> - **Trabajo activo interno de Intelia:** movido al repositorio privado `intelia-technologies/kaneo-privado`.
+
+---
+
 <p align="center">
   <a href="https://kaneo.app">
     <img src="https://assets.kaneo.app/logo-text.png" alt="Kaneo's logo" width="450" />
